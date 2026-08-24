@@ -94,10 +94,12 @@ pnpm run start:dev        # 或 pnpm run start
 | --- | --- | --- |
 | A | 源码从管理系统 `backend/ai-base` 迁出为独立仓库 `ZXQL-AI`，推送到 GitHub `wen-868/ZXQL-AI` | ✅ 完成 |
 | B | 管理系统部署脚本 `deploy/ai-base-deploy.sh` 改为从 `ZXQL-AI` 独立仓库拉取/构建（保留 `backend/ai-base` 回退） | ✅ 完成 |
-| C | 服务器切换：用 `ZXQL-AI` 起新实例 → 健康检查通过 → 切网关/停旧 AI（旧 AI 全程不停） | ⏳ 需在服务器执行 |
-| D | 单源化：确认新实例稳定后，从管理系统仓库删除 `backend/ai-base`，全部以 `ZXQL-AI` 为唯一来源 | ⏳ 待 C 验证后执行 |
+| C | 服务器切换：用 `ZXQL-AI` 起新实例 → 健康检查通过 → 切网关/停旧 AI（旧 AI 全程不停） | ✅ 完成（2026-08-24 服务器切换，健康检查第 1 次通过） |
+| D | 单源化：确认新实例稳定后，从管理系统仓库删除 `backend/ai-base`，全部以 `ZXQL-AI` 为唯一来源 | ⏸ 暂缓（AI 大修完成后执行；`backend/ai-base` 保留作回退点） |
 
 > 红线：C/D 阶段涉及生产切换，必须在服务器上实测（健康检查 + 端到端）通过后再删旧文件；全程保留 `backend/ai-base` 作为回退点，禁止破坏性操作。
+>
+> 决策（2026-08-24）：AI 底座当前需大修，阶段 D（单源化删除 `backend/ai-base`）暂缓，待 AI 完善并稳定后再执行。期间 `backend/ai-base` 保留作回退点。
 
 ## 8. 常见问题
 
