@@ -396,16 +396,23 @@ export class Orchestrator {
             toolContext,
           );
 
-          // ── R70-15：写操作预览 → 注册待确认操作 ──
-          // 工具返回 preview（写操作未确认）时，由 ConfirmationService 生成
-          // confirmationId，并在 tool_result 事件中携带，供前端渲染确认卡片。
+          // ── R70-15 + P0-1 WriteGuard：写操作预览 → 挂起令牌 ──
+          // 工具返回 preview（写操作未确认）时，由 ConfirmationService 经
+          // WriteGuardService 生成令牌（confirmationId），并在 tool_result 事件
+          // 中携带，供前端渲染确认卡片。risk/needsReview 取自工具注册元信息，
+          // 高危写（资金/删除/批量）触发二次确认。
           let confirmationId: string | undefined;
           if (toolResult.preview) {
             try {
-              const confirmation = this.confirmationService.create({
+              const tool = this.registry.get(tc.function.name);
+              const risk = tool?.risk ?? 'medium';
+              const confirmation = await this.confirmationService.create({
                 tenantId,
                 conversationId,
                 toolName: tc.function.name,
+                docType: tc.function.name,
+                risk,
+                needsReview: tool?.needsReview ?? risk === 'high',
                 args: JSON.parse(tc.function.arguments) as Record<
                   string,
                   unknown

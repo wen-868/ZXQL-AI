@@ -23,7 +23,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { AiAuditLogEntity } from '../database/entities/ai-audit-log.entity';
-import { ToolExecutionRecord } from '../tools/tool.interface';
+import { ToolExecutionRecord, ToolRisk } from '../tools/tool.interface';
 
 /**
  * AI 调用审计记录（由 Brain Engine / Gateway 在 LLM 调用后组装）
@@ -75,6 +75,35 @@ interface ToolCallAuditEntry {
   error?: string;
   /** 入参摘要（已脱敏，截断超长参数） */
   args_summary: Record<string, unknown>;
+}
+
+/**
+ * WriteGuard 写审核事件审计记录（P0-1）
+ *
+ * 覆盖写操作全轨迹：挂起（pending）/ 首次确认（first_confirmed）/ 确认（confirmed）/
+ * 取消（cancelled）/ 过期（expired）。token 入库前必须脱敏（maskToken）。
+ */
+export interface WriteGuardAuditRecord {
+  /** 租户 ID */
+  tenantId: string;
+  /** 会话 ID（可选） */
+  sessionId?: string;
+  /** 事件类型 */
+  event: 'pending' | 'first_confirmed' | 'confirmed' | 'cancelled' | 'expired';
+  /** 令牌（已脱敏） */
+  token: string;
+  /** 工具名称 */
+  toolName: string;
+  /** 文档类型 */
+  docType: string;
+  /** 风险分级 */
+  risk: ToolRisk;
+  /** 是否强制人工审核 */
+  needsReview: boolean;
+  /** 操作名称 */
+  operationLabel: string;
+  /** 预览摘要（可选） */
+  summary?: string;
 }
 
 @Injectable()
@@ -182,6 +211,49 @@ export class AuditLogger {
 
       this.logger.debug(
         `工具审计已写入：tool=${record.toolName} tenant=${record.context.tenantId} success=${record.success} ${record.durationMs}ms`,
+      );
+    });
+  }
+
+  /**
+   * 记录 WriteGuard 写审核事件（P0-1）
+   *
+   * 由 WriteGuardService 在令牌状态流转时调用（挂起/首次确认/确认/取消/过期），
+   * 写入 t_ai_audit_log（intent='write_guard'，tool_calls 携带事件明细）。
+   *
+   * @param record 写审核事件记录
+   */
+  logWriteGuardEvent(record: WriteGuardAuditRecord): void {
+    this.fireAndForget(async () => {
+      const entity = this.auditLogRepo.create({
+        tenantId: record.tenantId,
+        userId: null,
+        sessionId: record.sessionId ?? null,
+        provider: null,
+        model: null,
+        intent: 'write_guard',
+        userMessage: record.operationLabel,
+        toolCalls: [
+          {
+            event: record.event,
+            token: record.token,
+            tool_name: record.toolName,
+            doc_type: record.docType,
+            risk: record.risk,
+            needs_review: record.needsReview,
+            summary: record.summary,
+          },
+        ],
+        promptTokens: 0,
+        completionTokens: 0,
+        latencyMs: null,
+        success: 1,
+        errorMessage: null,
+      });
+      await this.auditLogRepo.save(entity);
+
+      this.logger.debug(
+        `WriteGuard 审计已写入：event=${record.event} tenant=${record.tenantId} tool=${record.toolName}`,
       );
     });
   }

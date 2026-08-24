@@ -33,9 +33,7 @@ import { RollbackExecutorService } from '../brain/rollback-executor.service';
 import { TenantContext } from '../tenant/tenant-context';
 import { ExternalModelService } from '../tenant/external-model.service';
 import { AiConfigService } from '../tenant/ai-config.service';
-import { ToolExecutor } from '../tools/tool-executor';
 import { VisionService } from '../providers/vision.service';
-import type { ToolCall } from '../providers/provider.interface';
 import type { ToolContext } from '../tools/tool.interface';
 import { ChatDto } from './dto/chat.dto';
 import {
@@ -53,7 +51,6 @@ export class ChatController {
     private readonly orchestrator: Orchestrator,
     private readonly tenantContext: TenantContext,
     private readonly confirmationService: ConfirmationService,
-    private readonly executor: ToolExecutor,
     private readonly rollbackExecutor: RollbackExecutorService,
     private readonly externalModelService: ExternalModelService,
     private readonly aiConfigService: AiConfigService,
@@ -213,23 +210,28 @@ export class ChatController {
    * Headers: Authorization: Bearer <JWT>（TenantMiddleware 注入 tenantId）
    */
   @Get('confirmations')
-  listConfirmations(): { total: number; items: PendingConfirmationResponse[] } {
+  async listConfirmations(): Promise<{
+    total: number;
+    items: PendingConfirmationResponse[];
+  }> {
     const tenantId = this.getTenantId();
     if (!tenantId) {
       return { total: 0, items: [] };
     }
 
-    const items: PendingConfirmationResponse[] = this.confirmationService
-      .listPending(tenantId)
-      .map((record) => ({
-        confirmationId: record.confirmationId,
-        operationLabel: record.operationLabel,
-        toolName: record.toolName,
-        preview: record.preview,
-        createdAt: record.createdAt,
-        expiresAt: record.expiresAt,
-        status: record.status === 'confirmed' ? 'confirmed' : 'pending',
-      }));
+    const records = await this.confirmationService.listPending(tenantId);
+    const items: PendingConfirmationResponse[] = records.map((record) => ({
+      confirmationId: record.confirmationId,
+      operationLabel: record.operationLabel,
+      toolName: record.toolName,
+      preview: record.preview,
+      createdAt: record.createdAt,
+      expiresAt: record.expiresAt,
+      status:
+        record.status === 'confirmed' || record.status === 'first_confirmed'
+          ? 'confirmed'
+          : 'pending',
+    }));
 
     return { total: items.length, items };
   }
@@ -238,7 +240,8 @@ export class ChatController {
    * 确认执行待确认操作
    *
    * POST /api/chat/confirmations/:confirmationId/confirm
-   * 流程：校验待确认记录 → 构造 confirm=true 参数 → 调用对应工具真正执行
+   * 流程（P0-1 WriteGuard）：令牌校验 → 高危二次确认（needsSecondConfirm=true 时
+   *       不执行，等待再次确认）→ 构造 confirm=true 参数 → 调用对应工具真正执行
    *       → 执行成功后注册 3 分钟撤销窗口
    */
   @Post('confirmations/:confirmationId/confirm')
@@ -252,75 +255,28 @@ export class ChatController {
     message?: string;
     error?: string;
     suggestion?: string;
+    needsSecondConfirm?: boolean;
   }> {
     const tenantId = this.getTenantId();
     if (!tenantId) {
       return { success: false, error: '未认证：无法确定租户身份' };
     }
 
-    // 1. 校验并确认待确认记录
-    const confirmed = this.confirmationService.confirm(
+    const result = await this.confirmationService.confirmAndExecute(
       confirmationId,
       tenantId,
-    );
-    if (!confirmed.success) {
-      return { success: false, error: confirmed.error };
-    }
-
-    const record = confirmed.confirmation;
-
-    // 2. 构造最终执行参数（confirm=true）
-    const execArgs: Record<string, unknown> = {
-      ...record.args,
-      confirm: true,
-    };
-    if (dto.remark && record.args.remark === undefined) {
-      execArgs.remark = dto.remark;
-    }
-
-    // 3. 调用对应工具真正执行
-    const toolCall: ToolCall = {
-      id: `confirm-${confirmationId}`,
-      type: 'function',
-      function: {
-        name: record.toolName,
-        arguments: JSON.stringify(execArgs),
-      },
-    };
-    const toolContext: ToolContext = this.buildToolContext(tenantId);
-    const result = await this.executor.executeToolCall(toolCall, toolContext);
-
-    if (!result.success) {
-      this.logger.warn(
-        `确认执行失败：id=${confirmationId} tool=${record.toolName} error=${result.error ?? '未知'}`,
-      );
-      return {
-        success: false,
-        error: result.error ?? '工具执行失败',
-        suggestion: result.suggestion,
-      };
-    }
-
-    // 4. 执行成功 → 注册 3 分钟撤销窗口
-    const operation = this.confirmationService.registerExecuted({
-      tenantId,
-      conversationId: record.conversationId,
-      confirmationId: record.confirmationId,
-      toolName: record.toolName,
-      args: execArgs,
-      result: result.data,
-      operationLabel: record.operationLabel,
-    });
-
-    this.logger.log(
-      `确认执行成功：id=${confirmationId} tool=${record.toolName} operationId=${operation.operationId}`,
+      this.buildToolContext(tenantId),
+      dto.remark,
     );
 
     return {
-      success: true,
+      success: result.success,
       data: result.data,
-      operationId: operation.operationId,
-      message: `${record.operationLabel}执行成功，3 分钟内可撤销`,
+      operationId: result.operationId,
+      message: result.message,
+      error: result.error,
+      suggestion: result.suggestion,
+      needsSecondConfirm: result.needsSecondConfirm,
     };
   }
 
@@ -330,17 +286,22 @@ export class ChatController {
    * POST /api/chat/confirmations/:confirmationId/cancel
    */
   @Post('confirmations/:confirmationId/cancel')
-  cancelOperation(@Param('confirmationId') confirmationId: string): {
+  async cancelOperation(
+    @Param('confirmationId') confirmationId: string,
+  ): Promise<{
     success: boolean;
     message?: string;
     error?: string;
-  } {
+  }> {
     const tenantId = this.getTenantId();
     if (!tenantId) {
       return { success: false, error: '未认证：无法确定租户身份' };
     }
 
-    const cancelled = this.confirmationService.cancel(confirmationId, tenantId);
+    const cancelled = await this.confirmationService.cancel(
+      confirmationId,
+      tenantId,
+    );
     if (!cancelled) {
       return { success: false, error: '待确认操作不存在或已过期' };
     }

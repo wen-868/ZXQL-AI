@@ -16,6 +16,7 @@
  */
 import { Module } from '@nestjs/common';
 import { ChatController } from './chat.controller';
+import { WriteGuardController } from './write-guard.controller';
 import { AdminController } from './admin.controller';
 import { AiConfigController } from './ai-config.controller';
 import { ExternalModelController } from './external-model.controller';
@@ -64,6 +65,7 @@ import { VoiceController } from './voice.controller';
   ],
   controllers: [
     ChatController,
+    WriteGuardController,
     AdminController,
     AiConfigController,
     ExternalModelController,

@@ -1,32 +1,43 @@
 /**
- * ConfirmationService — 写操作确认机制（R70-15）
+ * ConfirmationService — 写操作确认机制（R70-15，P0-1 对接 WriteGuard 令牌）
  *
- * 核心职责（docs/ai-base/智享AI助手-写入操作规范.md 第六章）：
- * 1. 管理待确认操作：所有写操作先生成预览，暂存待确认记录（TTL 5分钟）
- * 2. 生成唯一 confirmation_id，供前端/对话引用
- * 3. 确认词识别："确认/可以/没问题/执行/开单" 等视为确认，其余视为拒绝或修改
+ * 核心职责（docs/ai-base/智享AI底座-架构设计文档【唯一权威】.md 第 23 章 WriteGuard）：
+ * 1. 管理待确认操作：所有写操作先生成预览，经 WriteGuardService 挂起生成令牌（Redis，24h TTL）
+ * 2. 确认词识别："确认/可以/没问题/执行/开单" 等视为确认，其余视为拒绝或修改
+ * 3. 高危写二次确认：risk=high 或 needsReview 的操作需二次确认才真正执行（资金/删除/批量）
  * 4. 可撤销：操作执行成功后 3 分钟内可撤销（仅限未发货状态，由业务侧约束）
  *
- * 存储策略：
- * - 内存 Map（与 ToolRegistry 按租户过滤的内存 Map 模式一致），无外部依赖
- * - 惰性过期清理：每次读写时顺带清除过期记录，避免驻留
- * - 多租户隔离：所有操作按 tenantId 维度存储与校验
+ * P0-1 演进（保持前端体验，后端改令牌）：
+ * - confirmationId 即 WriteGuard token（wg_ 前缀），前端确认卡无需改动
+ * - 存储由内存 Map 升级为 Redis（24h TTL），Redis 不可用自动降级内存
+ * - confirm/cancel 全轨迹审计（t_ai_audit_log，token 脱敏）
  *
  * 接入方：
  * - Orchestrator：工具返回 preview 时调用 create() 暂存待确认操作，tool_result 事件携带 confirmationId
- * - ChatController：提供 confirm / cancel / revoke / list 管理端点
+ * - ChatController / WriteGuardController：confirm / cancel / revoke / list 管理端点
  *
- * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-02
+ * 负责人: AI底座 | 创建日期: 2026-08-02（P0-1 重构 2026-08-25）
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
-import type { ToolResult } from '../tools/tool.interface';
+import type {
+  ToolContext,
+  ToolResult,
+  ToolRisk,
+} from '../tools/tool.interface';
+import { ToolExecutor } from '../tools/tool-executor';
+import {
+  PendingWrite,
+  WriteGuardService,
+  WRITE_TOKEN_TTL_MS,
+} from './write-guard.service';
 
-/** 确认记录状态 */
+/** 确认记录状态（保持与 WriteGuard 状态机对齐） */
 export type ConfirmationStatus =
   | 'pending' // 待确认（预览已生成，等待用户确认）
+  | 'first_confirmed' // 首次确认（高危写，等待二次确认）
   | 'confirmed' // 已确认（用户确认，等待执行）
-  | 'executed' // 已执行（工具已执行成功）
   | 'cancelled' // 已取消（用户拒绝/取消）
   | 'expired'; // 已过期（超过 TTL）
 
@@ -35,7 +46,7 @@ export type ExecutedStatus = 'executed' | 'revoked';
 
 /** 待确认操作记录 */
 export interface PendingConfirmation {
-  /** 唯一确认 ID */
+  /** 唯一确认 ID（即 WriteGuard token） */
   confirmationId: string;
   /** 租户 ID（多租户隔离） */
   tenantId: string;
@@ -43,6 +54,14 @@ export interface PendingConfirmation {
   conversationId?: string;
   /** 待执行工具名称 */
   toolName: string;
+  /** 文档类型（写入业务对象，如 sales_order_create） */
+  docType: string;
+  /** 风险分级 */
+  risk: ToolRisk;
+  /** 是否强制人工审核 */
+  needsReview: boolean;
+  /** 已确认次数（高危写二次确认计数） */
+  confirmCount: number;
   /** 工具参数（confirm 未置 true 的预览参数） */
   args: Record<string, unknown>;
   /** 预览卡片数据（操作名/摘要/结构化明细） */
@@ -51,7 +70,7 @@ export interface PendingConfirmation {
   operationLabel: string;
   /** 创建时间戳（ms） */
   createdAt: number;
-  /** 过期时间戳（创建 + 5 分钟 TTL） */
+  /** 过期时间戳（创建 + 24h TTL） */
   expiresAt: number;
   /** 状态 */
   status: ConfirmationStatus;
@@ -91,6 +110,12 @@ export interface CreateConfirmationInput {
   conversationId?: string;
   /** 待执行工具名称（必填） */
   toolName: string;
+  /** 文档类型（可选，默认工具名；P0-2 由 WriteSchemaRegistry 统一定义） */
+  docType?: string;
+  /** 风险分级（可选，默认 medium——写操作一律须令牌确认） */
+  risk?: ToolRisk;
+  /** 是否强制人工审核（可选，默认 risk=high） */
+  needsReview?: boolean;
   /** 工具参数（必填） */
   args: Record<string, unknown>;
   /** 预览卡片数据（可选） */
@@ -117,8 +142,29 @@ export interface RegisterExecutedInput {
   operationLabel: string;
 }
 
-/** 待确认操作 TTL：5 分钟 */
-export const CONFIRM_TTL_MS = 5 * 60 * 1000;
+/** 确认结果（含高危二次确认标记） */
+export type ConfirmResult =
+  | {
+      success: true;
+      confirmation: PendingConfirmation;
+      /** true = 高危写首次确认，需二次确认后才真正执行 */
+      needsSecondConfirm?: boolean;
+    }
+  | { success: false; error: string };
+
+/** 确认并执行结果 */
+export interface ConfirmAndExecuteResult {
+  success: boolean;
+  data?: unknown;
+  operationId?: string;
+  message?: string;
+  error?: string;
+  suggestion?: string;
+  needsSecondConfirm?: boolean;
+}
+
+/** 待确认操作 TTL：24 小时（WriteGuard 令牌制，P0-1） */
+export const CONFIRM_TTL_MS = WRITE_TOKEN_TTL_MS;
 /** 撤销窗口 TTL：3 分钟 */
 export const REVOKE_TTL_MS = 3 * 60 * 1000;
 
@@ -155,65 +201,76 @@ const CANCEL_KEYWORDS = [
 @Injectable()
 export class ConfirmationService {
   private readonly logger = new Logger(ConfirmationService.name);
+  private readonly writeGuardService: WriteGuardService;
 
-  /** 待确认记录：confirmationId → PendingConfirmation */
-  private readonly pendingMap = new Map<string, PendingConfirmation>();
-  /** 已执行记录：operationId → ExecutedOperation */
+  /** 已执行记录：operationId → ExecutedOperation（撤销窗口，内存 3 分钟） */
   private readonly executedMap = new Map<string, ExecutedOperation>();
 
-  // ── 待确认操作管理 ──
+  constructor(
+    @Optional() writeGuard?: WriteGuardService,
+    @Optional() private readonly executor?: ToolExecutor,
+  ) {
+    // 未注入（单测/独立使用）时创建内存降级实例
+    this.writeGuardService =
+      writeGuard ??
+      new WriteGuardService({
+        get: () => undefined,
+      } as unknown as ConfigService);
+  }
+
+  // ── 待确认操作管理（WriteGuard 令牌制）──
 
   /**
    * 创建待确认记录（写操作生成预览时调用）
    *
+   * 内部委托 WriteGuardService.suspend() 生成令牌（Redis 24h TTL）。
+   *
    * @param input 创建输入
-   * @returns 新创建的待确认记录（含 confirmationId）
+   * @returns 新创建的待确认记录（confirmationId = WriteGuard token）
    */
-  create(input: CreateConfirmationInput): PendingConfirmation {
-    const now = Date.now();
-    const confirmation: PendingConfirmation = {
-      confirmationId: randomUUID(),
+  async create(input: CreateConfirmationInput): Promise<PendingConfirmation> {
+    const risk = input.risk ?? 'medium';
+    const write: PendingWrite = await this.writeGuardService.suspend({
       tenantId: input.tenantId,
       conversationId: input.conversationId,
       toolName: input.toolName,
+      docType: input.docType ?? input.toolName,
+      risk,
+      needsReview: input.needsReview ?? risk === 'high',
       args: input.args,
       preview: input.preview,
       operationLabel: input.operationLabel,
-      createdAt: now,
-      expiresAt: now + CONFIRM_TTL_MS,
-      status: 'pending',
-    };
+    });
 
-    this.pendingMap.set(confirmation.confirmationId, confirmation);
-    this.logger.log(
-      `创建待确认操作：id=${confirmation.confirmationId} tenant=${input.tenantId} tool=${input.toolName}（${input.operationLabel}）`,
-    );
-
-    return confirmation;
+    return this.toConfirmation(write);
   }
 
   /**
-   * 查询待确认记录（惰性过期检查）
+   * 查询待确认记录（惰性过期检查，委托 WriteGuardService）
    *
-   * @param confirmationId 确认 ID
+   * @param confirmationId 确认 ID（即令牌）
    * @returns 待确认记录；不存在或已过期返回 null
    */
-  get(confirmationId: string): PendingConfirmation | null {
-    const record = this.pendingMap.get(confirmationId);
-    if (!record) {
-      return null;
-    }
+  async get(confirmationId: string): Promise<PendingConfirmation | null> {
+    // 无租户上下文时无法校验隔离，先尝试从所有已知租户读取：
+    // 实际调用均携带 tenantId（getByTenant），此方法仅兼容旧式单参查询
+    const write = await this.writeGuardService.get(confirmationId, '*');
+    return write ? this.toConfirmation(write) : null;
+  }
 
-    // 惰性过期检查
-    if (Date.now() > record.expiresAt) {
-      this.pendingMap.delete(confirmationId);
-      this.logger.warn(
-        `待确认操作已过期：id=${confirmationId} tool=${record.toolName}`,
-      );
-      return null;
-    }
-
-    return record;
+  /**
+   * 按租户查询待确认记录
+   *
+   * @param confirmationId 确认 ID（即令牌）
+   * @param tenantId       租户 ID
+   * @returns 待确认记录；不存在或已过期返回 null
+   */
+  async getByTenant(
+    confirmationId: string,
+    tenantId: string,
+  ): Promise<PendingConfirmation | null> {
+    const write = await this.writeGuardService.get(confirmationId, tenantId);
+    return write ? this.toConfirmation(write) : null;
   }
 
   /**
@@ -222,107 +279,163 @@ export class ConfirmationService {
    * @param tenantId 租户 ID
    * @returns 待确认记录列表（按创建时间倒序）
    */
-  listPending(tenantId: string): PendingConfirmation[] {
-    const records: PendingConfirmation[] = [];
-
-    for (const [id, record] of this.pendingMap) {
-      // 过期清理 + 跳过其他租户
-      if (Date.now() > record.expiresAt) {
-        this.pendingMap.delete(id);
-        continue;
-      }
-      if (record.tenantId === tenantId) {
-        records.push(record);
-      }
-    }
-
-    return records.sort((a, b) => b.createdAt - a.createdAt);
+  async listPending(tenantId: string): Promise<PendingConfirmation[]> {
+    const writes = await this.writeGuardService.listPending(tenantId);
+    return writes.map((w) => this.toConfirmation(w));
   }
 
   /**
    * 确认待确认操作（用户说"确认"后调用）
    *
-   * 校验：记录存在、未过期、租户匹配、状态为 pending。
-   * 确认后将状态置为 confirmed，返回操作数据供执行方调用工具（confirm=true）。
+   * 委托 WriteGuardService.confirm()：租户隔离 + 状态机 + 高危二次确认。
+   * 高危写（risk=high / needsReview）首次确认返回 needsSecondConfirm=true，
+   * 需再次调用 confirm() 才会真正放行执行。
    *
-   * @param confirmationId 确认 ID
+   * @param confirmationId 确认 ID（令牌）
    * @param tenantId       租户 ID（隔离校验）
    * @returns 确认结果
    */
-  confirm(
+  async confirm(
     confirmationId: string,
     tenantId: string,
-  ):
-    | { success: true; confirmation: PendingConfirmation }
-    | { success: false; error: string } {
-    const record = this.get(confirmationId);
-    if (!record) {
+  ): Promise<ConfirmResult> {
+    const result = await this.writeGuardService.confirm(
+      confirmationId,
+      tenantId,
+    );
+    if (!result.success || !result.pendingWrite) {
+      return { success: false, error: result.error ?? '确认失败' };
+    }
+    return {
+      success: true,
+      confirmation: this.toConfirmation(result.pendingWrite),
+      needsSecondConfirm: result.needsSecondConfirm,
+    };
+  }
+
+  /**
+   * 确认并执行（WriteGuard 完整流程，供 ChatController / WriteGuardController 复用）
+   *
+   * 流程：confirm 校验 → 高危二次确认（needsSecondConfirm=true 时返回，不执行）
+   *       → 构造 confirm=true 参数 → 调用工具执行 → 注册 3 分钟撤销窗口
+   *
+   * @param token       令牌
+   * @param tenantId    租户 ID
+   * @param toolContext 工具执行上下文
+   * @param remark      执行备注（可选）
+   * @returns 执行结果
+   */
+  async confirmAndExecute(
+    token: string,
+    tenantId: string,
+    toolContext: ToolContext,
+    remark?: string,
+  ): Promise<ConfirmAndExecuteResult> {
+    const confirmed = await this.confirm(token, tenantId);
+    if (!confirmed.success) {
+      return { success: false, error: confirmed.error };
+    }
+    if (confirmed.needsSecondConfirm) {
       return {
-        success: false,
-        error: '待确认操作不存在或已过期，请重新发起操作',
+        success: true,
+        needsSecondConfirm: true,
+        message: '高危操作需二次确认，请再次确认执行',
       };
     }
+    return this.executeConfirmed(confirmed.confirmation, toolContext, remark);
+  }
 
-    if (record.tenantId !== tenantId) {
-      return { success: false, error: '无权操作其他租户的待确认记录' };
+  /**
+   * 执行已确认操作（构造 confirm=true 参数 → 调用工具 → 注册撤销窗口）
+   *
+   * @param record      已确认的待确认记录
+   * @param toolContext 工具执行上下文
+   * @param remark      执行备注（可选）
+   * @returns 执行结果
+   */
+  async executeConfirmed(
+    record: PendingConfirmation,
+    toolContext: ToolContext,
+    remark?: string,
+  ): Promise<ConfirmAndExecuteResult> {
+    if (!this.executor) {
+      return { success: false, error: '工具执行器不可用（服务未装配）' };
     }
 
-    if (record.status !== 'pending') {
-      return {
-        success: false,
-        error: `待确认操作状态为 ${record.status}，无法重复确认`,
-      };
+    // 构造最终执行参数（confirm=true）
+    const execArgs: Record<string, unknown> = {
+      ...record.args,
+      confirm: true,
+    };
+    if (remark && record.args.remark === undefined) {
+      execArgs.remark = remark;
     }
 
-    record.status = 'confirmed';
-    this.logger.log(
-      `用户已确认操作：id=${confirmationId} tool=${record.toolName}（${record.operationLabel}）`,
+    const result = await this.executor.executeToolCall(
+      {
+        id: `confirm-${record.confirmationId}`,
+        type: 'function',
+        function: {
+          name: record.toolName,
+          arguments: JSON.stringify(execArgs),
+        },
+      },
+      toolContext,
     );
 
-    return { success: true, confirmation: record };
+    if (!result.success) {
+      this.logger.warn(
+        `确认执行失败：id=${record.confirmationId} tool=${record.toolName} error=${result.error ?? '未知'}`,
+      );
+      return {
+        success: false,
+        error: result.error ?? '工具执行失败',
+        suggestion: result.suggestion,
+      };
+    }
+
+    // 执行成功 → 注册 3 分钟撤销窗口
+    const operation = this.registerExecuted({
+      tenantId: record.tenantId,
+      conversationId: record.conversationId,
+      confirmationId: record.confirmationId,
+      toolName: record.toolName,
+      args: execArgs,
+      result: result.data,
+      operationLabel: record.operationLabel,
+    });
+
+    this.logger.log(
+      `确认执行成功：id=${record.confirmationId} tool=${record.toolName} operationId=${operation.operationId}`,
+    );
+
+    return {
+      success: true,
+      data: result.data,
+      operationId: operation.operationId,
+      message: `${record.operationLabel}执行成功，3 分钟内可撤销`,
+    };
   }
 
   /**
    * 取消待确认操作（用户拒绝/取消时调用）
    *
-   * @param confirmationId 确认 ID
+   * @param confirmationId 确认 ID（令牌）
    * @param tenantId       租户 ID
    * @returns 是否取消成功
    */
-  cancel(confirmationId: string, tenantId: string): boolean {
-    const record = this.pendingMap.get(confirmationId);
-    if (!record) {
-      return false;
-    }
-
-    if (record.tenantId !== tenantId) {
-      return false;
-    }
-
-    record.status = 'cancelled';
-    this.pendingMap.delete(confirmationId);
-    this.logger.log(
-      `用户已取消操作：id=${confirmationId} tool=${record.toolName}（${record.operationLabel}）`,
-    );
-
-    return true;
+  async cancel(confirmationId: string, tenantId: string): Promise<boolean> {
+    return this.writeGuardService.cancel(confirmationId, tenantId);
   }
 
   /**
-   * 清理全部过期记录（可由定时任务或手动调用）
+   * 清理过期记录（WriteGuard 内存模式 + 本服务撤销窗口）
    *
    * @returns 清理数量
    */
   cleanupExpired(): number {
     const now = Date.now();
-    let cleaned = 0;
-
-    for (const [id, record] of this.pendingMap) {
-      if (now > record.expiresAt) {
-        this.pendingMap.delete(id);
-        cleaned++;
-      }
-    }
+    let cleaned = this.writeGuardService.cleanupExpired();
 
     for (const [id, record] of this.executedMap) {
       if (now > record.revokeExpiresAt) {
@@ -334,7 +447,6 @@ export class ConfirmationService {
     if (cleaned > 0) {
       this.logger.log(`清理过期确认/撤销记录：${cleaned} 条`);
     }
-
     return cleaned;
   }
 
@@ -494,5 +606,26 @@ export class ConfirmationService {
   static isCancelMessage(message: string): boolean {
     const normalized = message.replace(/\s+/g, '');
     return CANCEL_KEYWORDS.some((kw) => normalized.includes(kw));
+  }
+
+  // ── 类型转换 ──
+
+  private toConfirmation(write: PendingWrite): PendingConfirmation {
+    return {
+      confirmationId: write.token,
+      tenantId: write.tenantId,
+      conversationId: write.conversationId,
+      toolName: write.toolName,
+      docType: write.docType,
+      risk: write.risk,
+      needsReview: write.needsReview,
+      confirmCount: write.confirmCount,
+      args: write.args,
+      preview: write.preview,
+      operationLabel: write.operationLabel,
+      createdAt: write.createdAt,
+      expiresAt: write.expiresAt,
+      status: write.status,
+    };
   }
 }

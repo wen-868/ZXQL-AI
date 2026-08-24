@@ -76,6 +76,7 @@ export class TenantModule implements NestModule {
    *
    * 1. RequestLoggingMiddleware：全局（forRoutes('*')），记录 IP/UA/tenantId/响应时间
    * 2. TenantMiddleware + RateLimiterMiddleware：应用于 /chat 路由（POST /api/chat SSE 对话）
+   *    与 /ai/agent 路由（P0-1 WriteGuard 统一确认端点 POST /api/ai/agent/confirm）
    *
    * 注意：forRoutes('chat') 匹配的是控制器路径（不含全局前缀 /api），
    * 实际匹配的 HTTP 路径为 POST /api/chat。
@@ -85,6 +86,6 @@ export class TenantModule implements NestModule {
       .apply(RequestLoggingMiddleware)
       .forRoutes('*')
       .apply(TenantMiddleware, RateLimiterMiddleware)
-      .forRoutes('chat');
+      .forRoutes('chat', 'ai/agent');
   }
 }
