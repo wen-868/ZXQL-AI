@@ -1,6 +1,6 @@
 # 智享全链 AI 底座 — 架构设计文档
 
-> 版本：v3.4 | 日期：2026-08-24 | 作者：智享全链架构组 | 范式升级：AI 为大脑、软件功能为工具；AI 底座独立建仓为独立部署铺路
+> 版本：v3.6 | 日期：2026-08-25 | 作者：智享全链架构组 | 范式升级：AI 为大脑、软件功能为工具；AI 底座独立建仓为独立部署铺路
 
 ---
 
@@ -2105,98 +2105,154 @@ breaker.fallback(() => ({
 ## 十八、项目目录结构
 
 ```
-zhixiang-ai-base/
+zhixiang-ai-base/（独立仓库 ZXQL-AI，src 结构 v3.6 与代码对齐）
 ├── src/
-│   ├── main.ts                         # 应用入口，端口3016
-│   ├── app.module.ts                   # 根模块
+│   ├── main.ts                         # 应用入口，端口 3016，全局前缀 /api
+│   ├── app.module.ts                   # 根模块（依赖装配顺序见 6.1）
 │   │
-│   ├── gateway/                        # 对外网关层
-│   │   ├── chat.controller.ts          # POST /ai/chat (SSE流式)
-│   │   ├── chat.gateway.ts             # WebSocket 实时推送
-│   │   ├── admin.controller.ts         # AI配置管理API
-│   │   └── dto/
+│   ├── gateway/                        # 对外网关层（Controller 均注册于 GatewayModule）
+│   │   ├── chat.controller.ts          # POST /api/chat（SSE 流式对话）
+│   │   ├── push-gateway.service.ts     # WebSocket /api/ai/ws（JWT 认证 + 按租户广播）
+│   │   ├── admin.controller.ts         # 工具/Provider/健康检查/审计管理 API
+│   │   ├── ai-config.controller.ts     # 总台 AI 配置（模型/服务商）
+│   │   ├── external-model.controller.ts# 外部模型（服务商）管理
+│   │   ├── api-catalog.controller.ts   # API 目录（55 条技能）
+│   │   ├── review.controller.ts        # 人工审核任务
+│   │   ├── learning.controller.ts      # 学习回流
+│   │   ├── evolution.controller.ts     # 进化门控
+│   │   ├── ltm.controller.ts           # 长期记忆
+│   │   ├── voice.controller.ts         # 语音合成/识别
+│   │   └── dto/                        # chat/confirmation/execute-tool/ai-config
 │   │
-│   ├── brain/                          # 大脑引擎(AI中枢: 意图/规划/决策)
-│   │   ├── orchestrator.service.ts     # 核心编排器(大脑主循环)
-│   │   ├── context-builder.service.ts  # 上下文组装
-│   │   ├── memory-manager.service.ts   # 对话记忆（Redis）
-│   │   └── prompts/
-│   │       └── system.prompt.ts        # 系统提示词模板
+│   ├── brain/                          # 大脑引擎（意图/规划/决策/认知）
+│   │   ├── orchestrator.service.ts     # 核心编排器（Agent 主循环）
+│   │   ├── context-builder.service.ts  # 上下文组装（RAG 增强/记忆/证据）
+│   │   ├── memory-manager.service.ts   # 对话记忆（Redis，可降级）
+│   │   ├── confirmation.service.ts     # 写操作确认（R70-15，对接 WriteGuard 令牌）
+│   │   ├── rollback-executor.service.ts# 撤销/回滚执行器
+│   │   ├── intent-detector.ts          # 意图识别（读/写/闲聊）
+│   │   ├── api-summary.ts              # API 结果摘要
+│   │   ├── write-summary.ts            # 写入预览摘要
+│   │   ├── inventory-format.ts         # 库存格式（箱/支换算）
+│   │   ├── graph/                      # 多 Agent 图编排（采购/营销/盘点）
+│   │   │   ├── graph.types.ts
+│   │   │   ├── graph-executor.service.ts
+│   │   │   └── checkpointer.service.ts
+│   │   ├── evidence/evidence-ledger.service.ts      # 证据链台账
+│   │   ├── learning/learning.service.ts             # 经验学习（LN）
+│   │   ├── memory/long-term-memory.service.ts       # 长期记忆（LTM）
+│   │   ├── evolution/evolution.service.ts           # 进化门控（SE）
+│   │   ├── review/review-task.service.ts            # 人工审核任务
+│   │   ├── router/provider-router.service.ts        # Provider 路由与降级链
+│   │   ├── proactive/                              # 主动能力（9 项巡检 + WebSocket 推送）
+│   │   │   ├── proactive.service.ts                 # 巡检调度
+│   │   │   ├── proactive-push.service.ts            # 主动推送
+│   │   │   ├── proactive.controller.ts              # 管理 API
+│   │   │   └── *_anomaly/*_warning/*_reminder/*_briefing/*_advice.service.ts
+│   │   └── brain.module.ts
 │   │
 │   ├── providers/                      # Model Provider 层
-│   │   ├── provider.interface.ts       # IModelProvider 接口
+│   │   ├── provider.interface.ts       # IModelProvider / ToolDefinition / ToolCall
 │   │   ├── provider-factory.ts         # Provider 工厂
-│   │   ├── deepseek.provider.ts        # DeepSeek 实现
-│   │   ├── qwen.provider.ts            # 通义千问 实现
-│   │   ├── zhipu.provider.ts           # 智谱AI 实现
-│   │   └── ollama.provider.ts          # 本地Ollama 实现
+│   │   ├── glm.provider.ts             # 智谱 GLM（云端默认）
+│   │   ├── deepseek.provider.ts        # DeepSeek（备用）
+│   │   ├── ollama.provider.ts          # 本地 Ollama（兜底）
+│   │   ├── openai-compat.provider.ts   # OpenAI 兼容协议
+│   │   ├── vision.service.ts           # 图片理解（GLM-4V）
+│   │   └── voice.service.ts            # 语音合成/识别
 │   │
-│   ├── learner/                         # 自主学习引擎(认知闭环, 非RAG)
-│   │   ├── auto-learner.service.ts      # 主服务：定时扫描+变更监听
-│   │   ├── adapters/
-│   │   │   ├── swagger.adapter.ts       # Swagger/OpenAPI 适配器
-│   │   │   └── database.adapter.ts      # 数据库 Schema 适配器(系统数据即知识库)
-│   │   └── tool-generator.ts            # API定义 → Tool定义 自动生成
+│   ├── tools/                          # 业务工具（功能即技能）
+│   │   ├── tool.interface.ts           # ITool / ToolResult / 风险分级
+│   │   ├── tool-registry.ts            # 工具注册表（按租户启停/过滤）
+│   │   ├── tool-executor.ts            # 工具执行器（统一异常/审计）
+│   │   ├── tool-bootstrap.ts           # 工具装配（精调 49 + 目录 55 = 96）
+│   │   ├── price-engine.service.ts     # 价格引擎
+│   │   ├── unit-converter.service.ts   # 箱/支等单位换算
+│   │   ├── definitions/                # 精调工具定义与执行（handlers 演进为 definitions 内实现）
+│   │   │   └── *.tool.ts               # 50+ 业务工具（写操作带 preview + risk）
+│   │   └── catalog/                    # API 目录动态技能（learner/tool-generator 演进落点）
+│   │       ├── api-catalog.ts          # 55 条 API 目录
+│   │       ├── dynamic-api.tool.ts     # 动态 API 工具
+│   │       └── tool-generator.service.ts # API 定义 → Tool 定义自动生成
 │   │
-│   ├── tools/                          # 业务工具
-│   │   ├── tool.interface.ts
-│   │   ├── tool-registry.ts
-│   │   ├── definitions/                # 工具定义（给LLM的schema）
-│   │   └── handlers/                   # 工具执行逻辑
+│   ├── nlp/                            # 自然语言精准度层（新增）
+│   │   ├── nl-parser.ts                # 数量口语解析（"一箱半五粮液"）
+│   │   ├── param-coercer.ts            # 参数自纠错（类型/单位）
+│   │   └── reference-resolver.ts       # 指代消解（"上一单/那个客户"）
 │   │
 │   ├── bridge/                         # 服务桥接层
-│   │   ├── service-client.ts
-│   │   ├── tenant.interceptor.ts
-│   │   └── audit-logger.ts
+│   │   ├── service-client.ts           # 业务后端 HTTP 调用（JWT 透传）
+│   │   ├── audit-logger.ts             # 审计日志（t_ai_audit_log + t_ai_usage_daily）
+│   │   └── bridge.module.ts
 │   │
 │   ├── tenant/                         # 多租户
-│   │   ├── tenant-context.ts
-│   │   ├── tenant-guard.ts
-│   │   └── ai-config.service.ts
+│   │   ├── tenant-context.ts           # AsyncLocalStorage 租户上下文
+│   │   ├── tenant.middleware.ts        # JWT 解析中间件（guard→middleware 演进）
+│   │   ├── ai-config.service.ts        # 租户 AI 配置解析
+│   │   ├── ai-config-admin.service.ts  # 总台配置管理
+│   │   ├── external-model.service.ts   # 外部模型服务商
+│   │   └── crypto.service.ts           # 密钥加解密（原 common/crypto 迁入）
 │   │
-│   ├── database/                       # 数据库（AI 底座私有库 ai_db，独立实例/独立 schema）
-│   │   ├── entities/
-│   │   │   ├── ai-experience.entity.ts      # ai_experience 操作经验轨迹 (ai_db)
-│   │   │   ├── ai-correction.entity.ts      # ai_correction 写纠错样本 (ai_db)
-│   │   │   ├── ai-sample.entity.ts          # ai_sample 训练样本 (ai_db)
-│   │   │   ├── ai-evolution-version.entity.ts # ai_evolution_version 进化版本 (ai_db)
-│   │   │   ├── ai-audit-log.entity.ts       # ai_audit_log 审计明细 (业务库)
-│   │   │   ├── execution-plan.entity.ts     # ai_execution_plan 自主任务 (业务库)
-│   │   │   ├── platform-ai-config.entity.ts # platform_ai_config 全局配置 (业务库)
-│   │   │   ├── tenant-ai-config.entity.ts   # tenant_ai_config 租户配置 (业务库)
-│   │   │   ├── ai-usage-daily.entity.ts     # ai_usage_daily 用量汇总 (业务库)
-│   │   │   └── tenant-ai-billing.entity.ts  # tenant_ai_billing 计费套餐 (业务库)
-│   │   ├── ai-db.module.ts                  # ai_db 连接（与业务库物理隔离）
-│   │   └── database.module.ts               # 业务侧连接（只读 Bridge 访问）
+│   ├── rag/                            # RAG 知识库（可选：未配置 EMBEDDING_MODEL 静默降级）
+│   │   ├── document-loader.service.ts  # 文档加载
+│   │   ├── text-splitter.service.ts    # 分块
+│   │   ├── embedding.service.ts        # 向量化（云端 embedding-3）
+│   │   ├── vector-store.service.ts     # 向量库（MySQL 存储）
+│   │   ├── retriever.service.ts        # 检索
+│   │   ├── rag-seed.service.ts         # 预置知识文档（9 份，幂等增量加载）
+│   │   └── rag.controller.ts           # 知识库管理 API
 │   │
-│   ├── migrations/                     # 数据库迁移（建表 SQL，对齐第 7/22.7/26 章）
-│   │   └── 001_ai_tables.sql            # 业务库 6 表 + ai_db 4 表（物理隔离两库）
+│   ├── knowledge/                      # 预置知识库文档（9 份运营规则，markdown）
 │   │
-│   ├── evolution-engine/               # 进化引擎（离线，消费 ai_db）
-│   │   ├── aggregator.service.ts        # 跨租户脱敏聚合
-│   │   ├── trainer.service.ts           # 本地蒸馏/微调（Ollama）
-│   │   └── evaluator.service.ts         # E5 回归评测 + 版本放行
+│   ├── ops/                            # 运维与用量层（新增）
+│   │   ├── health-monitor.service.ts   # 健康监控告警
+│   │   ├── usage-stats.service.ts      # 用量统计
+│   │   ├── usage-alert.service.ts      # 用量阈值告警
+│   │   └── usage.controller.ts         # 用量 API
 │   │
-│   └── common/                         # 公共模块
-│       ├── config.ts
-│       ├── crypto.ts
-│       ├── rate-limiter.ts
-│       ├── filters/
-│       └── interceptors/
+│   ├── common/                         # 公共模块
+│   │   ├── rate-limiter.ts             # 限流
+│   │   ├── rate-limiter.middleware.ts
+│   │   ├── request-logging.middleware.ts
+│   │   └── common.module.ts
+│   │
+│   └── database/                       # 数据库
+│       ├── database.module.ts          # TypeORM MySQL 连接（业务侧）
+│       └── entities/                   # 12 个实体（当前实际）
+│           ├── ai-audit-log.entity.ts      # t_ai_audit_log 审计明细
+│           ├── ai-evolution.entity.ts      # t_ai_evolution 进化版本
+│           ├── ai-learning-log.entity.ts   # t_ai_learning_log 学习日志
+│           ├── ai-ltm-profile.entity.ts    # t_ai_ltm_profile 长期记忆画像
+│           ├── ai-ltm-episodic.entity.ts   # t_ai_ltm_episodic 情景记忆
+│           ├── ai-ltm-archival.entity.ts   # t_ai_ltm_archival 归档记忆
+│           ├── ai-review-task.entity.ts    # t_ai_review_task 人工审核任务
+│           ├── ai-usage-daily.entity.ts    # t_ai_usage_daily 用量汇总
+│           ├── ai-external-model.entity.ts # t_ai_external_model 外部模型
+│           ├── platform-ai-config.entity.ts# t_platform_ai_config 全局配置
+│           ├── tenant-ai-config.entity.ts  # t_tenant_ai_config 租户配置
+│           └── tenant-ai-billing.entity.ts # t_tenant_ai_billing 计费套餐
 │
-├── evolution/                          # 进化产物(由ai_db反哺生成, 版本化)
-│   ├── write-schemas/                   # 校准后的写入Schema(覆盖默认)
-│   ├── attr-templates/                  # 迭代后的归因模板
-│   └── prompt-overrides/                # 提示词覆写(按租户/行业)
+├── migrations/                         # 数据库迁移（规范见 migrations/README.md）
+│   └── 001_ai_tables.sql               # 建表 SQL（对齐第 7/22.7/26 章，随 P1-1 补齐）
 │
-├── migrations/                         # 数据库迁移
-│   └── 001_ai_tables.sql
+├── evolution/                          # 进化产物（由 ai_db 反哺生成，版本化，规划 P1-1 落地）
+│   ├── write-schemas/                  # 校准后的写入 Schema（覆盖默认）
+│   ├── attr-templates/                 # 迭代后的归因模板
+│   └── prompt-overrides/               # 提示词覆写（按租户/行业）
 │
+├── docs/ai-base/                       # 文档（唯一权威架构文档 + 完善规划 + 能力/写入规范）
 ├── package.json
 ├── tsconfig.json
 ├── .env.example
 └── Dockerfile
 ```
+
+> **v3.6 目录对齐说明**（与独立仓库代码逐项核对）：
+> - `learner/`（自主学习引擎：auto-learner/swagger adapter/tool-generator）已演进为 `tools/catalog + tool-bootstrap + nlp`——功能即技能、API 目录自动生成，不再有独立 learner 目录；
+> - `evolution-engine/`（聚合/蒸馏/评测）的目标职责规划落点为 `brain/learning + memory + evolution + review`，ai_db 独立库待 P1-1 认知闭环落地后对齐；
+> - ai_db 四表（ai_experience/ai_correction/ai_sample/ai_evolution_version）为规划目标，当前认知数据位于业务库（t_ai_ltm_*、t_ai_learning_log、t_ai_evolution）；
+> - `migrations/` 为独立仓库新增目录，规范见 `migrations/README.md`；
+> - 新增 `rag/`、`nlp/`、`ops/`、`knowledge/` 模块（权威文档功能章节已有描述，第十八章目录图补齐）。
 
 ---
 
