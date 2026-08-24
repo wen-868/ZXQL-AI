@@ -19,6 +19,7 @@ import { ChatController } from './chat.controller';
 import { WriteGuardController } from './write-guard.controller';
 import { McpController } from './mcp.controller';
 import { McpAdminController } from './mcp-admin.controller';
+import { AiDbController } from './ai-db.controller';
 import { AdminController } from './admin.controller';
 import { AiConfigController } from './ai-config.controller';
 import { ExternalModelController } from './external-model.controller';
@@ -70,6 +71,7 @@ import { VoiceController } from './voice.controller';
     WriteGuardController,
     McpController,
     McpAdminController,
+    AiDbController,
     AdminController,
     AiConfigController,
     ExternalModelController,

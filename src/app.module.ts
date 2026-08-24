@@ -13,6 +13,7 @@ import { TenantModule } from './tenant/tenant.module';
 import { ProactiveModule } from './brain/proactive/proactive.module';
 import { RagModule } from './rag/rag.module';
 import { OpsModule } from './ops/ops.module';
+import { EvolutionModule } from './evolution/evolution.module';
 
 /**
  * 应用根模块
@@ -57,6 +58,8 @@ import { OpsModule } from './ops/ops.module';
     RagModule,
     // 运营闭环（用量统计 + 阈值告警 + 健康监控告警）✅ 完善度 P2 已接入
     OpsModule,
+    // ai_db 认知闭环（采集→萃取→聚合→反哺）✅ P1-1 已接入
+    EvolutionModule,
   ],
   controllers: [AppController],
   providers: [AppService],

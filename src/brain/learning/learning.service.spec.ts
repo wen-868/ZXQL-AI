@@ -28,12 +28,14 @@ function makeLogRepo() {
 describe('LearningService', () => {
   let ltm: ReturnType<typeof makeLtm>;
   let logRepo: ReturnType<typeof makeLogRepo>;
+  let capture: { captureTask: jest.Mock };
   let service: LearningService;
 
   beforeEach(() => {
     ltm = makeLtm();
     logRepo = makeLogRepo();
-    service = new LearningService(ltm, logRepo);
+    capture = { captureTask: jest.fn().mockResolvedValue(undefined) };
+    service = new LearningService(ltm, logRepo, capture as never);
   });
 
   it('成功信号吸收为 good 经验，不写失败提示', async () => {

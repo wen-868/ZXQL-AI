@@ -40,6 +40,7 @@ import { ContextBuilder } from './context-builder.service';
 import { MemoryManager } from './memory-manager.service';
 import { ConfirmationService } from './confirmation.service';
 import { StructuredExtractor } from './extraction/structured-extractor';
+import { CaptureService } from '../evolution/capture.service';
 import type { ChatMessage, ChatResult } from '../providers/provider.interface';
 import type { ToolContext, ToolResult } from '../tools/tool.interface';
 import { GraphExecutorService } from './graph/graph-executor.service';
@@ -168,6 +169,7 @@ export class Orchestrator {
     private readonly router: ProviderRouterService,
     private readonly learning: LearningService,
     private readonly extractor: StructuredExtractor,
+    private readonly capture: CaptureService,
   ) {}
 
   /**
@@ -555,6 +557,33 @@ export class Orchestrator {
       } catch (err) {
         this.logger.debug(
           `学习吸收失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+
+      // ── 6.7 P1-1 ai_db 采集：任务结束落经验/样本（脱敏入库，不阻塞主流程） ──
+      try {
+        const captureFailed = toolResults.find((r) => !r.success);
+        const firstTool = allToolCalls[0];
+        const toolName =
+          typeof firstTool?.tool_name === 'string'
+            ? firstTool.tool_name
+            : undefined;
+        const isWrite = toolName
+          ? (this.registry.get(toolName)?.isWriteOperation ?? false)
+          : false;
+        await this.capture.captureTask({
+          tenantId,
+          domain: isWrite ? 'write' : 'analysis',
+          intent: toolName ?? 'chat',
+          userMessage: params.message,
+          toolCalls: allToolCalls,
+          outcome: captureFailed ? 'failed' : 'success',
+          reply: finalAssistantText.trim() || undefined,
+          error: captureFailed?.error,
+        });
+      } catch (err) {
+        this.logger.debug(
+          `ai_db 任务采集失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
         );
       }
 

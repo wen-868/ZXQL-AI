@@ -45,6 +45,7 @@ import { LearningService } from './learning/learning.service';
 import { AiEvolutionEntity } from '../database/entities/ai-evolution.entity';
 import { EvolutionService } from './evolution/evolution.service';
 import { McpTokenEntity } from '../database/entities/mcp-token.entity';
+import { EvolutionModule } from '../evolution/evolution.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { McpTokenEntity } from '../database/entities/mcp-token.entity';
     BridgeModule,
     TenantModule,
     RagModule,
+    EvolutionModule,
   ],
   providers: [
     ContextBuilder,
