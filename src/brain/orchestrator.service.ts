@@ -39,6 +39,7 @@ import { TenantContext } from '../tenant/tenant-context';
 import { ContextBuilder } from './context-builder.service';
 import { MemoryManager } from './memory-manager.service';
 import { ConfirmationService } from './confirmation.service';
+import { StructuredExtractor } from './extraction/structured-extractor';
 import type { ChatMessage, ChatResult } from '../providers/provider.interface';
 import type { ToolContext, ToolResult } from '../tools/tool.interface';
 import { GraphExecutorService } from './graph/graph-executor.service';
@@ -93,6 +94,20 @@ export type OrchestratorBaseEvent =
       preview?: ToolResult['preview'];
       /** R70-15：待确认操作 ID（写操作预览时由 ConfirmationService 生成） */
       confirmationId?: string;
+    }
+  | {
+      /**
+       * P0-2：写入参数反问澄清（必填缺失/非法时下发，前端展示问题，
+       * 不挂残缺草稿——本工具调用被跳过，等用户补充后重新发起）
+       */
+      type: 'clarify';
+      message: string;
+      issues?: Array<{
+        field: string;
+        reason: 'required' | 'type' | 'enum' | 'items';
+        message: string;
+        question: string;
+      }>;
     }
   | {
       type: 'done';
@@ -152,6 +167,7 @@ export class Orchestrator {
     private readonly graphExecutor: GraphExecutorService,
     private readonly router: ProviderRouterService,
     private readonly learning: LearningService,
+    private readonly extractor: StructuredExtractor,
   ) {}
 
   /**
@@ -396,6 +412,37 @@ export class Orchestrator {
             toolContext,
           );
 
+          // ── P0-2 StructuredExtractor：写参数结构化抽取增强 ──
+          // 写工具返回 preview 后，用原始用户消息做结构化抽取：
+          // - 必填缺失/非法 → 下发 clarify 事件反问澄清，**不挂残缺草稿**（跳过本工具）
+          // - 抽取成功 → 合并补缺（缺失字段填充），确认执行时使用增强后参数
+          // - LLM 异常/未命中 Schema → 降级原流程，不阻断业务
+          const rawArgs = JSON.parse(tc.function.arguments) as Record<
+            string,
+            unknown
+          >;
+          let execArgs = rawArgs;
+          if (toolResult.preview) {
+            const enhance = await this.extractor.tryEnhance({
+              toolName: tc.function.name,
+              utterance: params.message,
+              args: rawArgs,
+              model: params.model,
+            });
+            if (enhance.needsClarification) {
+              yield {
+                type: 'clarify',
+                message:
+                  enhance.questions?.join('；') ?? '请补充必要信息后再试',
+                issues: enhance.issues,
+              };
+              continue;
+            }
+            if (enhance.args) {
+              execArgs = enhance.args;
+            }
+          }
+
           // ── R70-15 + P0-1 WriteGuard：写操作预览 → 挂起令牌 ──
           // 工具返回 preview（写操作未确认）时，由 ConfirmationService 经
           // WriteGuardService 生成令牌（confirmationId），并在 tool_result 事件
@@ -413,10 +460,7 @@ export class Orchestrator {
                 docType: tc.function.name,
                 risk,
                 needsReview: tool?.needsReview ?? risk === 'high',
-                args: JSON.parse(tc.function.arguments) as Record<
-                  string,
-                  unknown
-                >,
+                args: execArgs,
                 preview: toolResult.preview,
                 operationLabel:
                   toolResult.preview.operation ?? tc.function.name,

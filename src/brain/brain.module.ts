@@ -25,6 +25,7 @@ import { MemoryManager } from './memory-manager.service';
 import { Orchestrator } from './orchestrator.service';
 import { ConfirmationService } from './confirmation.service';
 import { WriteGuardService } from './write-guard.service';
+import { StructuredExtractor } from './extraction/structured-extractor';
 import { RollbackExecutorService } from './rollback-executor.service';
 import { CheckpointerService } from './graph/checkpointer.service';
 import { GraphExecutorService } from './graph/graph-executor.service';
@@ -64,6 +65,7 @@ import { EvolutionService } from './evolution/evolution.service';
     Orchestrator,
     ConfirmationService,
     WriteGuardService,
+    StructuredExtractor,
     RollbackExecutorService,
     CheckpointerService,
     GraphExecutorService,
@@ -79,6 +81,7 @@ import { EvolutionService } from './evolution/evolution.service';
     MemoryManager,
     ConfirmationService,
     WriteGuardService,
+    StructuredExtractor,
     RollbackExecutorService,
     CheckpointerService,
     GraphExecutorService,
