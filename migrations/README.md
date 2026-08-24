@@ -27,4 +27,4 @@
 |---|---|---|---|
 | 001 | t_ai_audit_log / t_ai_usage_daily / t_platform_ai_config / t_tenant_ai_config / t_tenant_ai_billing / t_ai_external_model | 业务库（现有实体已建，SQL 待归档） | 待补齐 |
 | 001 | ai_experience / ai_correction / ai_sample / ai_evolution_version | ai_db（P1-1 独立库） | 待落地 |
-| 002 | t_mcp_token（MCP 对接令牌，P0-3） | 业务库 | 待落地 |
+| 002 | t_mcp_token（MCP 对接令牌，P0-3） | 业务库 | ✅ 已建（002_mcp_token.sql） |

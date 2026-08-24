@@ -26,6 +26,8 @@ import { Orchestrator } from './orchestrator.service';
 import { ConfirmationService } from './confirmation.service';
 import { WriteGuardService } from './write-guard.service';
 import { StructuredExtractor } from './extraction/structured-extractor';
+import { McpTokenService } from './mcp/mcp-token.service';
+import { McpServerService } from './mcp/mcp-server.service';
 import { RollbackExecutorService } from './rollback-executor.service';
 import { CheckpointerService } from './graph/checkpointer.service';
 import { GraphExecutorService } from './graph/graph-executor.service';
@@ -42,6 +44,7 @@ import { AiLearningLogEntity } from '../database/entities/ai-learning-log.entity
 import { LearningService } from './learning/learning.service';
 import { AiEvolutionEntity } from '../database/entities/ai-evolution.entity';
 import { EvolutionService } from './evolution/evolution.service';
+import { McpTokenEntity } from '../database/entities/mcp-token.entity';
 
 @Module({
   imports: [
@@ -52,6 +55,7 @@ import { EvolutionService } from './evolution/evolution.service';
       AiLtmArchivalEntity,
       AiLearningLogEntity,
       AiEvolutionEntity,
+      McpTokenEntity,
     ]),
     ProvidersModule,
     ToolsModule,
@@ -66,6 +70,8 @@ import { EvolutionService } from './evolution/evolution.service';
     ConfirmationService,
     WriteGuardService,
     StructuredExtractor,
+    McpTokenService,
+    McpServerService,
     RollbackExecutorService,
     CheckpointerService,
     GraphExecutorService,
@@ -82,6 +88,8 @@ import { EvolutionService } from './evolution/evolution.service';
     ConfirmationService,
     WriteGuardService,
     StructuredExtractor,
+    McpTokenService,
+    McpServerService,
     RollbackExecutorService,
     CheckpointerService,
     GraphExecutorService,
