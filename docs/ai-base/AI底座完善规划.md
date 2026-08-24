@@ -8,32 +8,34 @@
 
 ## 一、目录结构与文档对齐（先行，约 2 天）
 
-### 1.1 结论：当前 src/ 是开发文档 2.2 的演进超集
+### 1.1 结论：当前 src/ 是唯一权威文档第十八章的演进超集
 
-开发文档 2.2 的目录（gateway/brain/providers/tools/bridge/tenant/database/rag/common）**已全部存在且为超集**：
+基准：`智享AI底座-架构设计文档【唯一权威】.md` **第十八章「项目目录结构」**（开发文档已与架构文档合并，2.2 是业务域「库存管理」，与目录无关）。文档第十八章列出的模块**绝大多数已存在且为超集**，少数模块名有演进（learner→catalog/tool-bootstrap，evolution-engine→brain/learning 等），`migrations/` 尚未迁入：
 
-| 开发文档 2.2 | 当前实际 | 说明 |
+| 文档第十八章 | 当前实际 | 说明 |
 |---|---|---|
 | gateway/ dto/ chat/admin controller | ✅ + ai-config/api-catalog/evolution/external-model/learning/ltm/review/voice controller + push-gateway | 网关扩展（管理接口/主动推送/语音） |
 | brain/ prompts/ orchestrator/context-builder/memory-manager | ✅ + intent-detector/api-summary/write-summary/inventory-format/confirmation/rollback + graph/evidence/learning/memory/proactive/review/router | 大脑扩展（意图/总结/图编排/认知层） |
-| providers/ interface/factory/deepseek/ollama | ✅ + glm/openai-compat/vision/voice | Provider 扩展（智谱默认+视觉+语音） |
+| providers/ interface/factory/deepseek/qwen/zhipu/ollama | ✅ + glm/openai-compat/vision/voice（zhipu=glm 命名对应） | Provider 扩展（智谱默认+视觉+语音） |
 | tools/ definitions/handlers/ interface/registry | ✅ definitions/catalog/price-engine/unit-converter/tool-bootstrap（handlers 演进为 definitions 内实现） | 功能即技能（55 条 API 目录） |
-| bridge/ service-client/audit-logger | ✅ | 一致 |
-| tenant/ context/guard | ✅ tenant-context + tenant.middleware（guard→middleware 命名演进）+ crypto/ai-config/external-model | 多租户配置扩展 |
-| database/ entities | ✅ 12 个实体（ai_* + platform/tenant 配置 + billing） | 与权威文档表设计对齐 |
-| common/ config/crypto | ✅ rate-limiter/request-logging（config 由 ConfigService 承担、crypto 移 tenant） | 演进合理 |
-| rag/ | ✅ | 一致 |
+| bridge/ service-client/tenant.interceptor/audit-logger | ✅（interceptor→middleware 命名演进） | 一致 |
+| tenant/ context/guard/ai-config | ✅ tenant-context + tenant.middleware + crypto/ai-config/external-model | 多租户配置扩展 |
+| database/ entities（10 个：ai_db 4 + 业务 6） | ✅ 12 个实体（ai_ltm_*/ai_learning_log/ai_evolution 等；**ai_db 4 表尚未独立**，属 P1-1） | 认知表待迁 ai_db |
+| common/ config/crypto/rate-limiter/filters/interceptors | ✅ rate-limiter/request-logging（config 由 ConfigService 承担、crypto 移 tenant） | 演进合理 |
+| learner/（auto-learner/adapters/tool-generator） | ⚠️ 演进为 tools/catalog + tool-bootstrap + nlp（功能即技能，无独立 learner 目录） | 文档需更新 |
+| evolution-engine/（aggregator/trainer/evaluator） | ⚠️ 演进为 brain/learning+memory+proactive+review；ai_db 未独立（P1-1 落地后对齐） | 文档需更新 |
+| migrations/（001_ai_tables.sql） | ❌ **缺失（需补）**：文档第 7/22.7/26 章已指向 `zhixiang-ai-base/migrations/001_ai_tables.sql`，独立仓库未迁入 | 迁移目录未迁入 |
+| rag/ | ✅（文档第十八章未列，实际已存在且与知识库章节一致） | 一致 |
 | knowledge/ | ✅ 9 份运营规则文档 | 一致 |
-| docs/migrations/ | ❌ **缺失（需补）** | 迁移目录未迁入独立仓库 |
 | （新增）nlp/ | ✅ nl-parser/param-coercer/reference-resolver | 自然语言精准度层 |
 | （新增）ops/ | ✅ health-monitor/usage-stats/usage-alert | 运维与用量层 |
 
-**结论**：不需要按旧目录回退；应**更新开发文档 2.2** 反映当前结构，并补齐 `docs/migrations/`。
+**结论**：不需要回退；应**更新唯一权威文档第十八章**反映当前结构（标注 learner/evolution-engine 的演进落点），并补齐 `migrations/`。
 
 ### 1.2 待办
 
-- [ ] 更新 `docs/ai-base/智享AI底座-开发文档.md` 2.2 目录结构 → 当前实际（含 nlp/ops/evidence/graph 等新增模块职责）
-- [ ] 建 `docs/migrations/` 目录 + 迁移规范 README（`NNN_描述.sql`、文件头无注释、自动迁移按分号拆分）
+- [ ] 更新唯一权威文档**第十八章「项目目录结构」** → 当前实际（learner→catalog/tool-bootstrap、evolution-engine→brain/learning 等演进标注；rag/nlp/ops/evidence/graph 新增模块职责）
+- [ ] 建 `migrations/` 目录 + 迁移规范 README（`NNN_描述.sql`、文件头无注释、自动迁移按分号拆分；`001_ai_tables.sql` 对齐文档第 7/22.7/26 章）
 
 ---
 
