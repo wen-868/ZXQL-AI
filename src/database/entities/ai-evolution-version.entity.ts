@@ -55,7 +55,7 @@ export class AiEvolutionVersionEntity {
 
   /** 触发方式：auto_learn=自动学习 / manual=人工 */
   @Column({
-    name: 'trigger',
+    name: 'trigger_type',
     type: 'varchar',
     length: 16,
     default: 'auto_learn',

@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS ai_evolution_version (
   from_version VARCHAR(32),
   to_version VARCHAR(32) NOT NULL,
   change_summary TEXT,
-  trigger VARCHAR(16) DEFAULT 'auto_learn',
+  trigger_type VARCHAR(16) DEFAULT 'auto_learn',
   status VARCHAR(16) DEFAULT 'staged',
   approved_by VARCHAR(32),
   created_at DATETIME DEFAULT NOW(),
