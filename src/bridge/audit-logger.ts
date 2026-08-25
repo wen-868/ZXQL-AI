@@ -55,6 +55,15 @@ export interface AiCallAuditRecord {
   success: boolean;
   /** 错误信息（失败时记录） */
   errorMessage?: string;
+  /** P1-3 降级元数据（Provider 降级链切换记录） */
+  fallback?: {
+    used: boolean;
+    from: string;
+    to: string;
+    reason: string;
+    attempts: string[];
+    latencyMs: number;
+  };
 }
 
 /**
@@ -127,6 +136,19 @@ export class AuditLogger {
   logAiCall(record: AiCallAuditRecord): void {
     // 异步写入，不阻塞主流程
     this.fireAndForget(async () => {
+      // P1-3：Provider 降级元数据并入 tool_calls（event=provider_fallback）
+      const toolCalls = [...(record.toolCalls ?? [])];
+      if (record.fallback?.used) {
+        toolCalls.push({
+          event: 'provider_fallback',
+          from: record.fallback.from,
+          to: record.fallback.to,
+          reason: record.fallback.reason,
+          attempts: record.fallback.attempts,
+          latency_ms: record.fallback.latencyMs,
+        });
+      }
+
       const entity = this.auditLogRepo.create({
         tenantId: record.tenantId,
         userId: record.userId ?? null,
@@ -135,7 +157,7 @@ export class AuditLogger {
         model: record.model ?? null,
         intent: record.intent ?? null,
         userMessage: record.userMessage ?? null,
-        toolCalls: record.toolCalls ?? null,
+        toolCalls: toolCalls.length > 0 ? toolCalls : null,
         promptTokens: record.promptTokens,
         completionTokens: record.completionTokens,
         latencyMs: record.latencyMs ?? null,

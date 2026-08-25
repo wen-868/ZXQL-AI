@@ -52,6 +52,11 @@ export class UpdatePlatformAiConfigDto {
   @IsOptional()
   @IsString()
   defaultSystemPrompt?: string;
+
+  /** 本地 Ollama 兜底开关（P1-3：0=关闭 1=开启，默认开启） */
+  @IsOptional()
+  @IsIn([0, 1])
+  ollamaFallbackEnabled?: number;
 }
 
 /** 更新租户 AI 配置 */

@@ -9,6 +9,7 @@ import type {
 } from './tool.interface';
 import type { ToolCall } from '../providers/provider.interface';
 import type { AuditLogger } from '../bridge/audit-logger';
+import { CircuitBreakerService } from './circuit-breaker.service';
 
 /**
  * ToolExecutor 单元测试
@@ -53,7 +54,12 @@ describe('ToolExecutor', () => {
   beforeEach(() => {
     registry = new ToolRegistry();
     mockAuditLogger = createMockAuditLogger();
-    executor = new ToolExecutor(registry, mockAuditLogger);
+    const mockBreaker = {
+      canProceed: jest.fn(() => ({ ok: true })),
+      recordSuccess: jest.fn(),
+      recordFailure: jest.fn(),
+    } as unknown as CircuitBreakerService;
+    executor = new ToolExecutor(registry, mockAuditLogger, mockBreaker);
   });
 
   describe('executeToolCall - 执行成功', () => {

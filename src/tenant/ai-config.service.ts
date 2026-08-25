@@ -242,4 +242,27 @@ export class AiConfigService {
     this.platformConfigLoaded = false;
     this.logger.debug('平台 AI 配置缓存已清除');
   }
+
+  /**
+   * 本地 Ollama 兜底开关（P1-3）
+   *
+   * 读取优先级：平台配置表 ollama_fallback_enabled > env OLLAMA_FALLBACK_ENABLED > 默认开启。
+   * 无租户上下文也可调用（不依赖 TenantContext）。
+   */
+  async isFallbackEnabled(): Promise<boolean> {
+    try {
+      const config = await this.getPlatformConfig();
+      // 旧数据字段未初始化（undefined）时回退 env/默认
+      if (config.ollamaFallbackEnabled !== undefined) {
+        return config.ollamaFallbackEnabled === 1;
+      }
+    } catch {
+      // 平台配置不存在等异常 → 回退 env
+    }
+    const envValue = process.env.OLLAMA_FALLBACK_ENABLED;
+    if (envValue !== undefined && envValue !== '') {
+      return envValue !== 'false' && envValue !== '0';
+    }
+    return true;
+  }
 }

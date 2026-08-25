@@ -3,6 +3,7 @@ import type { ChatMessage, ToolCall } from '../providers/provider.interface';
 import { ToolContext, ToolExecutionRecord, ToolResult } from './tool.interface';
 import { ToolRegistry } from './tool-registry';
 import { AuditLogger } from '../bridge/audit-logger';
+import { CircuitBreakerService } from './circuit-breaker.service';
 
 /**
  * Tool 执行器
@@ -34,6 +35,7 @@ export class ToolExecutor {
   constructor(
     private readonly registry: ToolRegistry,
     private readonly auditLogger: AuditLogger,
+    private readonly breaker: CircuitBreakerService,
   ) {}
 
   /**
@@ -91,6 +93,17 @@ export class ToolExecutor {
       };
     }
 
+    // 3.5 P1-3 工具级熔断：微服务故障不得拖垮 AI 底座
+    const gate = this.breaker.canProceed(toolName);
+    if (!gate.ok) {
+      this.logger.warn(`工具 ${toolName} 执行被熔断拦截：${gate.reason}`);
+      return {
+        success: false,
+        error: gate.reason,
+        suggestion: '服务暂时不可用，请稍后重试或联系管理员检查对应服务',
+      };
+    }
+
     // 4. 执行工具（try-catch 兜底，即使 tool.execute 内部抛异常也不影响 Agent Loop）
     try {
       this.logger.debug(
@@ -98,6 +111,12 @@ export class ToolExecutor {
       );
       const result = await tool.execute(args, context);
       const durationMs = Date.now() - start;
+      // 熔断状态记录（按结果）
+      if (result.success) {
+        this.breaker.recordSuccess(toolName);
+      } else {
+        this.breaker.recordFailure(toolName);
+      }
 
       // 记录审计信息（当前打日志，R70-05 接入 AuditLogger 后改为异步写库）
       this.logExecution({
@@ -121,6 +140,7 @@ export class ToolExecutor {
       return result;
     } catch (err) {
       const durationMs = Date.now() - start;
+      this.breaker.recordFailure(toolName);
       const errorMsg = `工具执行异常：${err instanceof Error ? err.message : String(err)}`;
       this.logger.error(
         `工具 ${toolName} 执行抛异常（${durationMs}ms）：${errorMsg}`,

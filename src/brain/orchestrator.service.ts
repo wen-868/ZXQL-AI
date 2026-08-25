@@ -41,10 +41,14 @@ import { MemoryManager } from './memory-manager.service';
 import { ConfirmationService } from './confirmation.service';
 import { StructuredExtractor } from './extraction/structured-extractor';
 import { CaptureService } from '../evolution/capture.service';
-import type { ChatMessage, ChatResult } from '../providers/provider.interface';
+import type { ChatMessage } from '../providers/provider.interface';
 import type { ToolContext, ToolResult } from '../tools/tool.interface';
 import { GraphExecutorService } from './graph/graph-executor.service';
-import { ProviderRouterService } from './router/provider-router.service';
+import {
+  ChatResultWithFallback,
+  FallbackMeta,
+  ProviderRouterService,
+} from './router/provider-router.service';
 import { LearningService } from './learning/learning.service';
 import { formatInventoryQty } from './inventory-format';
 import { buildApiToolSummary } from './api-summary';
@@ -341,19 +345,28 @@ export class Orchestrator {
       ];
 
       let iteration = 0;
+      let fallbackUsed: FallbackMeta | undefined;
 
       for (; iteration < MAX_ITERATIONS; iteration++) {
         this.logger.debug(`Agent Loop 第 ${iteration + 1} 轮`);
 
-        // 调用 LLM（流式）
-        const generator = provider.chat(messages, {
-          tools: toolDefinitions.length > 0 ? toolDefinitions : undefined,
-          temperature: resolvedConfig.temperature,
-          max_tokens: resolvedConfig.maxTokens,
-        });
+        // 调用 LLM（流式 + P1-3 降级链：云端默认 → 本地 Ollama 兜底 → 备用云端）
+        const generator = this.router.chatWithFallback(
+          messages,
+          {
+            tools: toolDefinitions.length > 0 ? toolDefinitions : undefined,
+            temperature: resolvedConfig.temperature,
+            max_tokens: resolvedConfig.maxTokens,
+          },
+          {
+            requestedModel: params.model,
+            resolved: resolvedConfig,
+            systemScope: this.router.getSystemScope(),
+          },
+        );
 
         // 消费流式生成器
-        let chatResult: ChatResult;
+        let chatResult: ChatResultWithFallback;
         let contentBuf = '';
 
         try {
@@ -376,6 +389,13 @@ export class Orchestrator {
         // 累计 token
         totalPromptTokens += chatResult!.prompt_tokens;
         totalCompletionTokens += chatResult!.completion_tokens;
+        // P1-3 降级可观测：记录本次降级信息供审计
+        if (chatResult!.fallback?.used) {
+          fallbackUsed = chatResult!.fallback;
+          this.logger.warn(
+            `Provider 降级：${fallbackUsed.from} → ${fallbackUsed.to}（${fallbackUsed.reason}，耗时 ${fallbackUsed.latencyMs}ms）`,
+          );
+        }
 
         // 检查工具调用
         const toolCalls = chatResult!.tool_calls;
@@ -630,6 +650,7 @@ export class Orchestrator {
         completionTokens: totalCompletionTokens,
         latencyMs,
         success: true,
+        fallback: fallbackUsed,
       });
 
       this.logger.log(

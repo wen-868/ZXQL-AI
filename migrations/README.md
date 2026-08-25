@@ -29,3 +29,4 @@
 | 001 | ai_experience / ai_correction / ai_sample / ai_evolution_version | ai_db（P1-1 独立库） | 待落地 |
 | 002 | t_mcp_token（MCP 对接令牌，P0-3） | 业务库 | ✅ 已建（002_mcp_token.sql） |
 | 003 | ai_db 独立库 + ai_experience/ai_correction/ai_sample/ai_evolution_version（认知闭环，P1-1） | ai_db（独立 schema） | ✅ 已建（003_ai_db_evolution.sql） |
+| 004 | t_platform_ai_config 增加 ollama_fallback_enabled（本地兜底开关，P1-3） | 业务库 | ✅ 已建（004_platform_ai_config_fallback.sql） |

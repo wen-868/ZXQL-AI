@@ -84,6 +84,15 @@ export class PlatformAiConfigEntity {
   })
   defaultSystemPrompt!: string | null;
 
+  /** 本地 Ollama 兜底开关（P1-3：云端不可用时自动降级本地，默认开启） */
+  @Column({
+    name: 'ollama_fallback_enabled',
+    type: 'tinyint',
+    default: 1,
+    comment: '本地 Ollama 兜底开关：1=开启 0=关闭',
+  })
+  ollamaFallbackEnabled!: number;
+
   /** 创建时间 */
   @Column({
     name: 'created_at',

@@ -16,6 +16,7 @@ import { GetSaleBillDetailTool } from './definitions/get-sale-bill-detail.tool';
 import { CancelOrderTool } from './definitions/cancel-order.tool';
 import { CancelPurchaseOrderTool } from './definitions/cancel-purchase-order.tool';
 import { ToolGeneratorService } from './catalog/tool-generator.service';
+import { CircuitBreakerService } from './circuit-breaker.service';
 // R70-10: 库存管理 3 个工具
 import { InventoryTransferTool } from './definitions/inventory-transfer.tool';
 import { StockCheckTool } from './definitions/stock-check.tool';
@@ -100,6 +101,7 @@ import { BridgeModule } from '../bridge/bridge.module';
   providers: [
     ToolRegistry,
     ToolExecutor,
+    CircuitBreakerService,
     ToolBootstrap,
     // R70-14: 智能价格填充引擎（可复用服务）
     PriceEngineService,
@@ -169,6 +171,11 @@ import { BridgeModule } from '../bridge/bridge.module';
     CreatePlatformAnnouncementTool,
     HandleSubscriptionApplyTool,
   ],
-  exports: [ToolRegistry, ToolExecutor, ToolGeneratorService],
+  exports: [
+    ToolRegistry,
+    ToolExecutor,
+    CircuitBreakerService,
+    ToolGeneratorService,
+  ],
 })
 export class ToolsModule {}
