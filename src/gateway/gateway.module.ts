@@ -37,6 +37,7 @@ import { TenantModule } from '../tenant/tenant.module';
 import { BrainModule } from '../brain/brain.module';
 import { DatabaseModule } from '../database/database.module';
 import { AiDbModule } from '../database/ai-db.module';
+import { EvolutionModule } from '../evolution/evolution.module';
 import { CommonModule } from '../common/common.module';
 import { PushGatewayService } from './push-gateway.service';
 import { VisionService } from '../providers/vision.service';
@@ -67,6 +68,7 @@ import { VoiceController } from './voice.controller';
     TenantModule,
     DatabaseModule,
     AiDbModule,
+    EvolutionModule,
     CommonModule,
     ProvidersModule,
     ToolsModule,
