@@ -103,6 +103,16 @@ export class V2ReportDto {
   @IsOptional()
   @IsObject()
   params?: V2ReportParamsDto;
+
+  /** 租户 ID（可选，JWT 兼容的 body 直调模式） */
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
+
+  /** 客户 ID（可选，运营客户端 customerScope 隔离） */
+  @IsOptional()
+  @IsString()
+  customerId?: string;
 }
 
 /** 报表导出 PDF（与生成同构） */
