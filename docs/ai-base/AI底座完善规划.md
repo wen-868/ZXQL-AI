@@ -34,8 +34,8 @@
 
 ### 1.2 待办
 
-- [ ] 更新唯一权威文档**第十八章「项目目录结构」** → 当前实际（learner→catalog/tool-bootstrap、evolution-engine→brain/learning 等演进标注；rag/nlp/ops/evidence/graph 新增模块职责）
-- [ ] 建 `migrations/` 目录 + 迁移规范 README（`NNN_描述.sql`、文件头无注释、自动迁移按分号拆分；`001_ai_tables.sql` 对齐文档第 7/22.7/26 章）
+- [x] 更新唯一权威文档**第十八章「项目目录结构」** → 当前实际（批次5 已同步 agent/v2/customer-scope/新控制器；learner→catalog/tool-bootstrap、evolution-engine→brain/learning 演进标注；rag/nlp/ops/evidence/graph 新增模块职责）
+- [x] `migrations/` 目录 + 迁移规范 README 已建（`NNN_描述.sql`、自动迁移按分号拆分）；本仓库迁移 002~006 覆盖全部 AI 表（001 由旧 wen-ssystem 仓库承接，7/22.7/26 章口径已对齐）
 
 ---
 
@@ -47,11 +47,11 @@
 **目标**：统一为 WriteGuard 令牌制（文档口径：读全自动、写全审核、令牌确认）。
 
 任务：
-- [ ] `WriteGuardService`：写操作挂起生成 `token`（Redis，24h TTL），返回 `pendingWrite`（docType/risk/summary）
-- [ ] `POST /ai/agent/confirm`：`{ token, action: confirm|cancel }` → 执行/放弃；高危写（资金/删除/批量）二次确认
-- [ ] 现有 `ConfirmationService`/前端确认卡对接令牌（保持前端体验，后端改令牌）
-- [ ] 审计：`ai_audit_log` 记录挂起/确认/取消全轨迹
-- [ ] 测试：读全自动不弹确认、写必令牌、高危二次确认、token 过期/复用拒绝
+- [x] `WriteGuardService`：写操作挂起生成 `token`（Redis，24h TTL），返回 `pendingWrite`（docType/risk/summary）
+- [x] `POST /ai/agent/confirm`：`{ token, action: confirm|cancel }` → 执行/放弃；高危写（资金/删除/批量）二次确认
+- [x] 现有 `ConfirmationService`/前端确认卡对接令牌（保持前端体验，后端改令牌）
+- [x] 审计：`ai_audit_log` 记录挂起/确认/取消全轨迹
+- [x] 测试：读全自动不弹确认、写必令牌、高危二次确认、token 过期/复用拒绝
 
 ### P0-2 StructuredExtractor 结构化抽取（文档 23 章）【约 4 天】
 
@@ -59,11 +59,11 @@
 **目标**：所有写入类型统一结构化抽取，**禁用正则**（文档红线）。
 
 任务：
-- [ ] `WriteSchemaRegistry`：14 类 Schema（customer_create/product_create/price_update/sales_order/sales_return/purchase_order/purchase_return/delivery/receipt/payment/refund/inventory_transfer/inventory_check/promotion），字段/类型/必填/枚举/说明
-- [ ] `StructuredExtractor.extract(docType, utterance)`：LLM function calling → JSON mode 兜底 → 类型强制+枚举校验 → 必填缺失/解析失败**反问澄清**（不挂残缺草稿）
-- [ ] 接入写分支：`AgentOrchestrator` 写意图 → extractor.extract → WriteGuard.suspend（删除散落正则）
-- [ ] `nl-parser`/`param-coercer` 收敛为抽取校验的辅助（数量/价格语义），不再承担写入字段抽取
-- [ ] 测试：14 类 Schema 各覆盖成功/缺失/非法枚举/澄清分支
+- [x] `WriteSchemaRegistry`：14 类 Schema（customer_create/product_create/price_update/sales_order/sales_return/purchase_order/purchase_return/delivery/receipt/payment/refund/inventory_transfer/inventory_check/promotion），字段/类型/必填/枚举/说明
+- [x] `StructuredExtractor.extract(docType, utterance)`：LLM function calling → JSON mode 兜底 → 类型强制+枚举校验 → 必填缺失/解析失败**反问澄清**（不挂残缺草稿）
+- [x] 接入写分支：`AgentOrchestrator` 写意图 → extractor.extract → WriteGuard.suspend（删除散落正则）
+- [x] `nl-parser`/`param-coercer` 收敛为抽取校验的辅助（数量/价格语义），不再承担写入字段抽取
+- [x] 测试：14 类 Schema 各覆盖成功/缺失/非法枚举/澄清分支
 
 ### P0-3 MCP 接口（文档 14 章）【约 3 天】
 
@@ -71,10 +71,10 @@
 **目标**：`/ai/mcp`（MCP over HTTP/SSE）暴露 ToolRegistry 全部工具，WorkBuddy 等第三方零定制接入。
 
 任务：
-- [ ] `mcp_token` 表（tenant_id/token/name/enabled/expires_at）+ 迁移
-- [ ] MCP Server：Tools 列表 = ToolRegistry（工具增减自动同步）；Token 认证 → 注入 tenantId
-- [ ] 总台配置中心加「MCP 对接 Token」管理（生成/绑定租户/启停）
-- [ ] 验证：MCP 客户端（WorkBuddy）走 token 调 createSalesOrder/queryInventory 等
+- [x] `mcp_token` 表（tenant_id/token/name/enabled/expires_at）+ 迁移
+- [x] MCP Server：Tools 列表 = ToolRegistry（工具增减自动同步）；Token 认证 → 注入 tenantId
+- [x] 总台配置中心加「MCP 对接 Token」管理（生成/绑定租户/启停，mcp-admin）
+- [ ] 验证：MCP 客户端（WorkBuddy）走 token 调 createSalesOrder/queryInventory 等（待对接实测）
 
 ### P1-1 ai_db 认知闭环（文档 26 章）【约 4 天】
 
@@ -82,12 +82,12 @@
 **目标**：独立进化底座，四层闭环（采集→萃取→聚合→反哺）。
 
 任务：
-- [ ] ai_db 独立库/独立 schema：`ai_experience`/`ai_correction`/`ai_sample`/`ai_evolution_version`（迁移）
-- [ ] 采集：任务结束落样本（成功路径/用户纠正/脱敏输入输出对）；审计日志并入
-- [ ] 萃取：经验抽取器归纳"为什么错、正确做法"
-- [ ] 聚合：跨租户脱敏聚合公共模式（隔离脱敏，不混原始业务数据）
-- [ ] 反哺：校准 WRITE_SCHEMAS/归因模板/话术（版本化、人工确认 staged→active、可回滚）
-- [ ] 现有 learning/LTM 迁移对齐 ai_db
+- [x] ai_db 独立库/独立 schema：`ai_experience`/`ai_correction`/`ai_sample`/`ai_evolution_version`（迁移 003）
+- [x] 采集：任务结束落样本（成功路径/用户纠正/脱敏输入输出对）；审计日志并入
+- [x] 萃取：经验抽取器归纳"为什么错、正确做法"
+- [x] 聚合：跨租户脱敏聚合公共模式（隔离脱敏，不混原始业务数据）
+- [x] 反哺：校准 WRITE_SCHEMAS/归因模板/话术（版本化、人工确认 staged→active、可回滚）
+- [x] 现有 learning/LTM 迁移对齐 ai_db
 
 ### P1-2 配置中心完善（文档 6 章）【约 3 天】
 
@@ -106,16 +106,16 @@
 **目标**：zhipu(默认) → ollama(本地兜底) → deepseek/qwen(备用)；Provider 超时/熔断。
 
 任务：
-- [ ] Provider 降级链（providerFallbackChain：zhipu→ollama→deepseek→qwen；ollama→zhipu）
-- [ ] `OLLAMA_FALLBACK_ENABLED` 开关（默认 true）；Provider 调用超时/失败自动切换
-- [ ] Tool 级独立熔断（文档决策 17：防止微服务故障拖垮底座）
-- [ ] 降级可观测（审计记录 fallback 原因/耗时）
+- [x] Provider 降级链（providerFallbackChain：glm→ollama→deepseek→qwen；ollama→glm）
+- [x] `OLLAMA_FALLBACK_ENABLED` 开关；Provider 调用超时/失败自动切换（4G 服务器本地不可用自动跳过）
+- [x] Tool 级独立熔断（文档决策 17：防止微服务故障拖垮底座）
+- [x] 降级可观测（审计记录 fallback 原因/耗时）
 
 ### P2-1 双线统筹：运营系统接入（文档 25 章）【待管理系统稳定后】
 
 - [ ] `SYSTEM_SCOPE=ops`，运营工具 30 个（选题/脚本/成片/分发/直播/投流/选品/订单/对账/客服/复盘）
 - [ ] 运营客户端本地打包对接（SSE + WriteGuard，本地/内网通道，对客推理强制本地）
-- [ ] customerScope 隔离（对客请求身份/数据可见性/写闸门边界）
+- [x] customerScope 隔离（对客请求身份/数据可见性/写闸门边界，批次4 完成：允许名单制 AI_010 + 本人确认 AI_012）
 
 ---
 
@@ -145,7 +145,7 @@
 ## 五、当前基线（已完成）
 
 - 代码基线：73 套件 746 用例全绿、build/lint/启动门禁通过
-- 工具：96 个（精调 49 + API 目录 55），意图驱动动态加载（prompt 7 万→2.7 万 tokens）
+- 工具：107 个（精调 52 + API 目录 55），意图驱动动态加载（prompt 7 万→2.7 万 tokens）
 - 自然语言层：数量口语解析/参数自纠错/指代消解/搜索词清洗
 - 感知：图片识别（GLM-4V）、语音输入/播报；输出：图表渲染
 - 多 Agent：3 条业务图（采购/营销/盘点）；经验闭环（LTM/LN/SE）
@@ -189,4 +189,4 @@
 - **批次 2（Agent 内核 22 章）✅ 已完成（2026-08-26）**：ai_execution_plan 表+实体（迁移 006）、Planner（模板+LLM 规划三级降级）、TaskRunner（断点续跑/人工介入 approveStep/rejectStep/单步容错）、SelfHealLoop（错误分类/重试/经验回流 ai_db）、AgentEngine 门面、/ai/agent/run（SSE+agent_step）、/ai/agent/plan、/ai/agent/plans 列表/详情/续跑/审批/驳回/取消、写步骤挂起 WriteGuard 令牌（确认后自动回写步骤）、SSE 12.1 增补 agent_step 事件
 - **批次 3（v2 报表协议）✅ 已完成（2026-08-26）**：/ai/v2/handle（自然语言入口：读自动返回结论 / 写意图 LLM 选写工具+StructuredExtractor 增强校验+预览+WriteGuard 挂起令牌 pendingWrite JSON / 缺参 clarify）、/ai/v2/confirm（受控写确认，返回 docId）、/ai/v2/report（A=销售/B=库存/C=利润/D=经营总览，映射现有只读工具）、/ai/v2/report/pdf（@napi-rs/canvas 注册系统 CJK 字体绘制表格 → JPEG → 手写单页 PDF，无第三方 PDF 依赖）；ai/v2 加入租户中间件路由
 - **批次 4（运营双线骨架）✅ 已完成（2026-08-26）**：customerScope 隔离框架（M4 预演）——身份模型扩展（TenantContext/Middleware 支持 customerId+role=customer）、CustomerScopeGuard 允许名单制拦截（客户仅可读本人订单/物流/会员/适用价、可写退换货/咨询/收货/订阅，其余一律 AI_010，安全默认全拒）、ToolExecutor 执行层兜底、对话记忆 Key 追加 customerId 隔离、客户口吻人设 System Prompt（含边界与合规约束）、WriteGuard 写令牌绑定 customerId（确认人=本人，非本人 AI_012 拒绝）；运营工具集（P2-1 30 个）接入前客户身份默认全拒
-- **批次 5（文档同步）**：C 级滞后（工具数 96、内存口径 4G、路径前缀、表清单 12+4、TTL 24h）
+- **批次 5（文档同步）✅ 已完成（2026-08-26）**：C 级滞后全量同步——工具数 96→107（精调 52+目录 55）、内存口径 4核4G（Ollama 默认不装，降级链自动跳过）、路径前缀 /ai-api/ 反代（内部保留 /api，13.1.3 Nginx 配置+网关图同步）、表清单 5→15 张（业务库）+4 张 ai_db、TTL 24h（批次1已对齐，复核无需改）；第十八章补 agent/v2/customer-scope 目录与新增控制器

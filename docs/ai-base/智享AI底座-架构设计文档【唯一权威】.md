@@ -51,8 +51,7 @@
 ┌─────────────▼──────────────────────────────────────▼──────────────┐
 │                      网关层 (Nginx)                                │
 │   /api/*      → 现有微服务                                        │
-│   /ai/*       → AI底座 (3016)                                     │
-│   /admin/ai/* → AI配置管理API                                     │
+│   /ai-api/*   → AI底座 (3016)（内部保留 /api 前缀）                │
 └────────────────────────────┬──────────────────────────────────────┘
                              │
 ┌────────────────────────────▼──────────────────────────────────────┐
@@ -222,7 +221,7 @@ P2 (增强，Phase 4):
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│              腾讯轻量服务器 4核8G（现有）                     │
+│              腾讯轻量服务器 4核4G（现有）                     │
 │                                                            │
 │  Docker Compose                                            │
 │  ┌──────────────────────────────────────────────────────┐  │
@@ -231,10 +230,10 @@ P2 (增强，Phase 4):
 │  │  14个 NestJS 微服务 (3001-3015)                      │  │
 │  │  zhixiang-ai-base (3016)  ← 新增                     │  │
 │  │  智谱 GLM (云端推理, glm-4-flash, 默认)             │  │
-│  │  Ollama (本地兜底, qwen2.5:7b, 云端不可用时降级)     │  │
+│  │  Ollama (本地兜底, 可选: 4G 内存默认不装, 降级链自动跳过)│  │
 │  └──────────────────────────────────────────────────────┘  │
 │                                                            │
-│  内存占用: 业务~6G + AI底座~500MB + Ollama~1.5G = ~8G / 8G  │
+│  内存占用: 业务~3G + AI底座~400MB（无 Ollama）= ~3.5G / 4G   │
 └────────────────────────────────────────────────────────────┘
          │
          │ HTTPS（云端默认调用；不可用时降级本地 Ollama）
@@ -251,7 +250,7 @@ P2 (增强，Phase 4):
 
 ```
 ┌──────────────────────┐     ┌──────────────────────────────┐
-│ 腾讯轻量 4核8G        │     │ 新增服务器（本地AI推理）       │
+│ 腾讯轻量 4核4G（现有） │     │ 新增服务器（本地AI推理，可选）  │
 │                      │     │                              │
 │ 所有业务服务          │     │ Ollama + qwen2.5:7b          │
 │ AI底座 (3016)        │────▶│ GPU可选                      │
@@ -260,6 +259,7 @@ P2 (增强，Phase 4):
 ```
 
 > 切换方式：改 `.env` 中 `MODEL_PROVIDER=ollama` 即可，无需改代码。
+> 当前 4G 内存服务器不装 Ollama（7B 模型带不动）；需要本地兜底时按此阶段二另配推理机，降级链在本地不可用时自动跳过。
 
 ### 3.3 AI 底座独立部署形态（为后续独立部署铺路）
 
@@ -707,17 +707,27 @@ ai_audit_log (每次AI调用1条，明细) ──汇总──▶ ai_usage_daily 
 
 | 表名 | 用途 | 记录数 |
 |------|------|--------|
-| `platform_ai_config` | 平台级AI默认配置 | 1条 |
-| `tenant_ai_config` | 租户AI服务商/模型配置 | 每租户1条 |
-| `ai_audit_log` | AI调用审计明细 | 每次调用1条 |
-| `ai_usage_daily` | 按租户按日用量汇总 | 每租户每天1条 |
-| `tenant_ai_billing` | 租户计费套餐配置 | 每租户1条 |
+| `t_platform_ai_config` | 平台级AI默认配置 | 1条 |
+| `t_tenant_ai_config` | 租户AI服务商/模型配置（Key 加密存储） | 每租户1条 |
+| `t_ai_audit_log` | AI调用审计明细（挂起/确认/取消全轨迹） | 每次调用1条 |
+| `t_ai_usage_daily` | 按租户按日用量汇总 | 每租户每天1条 |
+| `t_tenant_ai_billing` | 租户计费套餐配置 + 预付费余额（balance） | 每租户1条 |
+| `t_ai_external_model` | 外部模型（服务商）注册 | 每模型1条 |
+| `t_ai_review_task` | 人工审核任务（图/高危写） | 每任务1条 |
+| `t_ai_ltm_profile` | 长期记忆·租户档案 | 每租户N条 |
+| `t_ai_ltm_episodic` | 长期记忆·情节经验 | 每交互N条 |
+| `t_ai_ltm_archival` | 长期记忆·归档 | 每交互N条 |
+| `t_ai_learning_log` | 学习回流日志（工具选择/路由提示） | 每任务N条 |
+| `t_ai_evolution` | 进化门控版本 | 每版本1条 |
+| `t_mcp_token` | MCP 对接 Token（绑定租户） | 每Token1条 |
+| `t_ai_session_archive` | 会话冷备归档（L2 冷存储） | 每会话1条 |
+| `ai_execution_plan` | Agent 自主任务计划（步骤六态，断点续跑） | 每任务1条 |
 
-> 另：`ai_db`（AI 底座私有库）含 `ai_experience` / `ai_correction` / `ai_sample` / `ai_evolution_version` 共 4 张表，归属 AI 底座独立仓库，不计入总平台业务库（见 7.0）。
+> 共 **15 张**（业务库/审计库，归属总平台）。另：`ai_db`（AI 底座私有库）含 `ai_experience` / `ai_correction` / `ai_sample` / `ai_evolution_version` 共 4 张表，归属 AI 底座独立仓库，不计入总平台业务库（见 7.0）。
 
 ### 7.4 对现有37张表的影响
 
-> **零影响。** 上述 5 张新表完全独立，不修改任何现有表结构；`ai_db` 为 AI 底座独立库，与总平台业务库物理隔离，亦无侵入。
+> **零影响。** 上述 15 张新表完全独立，不修改任何现有表结构；`ai_db` 为 AI 底座独立库，与总平台业务库物理隔离，亦无侵入。
 
 ---
 
@@ -1275,19 +1285,24 @@ class AIChatWidget {
 #### 13.1.3 Nginx 配置
 
 ```nginx
-location /ai/ {
-    proxy_pass http://127.0.0.1:3016/ai/;
+location /ai-api/ {
+    proxy_pass http://127.0.0.1:3016/;   # 保留 AI 底座内部 /api 全局前缀
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection 'upgrade';
+    proxy_set_header Connection "upgrade";   # 字面量 upgrade，WebSocket 握手不 404
     proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
     
     # SSE 关键配置
     proxy_buffering off;           # 关闭缓冲，实时推送
     proxy_read_timeout 300s;       # 长连接超时5分钟
-    chunked_transfer_encoding on;  # 支持分块传输
+    proxy_cache off;
 }
 ```
+
+> 公网实际路径：`https://<域名>/ai-api/api/chat`、`/ai-api/api/ai/agent/run`、`/ai-api/api/ai/v2/handle` 等（AI 底座内部全局前缀 `/api` 由 Nginx 反代原样保留）。
 
 ### 13.2 移动端对接（App/H5）
 
@@ -2113,6 +2128,13 @@ zhixiang-ai-base/（独立仓库 ZXQL-AI，src 结构 v3.6 与代码对齐）
 │   │
 │   ├── gateway/                        # 对外网关层（Controller 均注册于 GatewayModule）
 │   │   ├── chat.controller.ts          # POST /api/chat（SSE 流式对话）
+│   │   ├── agent.controller.ts         # /ai/agent/* 自主执行内核（run/plan/plans 管理）
+│   │   ├── v2.controller.ts            # /ai/v2/* 自然语言入口+报表+PDF
+│   │   ├── write-guard.controller.ts   # /ai/agent/confirm 写全审核令牌统一接口
+│   │   ├── mcp.controller.ts           # /ai/mcp JSON-RPC/SSE（WorkBuddy 等第三方）
+│   │   ├── mcp-admin.controller.ts     # MCP Token 管理
+│   │   ├── ai-db.controller.ts         # ai_db 认知闭环管理（经验/纠正/样本/版本）
+│   │   ├── circuit-breaker.controller.ts # 工具级熔断管理
 │   │   ├── push-gateway.service.ts     # WebSocket /api/ai/ws（JWT 认证 + 按租户广播）
 │   │   ├── admin.controller.ts         # 工具/Provider/健康检查/审计管理 API
 │   │   ├── ai-config.controller.ts     # 总台 AI 配置（模型/服务商）
@@ -2139,6 +2161,14 @@ zhixiang-ai-base/（独立仓库 ZXQL-AI，src 结构 v3.6 与代码对齐）
 │   │   │   ├── graph.types.ts
 │   │   │   ├── graph-executor.service.ts
 │   │   │   └── checkpointer.service.ts
+│   │   ├── agent/                      # Agent 自主执行内核（22 章）
+│   │   │   ├── agent-engine.service.ts # 门面：goal → Planner → TaskRunner
+│   │   │   ├── planner.service.ts      # 目标分解（模板 + LLM 动态规划三级降级）
+│   │   │   ├── task-runner.service.ts  # 长任务执行（断点续跑/人工介入/单步容错）
+│   │   │   └── self-heal-loop.service.ts # 自愈回路（错误分类/重试/经验回流 ai_db）
+│   │   ├── v2/                         # v2 报表协议（11.3 章）
+│   │   │   ├── v2-handle.service.ts    # 自然语言入口（读自动/写挂起 pendingWrite）
+│   │   │   └── report.service.ts       # A/B/C/D 报表生成 + PDF 导出
 │   │   ├── evidence/evidence-ledger.service.ts      # 证据链台账
 │   │   ├── learning/learning.service.ts             # 经验学习（LN）
 │   │   ├── memory/long-term-memory.service.ts       # 长期记忆（LTM）
@@ -2166,11 +2196,12 @@ zhixiang-ai-base/（独立仓库 ZXQL-AI，src 结构 v3.6 与代码对齐）
 │   │   ├── tool.interface.ts           # ITool / ToolResult / 风险分级
 │   │   ├── tool-registry.ts            # 工具注册表（按租户启停/过滤）
 │   │   ├── tool-executor.ts            # 工具执行器（统一异常/审计）
-│   │   ├── tool-bootstrap.ts           # 工具装配（精调 49 + 目录 55 = 96）
+│   │   ├── customer-scope.guard.ts     # 运营客户端 customerScope 拦截（AI_010）
+│   │   ├── tool-bootstrap.ts           # 工具装配（精调 52 + 目录 55 = 107）
 │   │   ├── price-engine.service.ts     # 价格引擎
 │   │   ├── unit-converter.service.ts   # 箱/支等单位换算
 │   │   ├── definitions/                # 精调工具定义与执行（handlers 演进为 definitions 内实现）
-│   │   │   └── *.tool.ts               # 50+ 业务工具（写操作带 preview + risk）
+│   │   │   └── *.tool.ts               # 52 个精调业务工具（写操作带 preview + risk）
 │   │   └── catalog/                    # API 目录动态技能（learner/tool-generator 演进落点）
 │   │       ├── api-catalog.ts          # 55 条 API 目录
 │   │       ├── dynamic-api.tool.ts     # 动态 API 工具
@@ -2333,7 +2364,7 @@ zhixiang-ai-base/（独立仓库 ZXQL-AI，src 结构 v3.6 与代码对齐）
 
 | # | 决策 | 选项 | 选择 | 理由 |
 |---|------|------|------|------|
-| 1 | 部署方式 | 独立服务器 / 同机部署 | **同机部署（v3.4 明确 AI 底座独立仓库，为独立部署铺路）** | 4核8G够用，简化运维；底座与业务解耦，后续整体迁移目标仍为**本地/私有化部署，非公有云**（与运营系统本地打包同基调） |
+| 1 | 部署方式 | 独立服务器 / 同机部署 | **同机部署（v3.4 明确 AI 底座独立仓库，为独立部署铺路）** | 4核4G够用（Ollama 不装，降级链自动跳过；如需本地兜底另配推理机），简化运维；底座与业务解耦，后续整体迁移目标仍为**本地/私有化部署，非公有云**（与运营系统本地打包同基调） |
 | 2 | AI模型 | 本地 / 云端 / 混合 | **v3.5 云端默认（智谱 GLM），本地 Ollama 兜底**（云端不可用时自动降级本地；原"本地优先"已废弃） | 云端默认保证体验与质量；本地兜底保证断网/云端故障时不中断 |
 | 3 | 默认服务商 | DeepSeek / 通义 / 智谱 / Ollama | **v3.5 智谱 GLM（云端默认），Ollama 本地兜底**（原 v3.4 Ollama 本地已废弃） | 云端免费额度质量稳定；本地兜底降级可用 |
 | 4 | 模型切换 | 硬编码 / 配置驱动 | **配置驱动** | ProviderFactory + DB配置 |
