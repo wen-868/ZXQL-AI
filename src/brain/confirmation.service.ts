@@ -52,6 +52,10 @@ export interface PendingConfirmation {
   tenantId: string;
   /** 会话 ID（可选，关联对话） */
   conversationId?: string;
+  /** 自主任务计划 ID（可选；Agent 内核写步骤挂起） */
+  planId?: number;
+  /** 计划步骤 ID（可选；Agent 内核写步骤挂起） */
+  planStepId?: string;
   /** 待执行工具名称 */
   toolName: string;
   /** 文档类型（写入业务对象，如 sales_order_create） */
@@ -108,6 +112,10 @@ export interface CreateConfirmationInput {
   tenantId: string;
   /** 会话 ID（可选） */
   conversationId?: string;
+  /** 自主任务计划 ID（可选） */
+  planId?: number;
+  /** 计划步骤 ID（可选） */
+  planStepId?: string;
   /** 待执行工具名称（必填） */
   toolName: string;
   /** 文档类型（可选，默认工具名；P0-2 由 WriteSchemaRegistry 统一定义） */
@@ -233,6 +241,8 @@ export class ConfirmationService {
     const write: PendingWrite = await this.writeGuardService.suspend({
       tenantId: input.tenantId,
       conversationId: input.conversationId,
+      planId: input.planId,
+      planStepId: input.planStepId,
       toolName: input.toolName,
       docType: input.docType ?? input.toolName,
       risk,
@@ -615,6 +625,8 @@ export class ConfirmationService {
       confirmationId: write.token,
       tenantId: write.tenantId,
       conversationId: write.conversationId,
+      planId: write.planId,
+      planStepId: write.planStepId,
       toolName: write.toolName,
       docType: write.docType,
       risk: write.risk,

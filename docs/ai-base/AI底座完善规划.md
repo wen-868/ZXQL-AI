@@ -186,7 +186,7 @@
 ### 6.3 分批实施计划
 
 - **批次 1（地基对齐）**：B1 RAG 开关+文档、B3 默认值、B4 health ai_db、B6 memory 端点、B7 循环超限、A3 错误码、A5 metrics、A4 会话归档、B5 计费扣减、A7 SSE 补充事件
-- **批次 2（Agent 内核 22 章）**：ai_execution_plan 表+实体、Planner/TaskRunner/SelfHealLoop、/ai/agent/run、/ai/agent/plan
+- **批次 2（Agent 内核 22 章）✅ 已完成（2026-08-26）**：ai_execution_plan 表+实体（迁移 006）、Planner（模板+LLM 规划三级降级）、TaskRunner（断点续跑/人工介入 approveStep/rejectStep/单步容错）、SelfHealLoop（错误分类/重试/经验回流 ai_db）、AgentEngine 门面、/ai/agent/run（SSE+agent_step）、/ai/agent/plan、/ai/agent/plans 列表/详情/续跑/审批/驳回/取消、写步骤挂起 WriteGuard 令牌（确认后自动回写步骤）、SSE 12.1 增补 agent_step 事件
 - **批次 3（报表协议）**：/ai/v2/handle、/ai/v2/report、/ai/v2/report/pdf
 - **批次 4（运营双线骨架）**：customerScope 隔离框架（M4 预演）
 - **批次 5（文档同步）**：C 级滞后（工具数 96、内存口径 4G、路径前缀、表清单 12+4、TTL 24h）

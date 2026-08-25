@@ -1041,6 +1041,7 @@ data: {"type":"done","latencyMs":3520,"tokens":{"prompt":1234,"completion":156}}
 | `text` | LLM生成文本 | `content: string` | AI回复的文本片段，可增量拼接 |
 | `tool_start` | Tool开始执行 | `tool: string, args: object` | 前端可显示"正在执行xxx" |
 | `tool_result` | Tool执行完成 | `tool: string, success: boolean, error?: string` | 前端可显示执行结果 |
+| `agent_step` | Agent 自主执行内核步骤流转（决策 25） | `planId: number, stepId: string, label: string, status: string, detail?: string` | 长任务/自主任务每步状态流转（思考→调用→观察），前端实时展示执行进度 |
 | `done` | 整个对话完成 | `latencyMs: number, tokens: {prompt, completion}` | 统计信息 |
 | `error` | 发生错误 | `message: string, code?: string` | 错误信息 |
 | `pending_write` | 写意图被挂起（写全审核） | `token: string, preview: object, writeType: string, idempotencyKey: string, expireAt: number` | 写操作不自动执行；返回预览+令牌，等待前端回传 `/confirm` |

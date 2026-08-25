@@ -17,6 +17,7 @@
  */
 import { Body, Controller, Logger, Post } from '@nestjs/common';
 import { ConfirmationService } from '../brain/confirmation.service';
+import { TaskRunnerService } from '../brain/agent/task-runner.service';
 import { TenantContext } from '../tenant/tenant-context';
 import type { ToolContext } from '../tools/tool.interface';
 import { WriteGuardActionDto } from './dto/write-guard.dto';
@@ -39,6 +40,7 @@ export class WriteGuardController {
 
   constructor(
     private readonly confirmationService: ConfirmationService,
+    private readonly taskRunner: TaskRunnerService,
     private readonly tenantContext: TenantContext,
   ) {}
 
@@ -83,6 +85,20 @@ export class WriteGuardController {
       toolContext,
       dto.remark,
     );
+
+    // 批次2 Agent 内核：确认执行后回写计划步骤（若该令牌属于计划写步骤）
+    if (result.success && !result.needsSecondConfirm) {
+      try {
+        await this.taskRunner.markStepExecutedByToken(dto.token, tenantId, {
+          success: true,
+          data: result.data,
+        });
+      } catch (err) {
+        this.logger.debug(
+          `计划步骤回写失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
 
     if (result.needsSecondConfirm) {
       this.logger.log(

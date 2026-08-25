@@ -29,6 +29,7 @@ import {
 import type { Response } from 'express';
 import { Orchestrator } from '../brain/orchestrator.service';
 import { ConfirmationService } from '../brain/confirmation.service';
+import { TaskRunnerService } from '../brain/agent/task-runner.service';
 import { RollbackExecutorService } from '../brain/rollback-executor.service';
 import { TenantContext } from '../tenant/tenant-context';
 import { ExternalModelService } from '../tenant/external-model.service';
@@ -51,6 +52,7 @@ export class ChatController {
     private readonly orchestrator: Orchestrator,
     private readonly tenantContext: TenantContext,
     private readonly confirmationService: ConfirmationService,
+    private readonly taskRunner: TaskRunnerService,
     private readonly rollbackExecutor: RollbackExecutorService,
     private readonly externalModelService: ExternalModelService,
     private readonly aiConfigService: AiConfigService,
@@ -268,6 +270,21 @@ export class ChatController {
       this.buildToolContext(tenantId),
       dto.remark,
     );
+
+    // 批次2 Agent 内核：确认执行后回写计划步骤（若该令牌属于计划写步骤）
+    if (result.success && !result.needsSecondConfirm) {
+      try {
+        await this.taskRunner.markStepExecutedByToken(
+          confirmationId,
+          tenantId,
+          { success: true, data: result.data },
+        );
+      } catch (err) {
+        this.logger.debug(
+          `计划步骤回写失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
 
     return {
       success: result.success,

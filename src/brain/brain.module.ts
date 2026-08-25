@@ -47,7 +47,12 @@ import { EvolutionService } from './evolution/evolution.service';
 import { McpTokenEntity } from '../database/entities/mcp-token.entity';
 import { CommonModule } from '../common/common.module';
 import { AiSessionArchiveEntity } from '../database/entities/ai-session-archive.entity';
+import { AiExecutionPlanEntity } from '../database/entities/ai-execution-plan.entity';
 import { EvolutionModule } from '../evolution/evolution.module';
+import { PlannerService } from './agent/planner.service';
+import { SelfHealLoopService } from './agent/self-heal-loop.service';
+import { TaskRunnerService } from './agent/task-runner.service';
+import { AgentEngineService } from './agent/agent-engine.service';
 
 @Module({
   imports: [
@@ -60,6 +65,7 @@ import { EvolutionModule } from '../evolution/evolution.module';
       AiEvolutionEntity,
       McpTokenEntity,
       AiSessionArchiveEntity,
+      AiExecutionPlanEntity,
     ]),
     ProvidersModule,
     ToolsModule,
@@ -87,6 +93,10 @@ import { EvolutionModule } from '../evolution/evolution.module';
     LongTermMemoryService,
     LearningService,
     EvolutionService,
+    PlannerService,
+    SelfHealLoopService,
+    TaskRunnerService,
+    AgentEngineService,
   ],
   exports: [
     Orchestrator,
@@ -105,6 +115,10 @@ import { EvolutionModule } from '../evolution/evolution.module';
     LongTermMemoryService,
     LearningService,
     EvolutionService,
+    PlannerService,
+    SelfHealLoopService,
+    TaskRunnerService,
+    AgentEngineService,
   ],
 })
 export class BrainModule {}

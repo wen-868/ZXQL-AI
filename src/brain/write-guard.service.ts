@@ -40,6 +40,10 @@ export interface PendingWrite {
   tenantId: string;
   /** 会话 ID（可选） */
   conversationId?: string;
+  /** 自主任务计划 ID（可选；批次2 Agent 内核写步骤挂起） */
+  planId?: number;
+  /** 计划步骤 ID（可选；批次2 Agent 内核写步骤挂起） */
+  planStepId?: string;
   /** 待执行工具名称 */
   toolName: string;
   /** 文档类型（写入业务对象，如 sales_order_create；P0-2 由 WriteSchemaRegistry 统一定义） */
@@ -68,6 +72,8 @@ export interface PendingWrite {
 export interface SuspendWriteInput {
   tenantId: string;
   conversationId?: string;
+  planId?: number;
+  planStepId?: string;
   toolName: string;
   docType: string;
   risk: ToolRisk;
@@ -173,6 +179,8 @@ export class WriteGuardService {
       token: `wg_${randomUUID()}`,
       tenantId: input.tenantId,
       conversationId: input.conversationId,
+      planId: input.planId,
+      planStepId: input.planStepId,
       toolName: input.toolName,
       docType: input.docType,
       risk: input.risk,
