@@ -18,6 +18,7 @@ import { Module } from '@nestjs/common';
 import { ChatController } from './chat.controller';
 import { WriteGuardController } from './write-guard.controller';
 import { AgentController } from './agent.controller';
+import { V2Controller } from './v2.controller';
 import { McpController } from './mcp.controller';
 import { McpAdminController } from './mcp-admin.controller';
 import { AiDbController } from './ai-db.controller';
@@ -77,6 +78,7 @@ import { VoiceController } from './voice.controller';
   controllers: [
     ChatController,
     AgentController,
+    V2Controller,
     WriteGuardController,
     McpController,
     McpAdminController,

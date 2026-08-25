@@ -53,6 +53,8 @@ import { PlannerService } from './agent/planner.service';
 import { SelfHealLoopService } from './agent/self-heal-loop.service';
 import { TaskRunnerService } from './agent/task-runner.service';
 import { AgentEngineService } from './agent/agent-engine.service';
+import { V2HandleService } from './v2/v2-handle.service';
+import { ReportService } from './v2/report.service';
 
 @Module({
   imports: [
@@ -97,6 +99,8 @@ import { AgentEngineService } from './agent/agent-engine.service';
     SelfHealLoopService,
     TaskRunnerService,
     AgentEngineService,
+    V2HandleService,
+    ReportService,
   ],
   exports: [
     Orchestrator,
@@ -119,6 +123,8 @@ import { AgentEngineService } from './agent/agent-engine.service';
     SelfHealLoopService,
     TaskRunnerService,
     AgentEngineService,
+    V2HandleService,
+    ReportService,
   ],
 })
 export class BrainModule {}
