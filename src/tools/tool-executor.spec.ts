@@ -59,7 +59,16 @@ describe('ToolExecutor', () => {
       recordSuccess: jest.fn(),
       recordFailure: jest.fn(),
     } as unknown as CircuitBreakerService;
-    executor = new ToolExecutor(registry, mockAuditLogger, mockBreaker);
+    const mockMetrics = {
+      recordToolCall: jest.fn(),
+      recordToolDuration: jest.fn(),
+    };
+    executor = new ToolExecutor(
+      registry,
+      mockAuditLogger,
+      mockBreaker,
+      mockMetrics as never,
+    );
   });
 
   describe('executeToolCall - 执行成功', () => {

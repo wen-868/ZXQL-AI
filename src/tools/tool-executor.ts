@@ -4,6 +4,7 @@ import { ToolContext, ToolExecutionRecord, ToolResult } from './tool.interface';
 import { ToolRegistry } from './tool-registry';
 import { AuditLogger } from '../bridge/audit-logger';
 import { CircuitBreakerService } from './circuit-breaker.service';
+import { MetricsService } from '../common/metrics.service';
 
 /**
  * Tool 执行器
@@ -36,6 +37,7 @@ export class ToolExecutor {
     private readonly registry: ToolRegistry,
     private readonly auditLogger: AuditLogger,
     private readonly breaker: CircuitBreakerService,
+    private readonly metrics: MetricsService,
   ) {}
 
   /**
@@ -111,6 +113,12 @@ export class ToolExecutor {
       );
       const result = await tool.execute(args, context);
       const durationMs = Date.now() - start;
+      // A5 Prometheus 指标：工具调用次数/耗时
+      this.metrics.recordToolCall(
+        toolName,
+        result.success ? 'success' : 'fail',
+      );
+      this.metrics.recordToolDuration(toolName, durationMs);
       // 熔断状态记录（按结果）
       if (result.success) {
         this.breaker.recordSuccess(toolName);
@@ -140,6 +148,8 @@ export class ToolExecutor {
       return result;
     } catch (err) {
       const durationMs = Date.now() - start;
+      this.metrics.recordToolCall(toolName, 'fail');
+      this.metrics.recordToolDuration(toolName, durationMs);
       this.breaker.recordFailure(toolName);
       const errorMsg = `工具执行异常：${err instanceof Error ? err.message : String(err)}`;
       this.logger.error(

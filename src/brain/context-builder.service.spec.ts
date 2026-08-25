@@ -7,11 +7,13 @@
  * 3. build — RAG 检索异常 → warn + 跳过注入（主流程不受影响）
  * 4. build — 过滤历史中的 system 消息
  * 5. buildSystemPrompt — 占位符替换 / 自定义提示词优先 / 工具列表 / ragContext 空白不注入
+ * 6. B1 — ENABLE_RAG 默认关闭时不检索（系统数据即知识库口径）
  *
  * 负责人: 阿坚 | 创建日期: 2026-08-02
  */
 import { RetrieverService } from '../rag/retriever.service';
 import { LongTermMemoryService } from './memory/long-term-memory.service';
+import { ConfigService } from '@nestjs/config';
 import {
   ContextBuilder,
   DEFAULT_SYSTEM_PROMPT,
@@ -25,6 +27,13 @@ describe('R70-21 ContextBuilder', () => {
   const ltm = {
     getProfiles: jest.fn().mockResolvedValue([]),
     search: jest.fn().mockResolvedValue([]),
+  };
+  /** ENABLE_RAG 开关 mock（B1：默认关闭，测试可显式开启） */
+  let ragEnabled = 'false';
+  const config = {
+    get: jest.fn((key: string) =>
+      key === 'ENABLE_RAG' ? ragEnabled : undefined,
+    ),
   };
 
   let builder: ContextBuilder;
@@ -49,10 +58,21 @@ describe('R70-21 ContextBuilder', () => {
     builder = new ContextBuilder(
       retriever as unknown as RetrieverService,
       ltm as unknown as LongTermMemoryService,
+      undefined as never,
+      config as unknown as ConfigService,
     );
   });
 
   describe('build（RAG 注入）', () => {
+    beforeEach(() => {
+      // B1：RAG 增强测试显式开启开关
+      ragEnabled = 'true';
+    });
+
+    afterEach(() => {
+      ragEnabled = 'false';
+    });
+
     it('检索到知识应注入 System Prompt 的"知识库参考"段', async () => {
       retriever.search.mockResolvedValue([
         {
@@ -83,6 +103,21 @@ describe('R70-21 ContextBuilder', () => {
       expect(messages).toHaveLength(2); // system + user
       expect(messages[0].content).not.toContain('## 知识库参考');
       expect(messages[1]).toEqual({ role: 'user', content: '五粮液多少钱' });
+    });
+
+    it('B1：ENABLE_RAG 默认关闭时不检索（系统数据即知识库）', async () => {
+      ragEnabled = 'false';
+      retriever.search.mockResolvedValue([
+        {
+          text: '五粮液参考价 4900 元',
+          score: 0.98,
+          docName: '价目表.xlsx',
+          chunkIndex: 0,
+        },
+      ]);
+      const messages = await builder.build(baseParams, createRegistry());
+      expect(retriever.search).not.toHaveBeenCalled();
+      expect(messages[0].content).not.toContain('## 知识库参考');
     });
 
     it('应过滤历史中的 system 消息并保留 user/assistant', async () => {

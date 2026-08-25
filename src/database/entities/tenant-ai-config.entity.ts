@@ -42,7 +42,7 @@ export class TenantAiConfigEntity {
     name: 'provider',
     type: 'varchar',
     length: 32,
-    default: 'deepseek',
+    default: 'glm',
     comment: 'AI服务商: deepseek/qwen/zhipu/ollama',
   })
   provider!: string;
@@ -72,7 +72,7 @@ export class TenantAiConfigEntity {
     name: 'model',
     type: 'varchar',
     length: 64,
-    default: 'deepseek-chat',
+    default: 'glm-4-flash',
     comment: '模型名称',
   })
   model!: string;

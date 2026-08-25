@@ -19,6 +19,7 @@
  * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-01
  */
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { ChatMessage } from '../providers/provider.interface';
 import type { ToolRegistry } from '../tools/tool-registry';
 import { RetrieverService } from '../rag/retriever.service';
@@ -85,6 +86,7 @@ export class ContextBuilder {
     private readonly retriever: RetrieverService,
     private readonly ltm: LongTermMemoryService,
     private readonly learning: LearningService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -196,6 +198,13 @@ export class ContextBuilder {
   private async buildRagContext(
     params: BuildContextParams,
   ): Promise<string | undefined> {
+    // B1 权威文档对齐：默认「系统数据即知识库」，RAG 增强默认关闭
+    // （ENABLE_RAG=true 显式开启时才注入知识库参考；决策 7 口径）
+    const ragEnabled =
+      this.configService.get<string>('ENABLE_RAG', 'false') === 'true';
+    if (!ragEnabled) {
+      return undefined;
+    }
     try {
       const results = await this.retriever.search(
         params.userMessage,

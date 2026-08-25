@@ -20,9 +20,10 @@ import { CaptureService } from './capture.service';
 import { AggregatorService } from './aggregator.service';
 import { ExperienceExtractorService } from './experience-extractor.service';
 import { EvolutionVersionService } from './evolution-version.service';
+import { CommonModule } from '../common/common.module';
 
 @Module({
-  imports: [AiDbModule, ProvidersModule],
+  imports: [AiDbModule, ProvidersModule, CommonModule],
   providers: [
     CaptureService,
     AggregatorService,

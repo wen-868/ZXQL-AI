@@ -68,6 +68,7 @@ import { HandleApprovalTool } from './definitions/handle-approval.tool';
 import { CreatePlatformAnnouncementTool } from './definitions/create-platform-announcement.tool';
 import { HandleSubscriptionApplyTool } from './definitions/handle-subscription-apply.tool';
 import { BridgeModule } from '../bridge/bridge.module';
+import { CommonModule } from '../common/common.module';
 
 /**
  * Tool 系统模块
@@ -97,7 +98,7 @@ import { BridgeModule } from '../bridge/bridge.module';
  * 3. 在 ToolBootstrap 构造函数注入该工具，并在 onModuleInit 的 registerAll 数组中添加
  */
 @Module({
-  imports: [BridgeModule],
+  imports: [BridgeModule, CommonModule],
   providers: [
     ToolRegistry,
     ToolExecutor,

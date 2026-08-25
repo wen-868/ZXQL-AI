@@ -35,6 +35,8 @@ import { BridgeModule } from '../bridge/bridge.module';
 import { TenantModule } from '../tenant/tenant.module';
 import { BrainModule } from '../brain/brain.module';
 import { DatabaseModule } from '../database/database.module';
+import { AiDbModule } from '../database/ai-db.module';
+import { CommonModule } from '../common/common.module';
 import { PushGatewayService } from './push-gateway.service';
 import { VisionService } from '../providers/vision.service';
 import { VoiceService } from '../providers/voice.service';
@@ -63,6 +65,8 @@ import { VoiceController } from './voice.controller';
     BrainModule,
     TenantModule,
     DatabaseModule,
+    AiDbModule,
+    CommonModule,
     ProvidersModule,
     ToolsModule,
     BridgeModule,

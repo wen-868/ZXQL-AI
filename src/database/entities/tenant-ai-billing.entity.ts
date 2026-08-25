@@ -105,6 +105,17 @@ export class TenantAiBillingEntity {
   })
   enabled!: number;
 
+  /** 预付费余额（元，B5 决策 20：运行时扣减） */
+  @Column({
+    name: 'balance',
+    type: 'decimal',
+    precision: 12,
+    scale: 2,
+    default: 0.0,
+    comment: '预付费余额（元）',
+  })
+  balance!: number;
+
   /** 创建时间 */
   @Column({
     name: 'created_at',

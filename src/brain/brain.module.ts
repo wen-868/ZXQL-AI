@@ -45,6 +45,8 @@ import { LearningService } from './learning/learning.service';
 import { AiEvolutionEntity } from '../database/entities/ai-evolution.entity';
 import { EvolutionService } from './evolution/evolution.service';
 import { McpTokenEntity } from '../database/entities/mcp-token.entity';
+import { CommonModule } from '../common/common.module';
+import { AiSessionArchiveEntity } from '../database/entities/ai-session-archive.entity';
 import { EvolutionModule } from '../evolution/evolution.module';
 
 @Module({
@@ -57,6 +59,7 @@ import { EvolutionModule } from '../evolution/evolution.module';
       AiLearningLogEntity,
       AiEvolutionEntity,
       McpTokenEntity,
+      AiSessionArchiveEntity,
     ]),
     ProvidersModule,
     ToolsModule,
@@ -64,6 +67,7 @@ import { EvolutionModule } from '../evolution/evolution.module';
     TenantModule,
     RagModule,
     EvolutionModule,
+    CommonModule,
   ],
   providers: [
     ContextBuilder,

@@ -23,15 +23,26 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  Header,
   Logger,
   Optional,
+  Param,
   Post,
   Query,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import Redis from 'ioredis';
+import { AI_DB_CONNECTION } from '../database/ai-db.module';
+import { AiSessionArchiveEntity } from '../database/entities/ai-session-archive.entity';
+import { MemoryManager } from '../brain/memory-manager.service';
+import { MetricsService } from '../common/metrics.service';
+import { CircuitBreakerService } from '../tools/circuit-breaker.service';
 import { ProviderFactory } from '../providers/provider-factory';
 import { ToolRegistry } from '../tools/tool-registry';
 import { ToolExecutor } from '../tools/tool-executor';
@@ -77,7 +88,15 @@ export class AdminController {
     private readonly serviceClient: ServiceClient,
     private readonly auditLogger: AuditLogger,
     private readonly configService: ConfigService,
+    private readonly memoryManager: MemoryManager,
+    private readonly metricsService: MetricsService,
+    private readonly breaker: CircuitBreakerService,
+    @InjectRepository(AiSessionArchiveEntity)
+    private readonly sessionArchiveRepo: Repository<AiSessionArchiveEntity>,
     @Optional() private readonly dataSource?: DataSource,
+    @Optional()
+    @InjectDataSource(AI_DB_CONNECTION)
+    private readonly aiDbDataSource?: DataSource,
   ) {}
 
   // ──────────────────────────────────────────────────────────────
@@ -224,13 +243,15 @@ export class AdminController {
     aiBase: { status: string; uptime: number };
     backend: { reachable: boolean; latencyMs: number; error?: string };
     database: DatabaseHealth;
+    aiDb: DatabaseHealth;
     redis: RedisHealth;
     providers: string[];
     timestamp: string;
   }> {
-    const [backendHealth, database, redis] = await Promise.all([
+    const [backendHealth, database, aiDb, redis] = await Promise.all([
       this.serviceClient.healthCheck(),
       this.checkDatabase(),
+      this.checkAiDb(),
       this.checkRedis(),
     ]);
 
@@ -247,6 +268,7 @@ export class AdminController {
       },
       backend: backendHealth,
       database,
+      aiDb,
       redis,
       providers: this.factory.list(),
       timestamp: new Date().toISOString(),
@@ -266,6 +288,84 @@ export class AdminController {
     const start = Date.now();
     try {
       await this.dataSource.query('SELECT 1');
+      return { connected: true, latencyMs: Date.now() - start };
+    } catch (err) {
+      return {
+        connected: false,
+        latencyMs: Date.now() - start,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  /**
+   * 会话冷备归档查询（A4，文档 12.5：用户查看历史/审计回溯）
+   *
+   * GET /api/admin/session-archive?tenantId=&sessionId=&limit=
+   */
+  @Get('session-archive')
+  async sessionArchive(
+    @Query('tenantId') tenantId?: string,
+    @Query('sessionId') sessionId?: string,
+    @Query('limit') limit = '20',
+  ): Promise<{
+    total: number;
+    items: AiSessionArchiveEntity[];
+  }> {
+    const qb = this.sessionArchiveRepo
+      .createQueryBuilder('a')
+      .orderBy('a.id', 'DESC')
+      .take(Math.min(Number(limit) || 20, 100));
+    if (tenantId) {
+      qb.andWhere('a.tenant_id = :tenantId', { tenantId });
+    }
+    if (sessionId) {
+      qb.andWhere('a.session_id = :sessionId', { sessionId });
+    }
+    const [items, total] = await qb.getManyAndCount();
+    return { total, items };
+  }
+
+  /**
+   * Prometheus 指标（A5，文档 16.3）
+   *
+   * GET /api/admin/metrics → Prometheus text format
+   */
+  @Get('metrics')
+  @Header('Content-Type', 'text/plain; version=0.0.4')
+  metrics(): string {
+    const circuitOpen: Record<string, number> = {};
+    for (const s of this.breaker.status()) {
+      circuitOpen[s.toolName] = s.state === 'open' ? 1 : 0;
+    }
+    return this.metricsService.render(circuitOpen);
+  }
+
+  /**
+   * 清除指定租户/会话的对话记忆（B6，文档 11.1/12.4）
+   *
+   * DELETE /api/admin/memory/:tenantId/:sessionId
+   */
+  @Delete('memory/:tenantId/:sessionId')
+  async clearMemory(
+    @Param('tenantId') tenantId: string,
+    @Param('sessionId') sessionId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    await this.memoryManager.clearHistory(tenantId, sessionId);
+    this.logger.log(`会话记忆已清除：tenant=${tenantId} session=${sessionId}`);
+    return { success: true, message: '会话记忆已清除' };
+  }
+
+  /**
+   * ai_db（AI 底座私有库）连通性检查（B4，文档 16.1）
+   */
+  private async checkAiDb(): Promise<DatabaseHealth> {
+    if (!this.aiDbDataSource) {
+      return { connected: false, error: 'ai_db DataSource 未注入（未连接）' };
+    }
+    const start = Date.now();
+    try {
+      await this.aiDbDataSource.query('SELECT 1');
       return { connected: true, latencyMs: Date.now() - start };
     } catch (err) {
       return {

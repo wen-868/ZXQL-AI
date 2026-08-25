@@ -27,6 +27,7 @@ import { AiLtmArchivalEntity } from './entities/ai-ltm-archival.entity';
 import { AiLearningLogEntity } from './entities/ai-learning-log.entity';
 import { AiEvolutionEntity } from './entities/ai-evolution.entity';
 import { McpTokenEntity } from './entities/mcp-token.entity';
+import { AiSessionArchiveEntity } from './entities/ai-session-archive.entity';
 
 /**
  * 所有 AI 底座 Entity 列表
@@ -47,6 +48,7 @@ export const AI_ENTITIES = [
   AiLearningLogEntity,
   AiEvolutionEntity,
   McpTokenEntity,
+  AiSessionArchiveEntity,
 ];
 
 @Module({

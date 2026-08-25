@@ -24,7 +24,13 @@ function createService() {
   const expRepo = createRepo<AiExperienceEntity>();
   const corrRepo = createRepo<AiCorrectionEntity>();
   const sampleRepo = createRepo<AiSampleEntity>();
-  const service = new CaptureService(expRepo, corrRepo, sampleRepo);
+  const metrics = { recordDbSample: jest.fn() };
+  const service = new CaptureService(
+    expRepo,
+    corrRepo,
+    sampleRepo,
+    metrics as never,
+  );
   return { service, expRepo, corrRepo, sampleRepo };
 }
 

@@ -19,8 +19,11 @@
  */
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import Redis from 'ioredis';
 import type { ChatMessage } from '../providers/provider.interface';
+import { AiSessionArchiveEntity } from '../database/entities/ai-session-archive.entity';
 
 /** 保留最近 N 轮对话（1 轮 = 1 条 user + 1 条 assistant） */
 const MEMORY_ROUNDS = 10;
@@ -39,7 +42,11 @@ export class MemoryManager implements OnModuleInit {
   private redis: Redis | null = null;
   private redisAvailable = false;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    @InjectRepository(AiSessionArchiveEntity)
+    private readonly archiveRepo: Repository<AiSessionArchiveEntity>,
+  ) {}
 
   /**
    * 初始化 Redis 连接
@@ -207,6 +214,52 @@ export class MemoryManager implements OnModuleInit {
     } catch (err) {
       this.logger.warn(
         `清除对话历史失败（非致命）：${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /**
+   * 会话冷备归档（A4，文档 12.5 L2 冷存储）
+   *
+   * 会话结束时将完整对话历史写入 t_ai_session_archive（best-effort，
+   * 写库失败仅记日志，不影响主流程）。Redis 热记忆仍按 TTL 管理。
+   *
+   * @param tenantId  租户 ID
+   * @param sessionId 会话 ID
+   * @param userId    用户 ID（可选）
+   * @param messages  完整对话消息
+   */
+  async archiveSession(
+    tenantId: string,
+    sessionId: string,
+    userId: string | undefined,
+    messages: ChatMessage[],
+  ): Promise<void> {
+    try {
+      const safeMessages = messages.slice(-50).map((m) => ({
+        role: m.role,
+        content:
+          typeof m.content === 'string' && m.content.length > 4000
+            ? `${m.content.slice(0, 4000)}…[截断]`
+            : m.content,
+      }));
+      await this.archiveRepo.save(
+        this.archiveRepo.create({
+          sessionId,
+          tenantId,
+          userId: userId ?? null,
+          messagesJson: safeMessages as Array<Record<string, unknown>>,
+          messageCount: safeMessages.length,
+          startedAt: new Date(),
+          endedAt: new Date(),
+        }),
+      );
+      this.logger.debug(
+        `会话已归档：tenant=${tenantId} session=${sessionId} 消息=${safeMessages.length}`,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `会话归档失败（非致命）：${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }

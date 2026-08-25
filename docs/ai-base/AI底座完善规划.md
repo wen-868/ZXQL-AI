@@ -149,3 +149,44 @@
 - 自然语言层：数量口语解析/参数自纠错/指代消解/搜索词清洗
 - 感知：图片识别（GLM-4V）、语音输入/播报；输出：图表渲染
 - 多 Agent：3 条业务图（采购/营销/盘点）；经验闭环（LTM/LN/SE）
+
+---
+
+## 六、权威文档对齐审计（2026-08-25）
+
+> 依据：`docs/ai-base/智享AI底座-架构设计文档【唯一权威】.md`（v3.6）
+> 用户拍板：**功能全部按权威文档开发对齐**；知识方案采用**「系统数据即知识库」**（决策 7 方向，RAG 不另建向量层）。
+
+### 6.1 A 级缺失（文档要求但未实现）
+
+| # | 缺失项 | 文档依据 |
+|---|--------|---------|
+| A1 | Agent 自主执行内核：AgentEngine/Planner/TaskRunner/SelfHealLoop、ai_execution_plan 表、/ai/agent/run、/ai/agent/plan、断点续跑 | 第 22 章 |
+| A2 | v2 接口：/ai/v2/handle（自然语言入口 pendingWrite JSON）、/ai/v2/report、/ai/v2/report/pdf | 11.1/11.3 |
+| A3 | 错误码规范 AI_001~AI_013（含 428/423 语义） | 11.5 |
+| A4 | 会话冷备归档 ai_session_archive（L2 冷存储、会话恢复） | 12.5 |
+| A5 | Prometheus /ai/admin/metrics 与 16 个指标 | 16.3 |
+| A6 | 运营客户端 customerScope 隔离（role=customer、数据边界、写闸门） | 13.3/10.1.8/25 章 |
+| A7 | SSE 事件 pending_write/await_confirm/confirmed | 12.1 |
+
+### 6.2 B 级偏差（实现与文档不一致）
+
+| # | 偏差 | 处理 |
+|---|------|------|
+| B1 | RAG 与决策 7 冲突 | **采用「系统数据即知识库」**：ContextBuilder 注入加 ENABLE_RAG 开关默认关闭，文档决策 7/26.1 同步更新；rag 模块代码保留（可选启用） |
+| B2 | WriteGuard TTL 文档写 5 分钟 | 文档统一为 24h（实现为准） |
+| B3 | 配置实体默认值 deepseek | 改为 glm-4-flash（v3.5 口径） |
+| B4 | health 缺 ai_db 检查 | 补 ai_db 连通性 |
+| B5 | 计费无运行时扣减 | t_tenant_ai_billing 加 balance + BillingService（额度判定/扣减） |
+| B6 | 无会话记忆清除管理端点 | 补 DELETE /admin/memory/:tenantId/:sessionId |
+| B7 | Agent 循环超限无提示 | 超限发 error（AI_009） |
+| B8 | ASR 未接 | 语音识别框架+降级（服务商待配） |
+| B9~B12 | test-connection 方法/限流算法/校验栈/MCP 表名 | 文档对齐或小改 |
+
+### 6.3 分批实施计划
+
+- **批次 1（地基对齐）**：B1 RAG 开关+文档、B3 默认值、B4 health ai_db、B6 memory 端点、B7 循环超限、A3 错误码、A5 metrics、A4 会话归档、B5 计费扣减、A7 SSE 补充事件
+- **批次 2（Agent 内核 22 章）**：ai_execution_plan 表+实体、Planner/TaskRunner/SelfHealLoop、/ai/agent/run、/ai/agent/plan
+- **批次 3（报表协议）**：/ai/v2/handle、/ai/v2/report、/ai/v2/report/pdf
+- **批次 4（运营双线骨架）**：customerScope 隔离框架（M4 预演）
+- **批次 5（文档同步）**：C 级滞后（工具数 96、内存口径 4G、路径前缀、表清单 12+4、TTL 24h）

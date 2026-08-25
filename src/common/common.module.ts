@@ -13,9 +13,10 @@
  */
 import { Module } from '@nestjs/common';
 import { RateLimiterService } from './rate-limiter';
+import { MetricsService } from './metrics.service';
 
 @Module({
-  providers: [RateLimiterService],
-  exports: [RateLimiterService],
+  providers: [RateLimiterService, MetricsService],
+  exports: [RateLimiterService, MetricsService],
 })
 export class CommonModule {}

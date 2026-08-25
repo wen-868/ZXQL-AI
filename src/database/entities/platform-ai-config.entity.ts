@@ -15,13 +15,13 @@ export class PlatformAiConfigEntity {
   @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true, comment: '主键ID' })
   id!: number;
 
-  /** 默认AI服务商: deepseek/qwen/zhipu/ollama */
+  /** 默认AI服务商: glm/deepseek/qwen/ollama（v3.5 云端默认智谱 GLM） */
   @Column({
     name: 'default_provider',
     type: 'varchar',
     length: 32,
-    default: 'deepseek',
-    comment: '默认AI服务商: deepseek/qwen/zhipu/ollama',
+    default: 'glm',
+    comment: '默认AI服务商: glm/deepseek/qwen/ollama',
   })
   defaultProvider!: string;
 
@@ -30,7 +30,7 @@ export class PlatformAiConfigEntity {
     name: 'default_model',
     type: 'varchar',
     length: 64,
-    default: 'deepseek-chat',
+    default: 'glm-4-flash',
     comment: '默认模型名称',
   })
   defaultModel!: string;

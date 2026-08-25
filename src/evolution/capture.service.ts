@@ -20,6 +20,7 @@ import { AiCorrectionEntity } from '../database/entities/ai-correction.entity';
 import { AiSampleEntity } from '../database/entities/ai-sample.entity';
 import { AI_DB_CONNECTION } from '../database/ai-db.module';
 import { hashInput, sanitizeJson, toTrajectory } from './sanitize';
+import { MetricsService } from '../common/metrics.service';
 
 /** 任务采集输入 */
 export interface CaptureTaskInput {
@@ -62,6 +63,7 @@ export class CaptureService {
     private readonly correctionRepo: Repository<AiCorrectionEntity>,
     @InjectRepository(AiSampleEntity, AI_DB_CONNECTION)
     private readonly sampleRepo: Repository<AiSampleEntity>,
+    private readonly metrics: MetricsService,
   ) {}
 
   /**
@@ -85,9 +87,11 @@ export class CaptureService {
           adopted: input.adopted === undefined ? null : input.adopted ? 1 : 0,
         }),
       );
+      this.metrics.recordDbSample('experience');
 
       // 样本：成功/纠正路径（失败路径不进样本池）
       if (input.outcome !== 'failed' && (input.userMessage || input.reply)) {
+        this.metrics.recordDbSample('sample');
         await this.sampleRepo.save(
           this.sampleRepo.create({
             tenantId: input.tenantId,
@@ -135,6 +139,7 @@ export class CaptureService {
           appliedToVersion: null,
         }),
       );
+      this.metrics.recordDbSample('correction');
       this.logger.log(
         `纠正样本采集：tenant=${input.tenantId} taskType=${input.taskType}`,
       );

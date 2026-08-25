@@ -41,6 +41,9 @@ import { MemoryManager } from './memory-manager.service';
 import { ConfirmationService } from './confirmation.service';
 import { StructuredExtractor } from './extraction/structured-extractor';
 import { CaptureService } from '../evolution/capture.service';
+import { MetricsService } from '../common/metrics.service';
+import { BillingService } from '../tenant/billing.service';
+import { WRITE_TOKEN_TTL_MS } from './write-guard.service';
 import type { ChatMessage } from '../providers/provider.interface';
 import type { ToolContext, ToolResult } from '../tools/tool.interface';
 import { GraphExecutorService } from './graph/graph-executor.service';
@@ -115,6 +118,23 @@ export type OrchestratorBaseEvent =
       }>;
     }
   | {
+      /**
+       * A7 文档 12.1：写意图被挂起（写全审核）——返回预览+令牌，
+       * 等待前端回传 /confirm。与 tool_result.preview 配套（兼容现有前端）。
+       */
+      type: 'pending_write';
+      token: string;
+      preview?: ToolResult['preview'];
+      writeType: string;
+      expireAt: number;
+    }
+  | {
+      /** A7 文档 12.1：写令牌已生成/刷新，前端据此弹确认框并倒计时 */
+      type: 'await_confirm';
+      token: string;
+      expireAt: number;
+    }
+  | {
       type: 'done';
       conversationId: string;
       usage: {
@@ -125,7 +145,12 @@ export type OrchestratorBaseEvent =
         iterations: number;
       };
     }
-  | { type: 'error'; message: string };
+  | {
+      type: 'error';
+      message: string;
+      /** A3 文档 11.5：标准错误码（如 AI_009） */
+      code?: string;
+    };
 
 /** Orchestrator 产出事件（react + graph） */
 export type OrchestratorEvent = OrchestratorBaseEvent | GraphOrchestratorEvent;
@@ -174,6 +199,8 @@ export class Orchestrator {
     private readonly learning: LearningService,
     private readonly extractor: StructuredExtractor,
     private readonly capture: CaptureService,
+    private readonly metrics: MetricsService,
+    private readonly billing: BillingService,
   ) {}
 
   /**
@@ -505,6 +532,24 @@ export class Orchestrator {
             confirmationId,
           };
 
+          // A7 文档 12.1：写意图挂起补充 pending_write + await_confirm 事件
+          // （与 tool_result.preview 并存，兼容现有前端确认卡）
+          if (confirmationId) {
+            const expireAt = Date.now() + WRITE_TOKEN_TTL_MS;
+            yield {
+              type: 'pending_write',
+              token: confirmationId,
+              preview: toolResult.preview,
+              writeType: tc.function.name,
+              expireAt,
+            };
+            yield {
+              type: 'await_confirm',
+              token: confirmationId,
+              expireAt,
+            };
+          }
+
           allToolCalls.push({
             tool_name: tc.function.name,
             success: toolResult.success,
@@ -535,6 +580,12 @@ export class Orchestrator {
         this.logger.warn(
           `Agent Loop 达到最大迭代次数 ${MAX_ITERATIONS}，强制终止`,
         );
+        // B7 文档 11.5 AI_009：循环超限向前端下发明确错误事件
+        yield {
+          type: 'error',
+          code: 'AI_009',
+          message: `Agent 循环超过 ${MAX_ITERATIONS} 轮上限，已强制终止；请简化请求或检查工具定义`,
+        };
       }
 
       // ── 5.5 兜底总结：模型未输出任何文本但执行过工具时，用工具结果生成摘要 ──
@@ -624,6 +675,34 @@ export class Orchestrator {
 
       // ── 7. 发送 done 事件 ──
       const latencyMs = Date.now() - startTime;
+      // A5 Prometheus 指标记录
+      this.metrics.recordRequest(
+        tenantId,
+        providerName,
+        toolResults.some((r) => !r.success) ? 'fail' : 'success',
+      );
+      this.metrics.recordDuration(latencyMs);
+      this.metrics.recordTokens(totalPromptTokens, totalCompletionTokens);
+      this.metrics.recordAgentIterations(iteration + 1);
+
+      // A4 会话冷备归档 + B5 计费消耗（best-effort，不阻塞）
+      try {
+        await this.memoryManager.archiveSession(
+          tenantId,
+          conversationId,
+          userId,
+          messages,
+        );
+        await this.billing.consume(
+          tenantId,
+          totalPromptTokens + totalCompletionTokens,
+        );
+      } catch (err) {
+        this.logger.debug(
+          `会话归档/计费消耗失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+
       yield {
         type: 'done',
         conversationId,

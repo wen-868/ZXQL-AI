@@ -39,6 +39,7 @@ import { AiConfigService } from './ai-config.service';
 import { AiConfigAdminService } from './ai-config-admin.service';
 import { TenantMiddleware } from './tenant.middleware';
 import { ExternalModelService } from './external-model.service';
+import { BillingService } from './billing.service';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { ExternalModelService } from './external-model.service';
     RateLimiterMiddleware,
     RequestLoggingMiddleware,
     ExternalModelService,
+    BillingService,
   ],
   exports: [
     TenantContext,
@@ -68,6 +70,7 @@ import { ExternalModelService } from './external-model.service';
     AiConfigService,
     AiConfigAdminService,
     ExternalModelService,
+    BillingService,
   ],
 })
 export class TenantModule implements NestModule {
