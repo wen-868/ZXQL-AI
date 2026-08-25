@@ -40,6 +40,8 @@ interface AuthUserPayload extends JwtPayload {
   roles: string[];
   storeId?: number | null;
   tenantId: string;
+  /** 运营客户端：客户 ID（role=customer 时存在） */
+  customerId?: number | string;
 }
 
 @Injectable()
@@ -131,6 +133,10 @@ export class TenantMiddleware implements NestMiddleware {
         tenantId: payload.tenantId,
         userId: String(payload.id),
         role: payload.roles?.[0],
+        customerId:
+          payload.customerId !== undefined
+            ? String(payload.customerId)
+            : undefined,
         authToken: token,
       };
     } catch (err) {
@@ -156,6 +162,11 @@ export class TenantMiddleware implements NestMiddleware {
       tenantId: body.tenantId,
       userId: typeof body.userId === 'string' ? body.userId : undefined,
       role: typeof body.role === 'string' ? body.role : undefined,
+      customerId:
+        typeof body.customerId === 'string' ||
+        typeof body.customerId === 'number'
+          ? String(body.customerId)
+          : undefined,
     };
   }
 }

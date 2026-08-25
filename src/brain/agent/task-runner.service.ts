@@ -790,6 +790,7 @@ export class TaskRunnerService {
       const confirmation = await this.confirmationService.create({
         tenantId: plan.tenantId,
         conversationId: context.sessionId,
+        customerId: context.customerId,
         toolName,
         docType: toolName,
         risk,
@@ -986,6 +987,7 @@ export class TaskRunnerService {
       userId: context.userId,
       sessionId: context.sessionId ?? `plan-${context.tenantId}`,
       role: context.role,
+      customerId: context.customerId,
       authToken: context.authToken,
     };
   }

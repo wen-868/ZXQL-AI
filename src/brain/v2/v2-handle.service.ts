@@ -25,6 +25,7 @@ export interface V2HandleContext {
   tenantId: string;
   userId?: string;
   role?: string;
+  customerId?: string;
   authToken?: string;
   sessionId?: string;
   model?: string;
@@ -206,6 +207,7 @@ export class V2HandleService {
       const confirmation = await this.confirmationService.create({
         tenantId: ctx.tenantId,
         conversationId: ctx.sessionId,
+        customerId: ctx.customerId,
         toolName,
         docType: toolName,
         risk,
@@ -252,6 +254,7 @@ export class V2HandleService {
         tenantId: ctx.tenantId,
         userId: ctx.userId,
         role: ctx.role,
+        customerId: ctx.customerId,
         authToken: ctx.authToken,
         conversationId: ctx.sessionId,
         model: ctx.model,
@@ -283,6 +286,7 @@ export class V2HandleService {
       userId: ctx.userId,
       sessionId: ctx.sessionId,
       role: ctx.role,
+      customerId: ctx.customerId,
       authToken: ctx.authToken,
     };
   }

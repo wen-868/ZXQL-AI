@@ -140,6 +140,8 @@ export interface PlanRunContext {
   tenantId: string;
   userId?: string;
   role?: string;
+  /** 客户 ID（运营客户端 customerScope 隔离） */
+  customerId?: string;
   authToken?: string;
   sessionId?: string;
   /** 对话级模型标识（可选） */

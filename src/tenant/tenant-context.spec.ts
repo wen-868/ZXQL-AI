@@ -129,5 +129,26 @@ describe('TenantContext', () => {
         expect(context.getAuthToken()).toBe('jwt-token-abc');
       });
     });
+
+    it('getCustomerId 应返回 customerId（运营客户端）', () => {
+      context.run(
+        { tenantId: 'tenant-001', role: 'customer', customerId: 'c-100' },
+        () => {
+          expect(context.getCustomerId()).toBe('c-100');
+        },
+      );
+    });
+
+    it('isCustomer：role=customer 为 true，否则 false', () => {
+      context.run(
+        { tenantId: 'tenant-001', role: 'customer', customerId: 'c-100' },
+        () => {
+          expect(context.isCustomer()).toBe(true);
+        },
+      );
+      context.run({ tenantId: 'tenant-001', role: 'admin' }, () => {
+        expect(context.isCustomer()).toBe(false);
+      });
+    });
   });
 });

@@ -281,4 +281,62 @@ describe('ToolExecutor', () => {
       expect(r2.success).toBe(true);
     });
   });
+
+  describe('批次4 运营客户端 customerScope 拦截', () => {
+    const customerContext: ToolContext = {
+      tenantId: 'tenant-001',
+      role: 'customer',
+      customerId: 'c-100',
+    };
+
+    const myOrdersTool: ITool = {
+      name: 'api_query_my_orders',
+      description: '查询本人订单',
+      category: 'order',
+      isWriteOperation: false,
+      parameters: { type: 'object', properties: {} },
+      execute() {
+        return Promise.resolve({ success: true, data: { list: [{ id: 1 }] } });
+      },
+    };
+
+    it('客户访问内部工具（echo/库存）→ AI_010 拒绝且不执行', async () => {
+      registry.register(new EchoTool());
+      const result = await executor.executeToolCall(
+        makeToolCall('echo', { message: 'x' }),
+        customerContext,
+      );
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('AI_010');
+    });
+
+    it('客户访问读白名单工具（本人订单）→ 放行', async () => {
+      registry.register(myOrdersTool);
+      const result = await executor.executeToolCall(
+        makeToolCall('api_query_my_orders', {}),
+        customerContext,
+      );
+      expect(result.success).toBe(true);
+      expect((result.data as { list: unknown[] }).list).toHaveLength(1);
+    });
+
+    it('customer 角色缺 customerId → AI_010 拒绝（身份不完整）', async () => {
+      registry.register(myOrdersTool);
+      const result = await executor.executeToolCall(
+        makeToolCall('api_query_my_orders', {}),
+        { tenantId: 'tenant-001', role: 'customer' },
+      );
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('customerId');
+    });
+
+    it('管理端角色不受 customerScope 拦截', async () => {
+      registry.register(new EchoTool());
+      const result = await executor.executeToolCall(
+        makeToolCall('echo', { message: 'ok' }),
+        { tenantId: 'tenant-001', role: 'admin' },
+      );
+      expect(result.success).toBe(true);
+    });
+  });
 });

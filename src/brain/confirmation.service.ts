@@ -52,6 +52,8 @@ export interface PendingConfirmation {
   tenantId: string;
   /** 会话 ID（可选，关联对话） */
   conversationId?: string;
+  /** 客户 ID（可选，运营客户端写操作：确认人=本人） */
+  customerId?: string;
   /** 自主任务计划 ID（可选；Agent 内核写步骤挂起） */
   planId?: number;
   /** 计划步骤 ID（可选；Agent 内核写步骤挂起） */
@@ -112,6 +114,8 @@ export interface CreateConfirmationInput {
   tenantId: string;
   /** 会话 ID（可选） */
   conversationId?: string;
+  /** 客户 ID（可选，运营客户端写操作：确认人=本人） */
+  customerId?: string;
   /** 自主任务计划 ID（可选） */
   planId?: number;
   /** 计划步骤 ID（可选） */
@@ -241,6 +245,7 @@ export class ConfirmationService {
     const write: PendingWrite = await this.writeGuardService.suspend({
       tenantId: input.tenantId,
       conversationId: input.conversationId,
+      customerId: input.customerId,
       planId: input.planId,
       planStepId: input.planStepId,
       toolName: input.toolName,
@@ -308,10 +313,12 @@ export class ConfirmationService {
   async confirm(
     confirmationId: string,
     tenantId: string,
+    customerId?: string,
   ): Promise<ConfirmResult> {
     const result = await this.writeGuardService.confirm(
       confirmationId,
       tenantId,
+      customerId,
     );
     if (!result.success || !result.pendingWrite) {
       return { success: false, error: result.error ?? '确认失败' };
@@ -341,7 +348,11 @@ export class ConfirmationService {
     toolContext: ToolContext,
     remark?: string,
   ): Promise<ConfirmAndExecuteResult> {
-    const confirmed = await this.confirm(token, tenantId);
+    const confirmed = await this.confirm(
+      token,
+      tenantId,
+      toolContext.customerId,
+    );
     if (!confirmed.success) {
       return { success: false, error: confirmed.error };
     }
@@ -625,6 +636,7 @@ export class ConfirmationService {
       confirmationId: write.token,
       tenantId: write.tenantId,
       conversationId: write.conversationId,
+      customerId: write.customerId,
       planId: write.planId,
       planStepId: write.planStepId,
       toolName: write.toolName,

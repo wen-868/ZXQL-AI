@@ -76,6 +76,7 @@ export class WriteGuardController {
       userId: ctxData?.userId,
       sessionId: ctxData?.sessionId,
       role: ctxData?.role,
+      customerId: ctxData?.customerId,
       authToken: ctxData?.authToken,
     };
 

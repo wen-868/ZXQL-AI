@@ -202,6 +202,44 @@ describe('P0-1 WriteGuardService', () => {
     });
   });
 
+  describe('批次4 运营客户端本人确认（customerScope）', () => {
+    const customerInput = {
+      ...baseInput,
+      customerId: 'c-100',
+      toolName: 'api_create_return_apply',
+      docType: 'return_apply',
+    };
+
+    it('写操作绑定 customerId：本人确认放行', async () => {
+      const write = await service.suspend(customerInput);
+      const result = await service.confirm(write.token, 'tenant-A', 'c-100');
+      expect(result.success).toBe(true);
+      expect(result.pendingWrite?.status).toBe('confirmed');
+    });
+
+    it('非本人确认 → AI_012 拒绝且令牌不被消耗', async () => {
+      const write = await service.suspend(customerInput);
+      const result = await service.confirm(write.token, 'tenant-A', 'c-200');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('AI_012');
+      const after = await service.get(write.token, 'tenant-A');
+      expect(after?.status).toBe('pending');
+    });
+
+    it('本人确认缺 customerId → 拒绝', async () => {
+      const write = await service.suspend(customerInput);
+      const result = await service.confirm(write.token, 'tenant-A');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('AI_012');
+    });
+
+    it('非客户写操作不要求 customerId（兼容管理端）', async () => {
+      const write = await service.suspend(baseInput);
+      const result = await service.confirm(write.token, 'tenant-A');
+      expect(result.success).toBe(true);
+    });
+  });
+
   describe('cleanupExpired / maskToken', () => {
     it('cleanupExpired 清理内存模式过期令牌', async () => {
       await service.suspend(baseInput);

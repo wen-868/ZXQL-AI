@@ -57,6 +57,7 @@ export class V2Controller {
       tenantId,
       userId: ctx?.userId,
       role: ctx?.role,
+      customerId: ctx?.customerId ?? dto.customerId,
       authToken: ctx?.authToken,
       sessionId: dto.sessionId,
       model: dto.model,
@@ -89,6 +90,7 @@ export class V2Controller {
       userId: ctx?.userId,
       sessionId: ctx?.sessionId,
       role: ctx?.role,
+      customerId: ctx?.customerId,
       authToken: ctx?.authToken,
     };
     const result = await this.confirmationService.confirmAndExecute(
@@ -188,6 +190,7 @@ export class V2Controller {
       userId: ctx?.userId,
       sessionId: ctx?.sessionId,
       role: ctx?.role,
+      customerId: ctx?.customerId,
       authToken: ctx?.authToken,
     };
   }

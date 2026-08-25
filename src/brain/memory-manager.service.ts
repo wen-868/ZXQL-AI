@@ -121,12 +121,13 @@ export class MemoryManager implements OnModuleInit {
   async loadHistory(
     tenantId: string,
     sessionId: string,
+    customerId?: string,
   ): Promise<ChatMessage[]> {
     if (!this.redisAvailable || !this.redis) {
       return [];
     }
 
-    const key = this.buildKey(tenantId, sessionId);
+    const key = this.buildKey(tenantId, sessionId, customerId);
     try {
       const raw = await this.redis.get(key);
       if (!raw) {
@@ -168,15 +169,16 @@ export class MemoryManager implements OnModuleInit {
     tenantId: string,
     sessionId: string,
     newMessages: ChatMessage[],
+    customerId?: string,
   ): Promise<void> {
     if (!this.redisAvailable || !this.redis) {
       return;
     }
 
-    const key = this.buildKey(tenantId, sessionId);
+    const key = this.buildKey(tenantId, sessionId, customerId);
     try {
       // 读取现有历史
-      const existing = await this.loadHistory(tenantId, sessionId);
+      const existing = await this.loadHistory(tenantId, sessionId, customerId);
       const combined = [...existing, ...newMessages];
 
       // 截断：保留最近 MAX_MESSAGES 条
@@ -274,9 +276,29 @@ export class MemoryManager implements OnModuleInit {
   /**
    * 构建 Redis Key
    *
-   * 格式: ai:memory:{tenantId}:{sessionId}
+   * 格式: ai:memory:{tenantId}[:{customerId}]:{sessionId}（运营客户端追加 customerId，见文档 10.1 第 4 条）
    */
-  private buildKey(tenantId: string, sessionId: string): string {
-    return `ai:memory:${tenantId}:${sessionId}`;
+  private buildKey(
+    tenantId: string,
+    sessionId: string,
+    customerId?: string,
+  ): string {
+    return buildMemoryKey(tenantId, sessionId, customerId);
   }
+}
+
+/**
+ * 对话记忆 Redis Key（导出供测试与运维排查）
+ *
+ * - 管理端（staff）：ai:memory:{tenantId}:{sessionId}
+ * - 运营客户端（customer）：ai:memory:{tenantId}:{customerId}:{sessionId}（数据边界，见文档 10.1 第 4 条）
+ */
+export function buildMemoryKey(
+  tenantId: string,
+  sessionId: string,
+  customerId?: string,
+): string {
+  return customerId
+    ? `ai:memory:${tenantId}:${customerId}:${sessionId}`
+    : `ai:memory:${tenantId}:${sessionId}`;
 }

@@ -179,6 +179,8 @@ export interface OrchestratorParams {
   graphId?: string;
   /** 工具作用域（可选）：mgmt=租户域（默认）/ platform=总台域（暴露 api_platform_*） */
   scope?: 'mgmt' | 'platform';
+  /** 客户 ID（可选，运营客户端 customerScope 隔离：role=customer 时必填） */
+  customerId?: string;
 }
 
 @Injectable()
@@ -219,6 +221,7 @@ export class Orchestrator {
     const tenantId = params.tenantId ?? ctxData?.tenantId;
     const userId = params.userId ?? ctxData?.userId;
     const role = params.role ?? ctxData?.role;
+    const customerId = params.customerId ?? ctxData?.customerId;
     const authToken = params.authToken ?? ctxData?.authToken;
 
     if (!tenantId) {
@@ -264,6 +267,7 @@ export class Orchestrator {
       const history = await this.memoryManager.loadHistory(
         tenantId,
         conversationId,
+        customerId,
       );
       if (history.length > 0) {
         this.logger.debug(`加载对话历史：${history.length} 条消息`);
@@ -286,6 +290,7 @@ export class Orchestrator {
           tenantId,
           userId,
           role,
+          customerId,
           userMessage,
           history,
           systemPrompt: systemPrompt ?? undefined,
@@ -308,6 +313,7 @@ export class Orchestrator {
         userId,
         sessionId: conversationId,
         role,
+        customerId,
         authToken,
       };
 
@@ -505,6 +511,7 @@ export class Orchestrator {
               const confirmation = await this.confirmationService.create({
                 tenantId,
                 conversationId,
+                customerId,
                 toolName: tc.function.name,
                 docType: tc.function.name,
                 risk,
@@ -608,6 +615,7 @@ export class Orchestrator {
         tenantId,
         conversationId,
         newMessagesToSave,
+        customerId,
       );
 
       // ── 6.5 P2 自主学习：基于工具结果吸收反馈（失败/成功经验回流，不阻塞主流程） ──

@@ -170,6 +170,7 @@ export class ChatController {
         tenantId,
         userId: ctxData?.userId ?? dto.userId,
         role: ctxData?.role ?? dto.role,
+        customerId: ctxData?.customerId ?? dto.customerId,
         authToken: ctxData?.authToken,
         model: dto.model,
         mode: dto.mode,
@@ -444,6 +445,7 @@ export class ChatController {
       userId: ctxData?.userId,
       sessionId: ctxData?.sessionId,
       role: ctxData?.role,
+      customerId: ctxData?.customerId,
       authToken: ctxData?.authToken,
     };
   }

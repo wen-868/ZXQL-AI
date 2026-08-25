@@ -5,6 +5,7 @@ import { ToolRegistry } from './tool-registry';
 import { AuditLogger } from '../bridge/audit-logger';
 import { CircuitBreakerService } from './circuit-breaker.service';
 import { MetricsService } from '../common/metrics.service';
+import { CustomerScopeGuard } from './customer-scope.guard';
 
 /**
  * Tool 执行器
@@ -92,6 +93,20 @@ export class ToolExecutor {
         success: false,
         error: errorMsg,
         suggestion: '请确认请求已通过 TenantGuard 注入 tenantId',
+      };
+    }
+
+    // 3.5 批次4 customerScope 隔离：运营客户端仅可访问本人数据与受控写操作，
+    //     其余（内部经营/成本/资金/改价等）一律 AI_010 拒绝（允许名单制，安全默认全拒）
+    const scopeGate = CustomerScopeGuard.check(toolName, tool, context);
+    if (!scopeGate.ok) {
+      this.logger.warn(
+        `客户身份越权拦截：tool=${toolName} customer=${context.customerId ?? '-'} ${scopeGate.error}`,
+      );
+      return {
+        success: false,
+        error: scopeGate.error,
+        suggestion: scopeGate.suggestion,
       };
     }
 

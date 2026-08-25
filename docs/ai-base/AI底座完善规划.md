@@ -188,5 +188,5 @@
 - **批次 1（地基对齐）**：B1 RAG 开关+文档、B3 默认值、B4 health ai_db、B6 memory 端点、B7 循环超限、A3 错误码、A5 metrics、A4 会话归档、B5 计费扣减、A7 SSE 补充事件
 - **批次 2（Agent 内核 22 章）✅ 已完成（2026-08-26）**：ai_execution_plan 表+实体（迁移 006）、Planner（模板+LLM 规划三级降级）、TaskRunner（断点续跑/人工介入 approveStep/rejectStep/单步容错）、SelfHealLoop（错误分类/重试/经验回流 ai_db）、AgentEngine 门面、/ai/agent/run（SSE+agent_step）、/ai/agent/plan、/ai/agent/plans 列表/详情/续跑/审批/驳回/取消、写步骤挂起 WriteGuard 令牌（确认后自动回写步骤）、SSE 12.1 增补 agent_step 事件
 - **批次 3（v2 报表协议）✅ 已完成（2026-08-26）**：/ai/v2/handle（自然语言入口：读自动返回结论 / 写意图 LLM 选写工具+StructuredExtractor 增强校验+预览+WriteGuard 挂起令牌 pendingWrite JSON / 缺参 clarify）、/ai/v2/confirm（受控写确认，返回 docId）、/ai/v2/report（A=销售/B=库存/C=利润/D=经营总览，映射现有只读工具）、/ai/v2/report/pdf（@napi-rs/canvas 注册系统 CJK 字体绘制表格 → JPEG → 手写单页 PDF，无第三方 PDF 依赖）；ai/v2 加入租户中间件路由
-- **批次 4（运营双线骨架）**：customerScope 隔离框架（M4 预演）
+- **批次 4（运营双线骨架）✅ 已完成（2026-08-26）**：customerScope 隔离框架（M4 预演）——身份模型扩展（TenantContext/Middleware 支持 customerId+role=customer）、CustomerScopeGuard 允许名单制拦截（客户仅可读本人订单/物流/会员/适用价、可写退换货/咨询/收货/订阅，其余一律 AI_010，安全默认全拒）、ToolExecutor 执行层兜底、对话记忆 Key 追加 customerId 隔离、客户口吻人设 System Prompt（含边界与合规约束）、WriteGuard 写令牌绑定 customerId（确认人=本人，非本人 AI_012 拒绝）；运营工具集（P2-1 30 个）接入前客户身份默认全拒
 - **批次 5（文档同步）**：C 级滞后（工具数 96、内存口径 4G、路径前缀、表清单 12+4、TTL 24h）

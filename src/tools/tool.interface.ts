@@ -75,6 +75,8 @@ export interface ToolContext {
   requestId?: string;
   /** 用户角色（可选，用于细粒度权限校验，如仅管理员可改价） */
   role?: string;
+  /** 客户 ID（可选，运营客户端 customerScope 隔离：role=customer 时必填） */
+  customerId?: string;
   /** 用户 JWT token（可选，ServiceClient 透传给后端 API 做认证） */
   authToken?: string;
 }

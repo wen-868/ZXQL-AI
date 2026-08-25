@@ -51,6 +51,11 @@ export class ChatDto {
   @IsString()
   role?: string;
 
+  /** 客户 ID（可选，运营客户端 customerScope 隔离：role=customer 时必填） */
+  @IsOptional()
+  @IsString()
+  customerId?: string;
+
   /** 模型标识（可选，对话级模型切换）
    *
    * 传入已注册的模型标识（内置 glm/deepseek/ollama 或外部模型名）时，

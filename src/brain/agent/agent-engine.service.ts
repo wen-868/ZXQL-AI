@@ -27,6 +27,8 @@ export interface AgentRunInput {
   userId?: string;
   /** 用户角色 */
   role?: string;
+  /** 客户 ID（运营客户端 customerScope 隔离） */
+  customerId?: string;
   /** JWT auth token（透传工具） */
   authToken?: string;
   /** 会话 ID */
@@ -93,6 +95,7 @@ export class AgentEngineService {
       tenantId: input.tenantId,
       userId: input.userId,
       role: input.role,
+      customerId: input.customerId,
       authToken: input.authToken,
       sessionId: input.sessionId,
       model: input.model,

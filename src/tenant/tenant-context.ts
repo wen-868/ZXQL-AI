@@ -32,6 +32,8 @@ export interface TenantContextData {
   userId?: string;
   /** 用户角色（可选，用于权限校验） */
   role?: string;
+  /** 客户 ID（可选，运营客户端 customerScope 隔离：role=customer 时必填） */
+  customerId?: string;
   /** 用户 JWT token（可选，ServiceClient 透传给后端 API） */
   authToken?: string;
   /** 会话 ID（可选） */
@@ -86,6 +88,22 @@ export class TenantContext {
    */
   getRole(): string | undefined {
     return this.storage.getStore()?.role;
+  }
+
+  /**
+   * 获取当前客户 ID（运营客户端）
+   *
+   * role=customer 时必须存在；缺失表示运营客户端身份不完整。
+   */
+  getCustomerId(): string | undefined {
+    return this.storage.getStore()?.customerId;
+  }
+
+  /**
+   * 是否运营客户端（role=customer）
+   */
+  isCustomer(): boolean {
+    return this.storage.getStore()?.role === 'customer';
   }
 
   /**

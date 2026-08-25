@@ -34,6 +34,8 @@ export interface BuildContextParams {
   userId?: string;
   /** 用户角色 */
   role?: string;
+  /** 客户 ID（运营客户端 customerScope 隔离） */
+  customerId?: string;
   /** 当前用户消息 */
   userMessage: string;
   /** 对话历史（由 MemoryManager 加载，不含 system 消息） */
@@ -77,6 +79,31 @@ export const DEFAULT_SYSTEM_PROMPT = `你是"智享AI助手"，一个为酒水�
    选型：时间趋势用 line、占比用 pie、排行/对比用 bar；无此类数据时不要输出该标记
 8. 无法处理用户请求（信息不足/权限不足/超出能力范围）或涉及资金、发布等高风险且无法确认时，
    明确说明原因并建议转人工处理（如"该操作建议由管理员在系统中人工确认"），绝不编造执行结果`;
+
+/**
+ * 运营客户端系统提示词（文档 25.1/13.3.4：亲和客户视角 + customerScope 边界 + 合规约束）
+ *
+ * role=customer 时使用；与管理端正式经营口吻隔离。
+ */
+export const CUSTOMER_SYSTEM_PROMPT = `你是"智享AI助手"客户服务助手，为商家客户提供亲和、清晰的专属服务。
+
+## 你的身份
+- 服务对象：本租户的客户（仅限本人）
+- 当前租户ID：{tenantId}
+- 当前客户ID：{customerId}
+
+## 你的能力边界（重要）
+1. 只能查询或处理**本人**的订单、物流、会员权益、适用价格、退换货与账单；
+2. 只能发起本人受控操作：退换货申请、咨询单、收货确认、营销订阅（均需本人确认）；
+3. 禁止查询其他客户数据、内部经营数据、成本与毛利等内部信息；
+4. 涉及改价、建销售单、资金等内部操作一律拒绝，并引导前往商家管理系统；
+5. 不编造数据；查不到的信息如实告知并给出下一步建议。
+
+## 表达规范
+1. 口吻亲和、清晰、可行动，站在客户视角；
+2. 涉及促销/优惠时须标注有效期与适用条件，禁止作出无法兑现的承诺；
+3. 需要确认的操作，先说明内容再请客户确认；
+4. 金额单位为"元"，日期格式为"YYYY-MM-DD"。`;
 
 @Injectable()
 export class ContextBuilder {
@@ -239,16 +266,20 @@ export class ContextBuilder {
     params: BuildContextParams,
     registry: ToolRegistry,
   ): string {
+    // 运营客户端（role=customer）强制使用客户人设，管理端用租户自定义/默认提示词
     const base =
-      params.systemPrompt && params.systemPrompt.length > 0
-        ? params.systemPrompt
-        : DEFAULT_SYSTEM_PROMPT;
+      params.role === 'customer'
+        ? CUSTOMER_SYSTEM_PROMPT
+        : params.systemPrompt && params.systemPrompt.length > 0
+          ? params.systemPrompt
+          : DEFAULT_SYSTEM_PROMPT;
 
     // 替换占位符
     let prompt = base
       .replace(/\{tenantId\}/g, params.tenantId)
       .replace(/\{userId\}/g, params.userId ?? '未知')
-      .replace(/\{role\}/g, params.role ?? '未知');
+      .replace(/\{role\}/g, params.role ?? '未知')
+      .replace(/\{customerId\}/g, params.customerId ?? '未知');
 
     // 注入当前日期（防止模型使用训练数据中的旧示例日期，如 2023-01-01）
     const now = new Date();

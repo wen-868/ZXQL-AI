@@ -40,6 +40,8 @@ export interface PendingWrite {
   tenantId: string;
   /** 会话 ID（可选） */
   conversationId?: string;
+  /** 客户 ID（可选，运营客户端写操作：确认人=本人，见文档 13.3.3） */
+  customerId?: string;
   /** 自主任务计划 ID（可选；批次2 Agent 内核写步骤挂起） */
   planId?: number;
   /** 计划步骤 ID（可选；批次2 Agent 内核写步骤挂起） */
@@ -72,6 +74,7 @@ export interface PendingWrite {
 export interface SuspendWriteInput {
   tenantId: string;
   conversationId?: string;
+  customerId?: string;
   planId?: number;
   planStepId?: string;
   toolName: string;
@@ -179,6 +182,7 @@ export class WriteGuardService {
       token: `wg_${randomUUID()}`,
       tenantId: input.tenantId,
       conversationId: input.conversationId,
+      customerId: input.customerId,
       planId: input.planId,
       planStepId: input.planStepId,
       toolName: input.toolName,
@@ -259,6 +263,7 @@ export class WriteGuardService {
   async confirm(
     token: string,
     tenantId: string,
+    customerId?: string,
   ): Promise<WriteGuardConfirmResult> {
     const write = await this.get(token, tenantId);
     if (!write) {
@@ -266,6 +271,19 @@ export class WriteGuardService {
         success: false,
         error: '待确认操作不存在或已过期，请重新发起操作',
       };
+    }
+    // 运营客户端写操作：确认人必须是本人（customerScope 边界，见文档 13.3.3）
+    if (write.customerId) {
+      if (!customerId || customerId !== write.customerId) {
+        this.logger.warn(
+          `写令牌确认人非本人：token=${token.slice(0, 12)}… writeCustomer=${write.customerId} confirmCustomer=${customerId ?? '-'}`,
+        );
+        return {
+          success: false,
+          error:
+            'AI_012 令牌不匹配：该写操作确认人必须为本人（customerId 不一致），已拒绝执行',
+        };
+      }
     }
     if (write.status === 'cancelled') {
       return { success: false, error: '该操作已取消，无法确认' };

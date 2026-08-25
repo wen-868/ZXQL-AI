@@ -47,6 +47,11 @@ export class AgentRunDto {
   @IsString()
   role?: string;
 
+  /** 客户 ID（可选，运营客户端 customerScope 隔离） */
+  @IsOptional()
+  @IsString()
+  customerId?: string;
+
   /** 对话级模型标识（可选） */
   @IsOptional()
   @IsString()
@@ -80,6 +85,10 @@ export class AgentPlanDto {
 
   @IsOptional()
   @IsString()
+  customerId?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(64)
   model?: string;
 
@@ -101,6 +110,10 @@ export class AgentResumeDto {
   @IsOptional()
   @IsString()
   role?: string;
+
+  @IsOptional()
+  @IsString()
+  customerId?: string;
 
   @IsOptional()
   @IsString()
