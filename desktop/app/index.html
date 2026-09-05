@@ -244,6 +244,19 @@ body:not(.native) .mask,body:not(.native) .drawer{position:absolute}
     <div class="dr-row"><span class="k">账 号</span><input class="dr-input v" id="cfgUser" placeholder="管理系统账号"></div>
     <div class="dr-row"><span class="k">密 码</span><input class="dr-input v" id="cfgPass" type="password" placeholder="••••••••"></div>
     <button class="loginbtn" id="loginBtn">登 录</button>
+    <div class="dr-row" style="gap:8px;margin-top:8px">
+      <button class="loginbtn out" id="demoBtn" style="flex:1;margin-top:0">演示登录（免密）</button>
+      <button class="loginbtn out" id="regBtn" style="flex:1;margin-top:0">注册新账号</button>
+    </div>
+    <div id="regBox" style="display:none">
+      <div class="dr-sec" style="margin-top:12px">注 册 · 提交后等平台审核</div>
+      <div class="dr-row"><span class="k">手机号</span><input class="dr-input v" id="regMobile" placeholder="注册手机号（兼作登录账号）"></div>
+      <div class="dr-row"><span class="k">密 码</span><input class="dr-input v" id="regPass" type="password" placeholder="设置密码（8-32位）"></div>
+      <div class="dr-row"><span class="k">确 认</span><input class="dr-input v" id="regPass2" type="password" placeholder="再次输入密码"></div>
+      <label class="dr-row" style="cursor:pointer;gap:6px;align-items:flex-start;margin-top:4px"><input type="checkbox" id="regAgree" style="margin-top:3px"><span style="font-size:12px;color:var(--sub);line-height:1.5">我已阅读并同意用户服务协议与隐私政策</span></label>
+      <button class="loginbtn" id="regSubmit">提交注册申请</button>
+      <div class="hint" style="font-size:11px;margin-top:6px">注册为申请制：提交后由平台管理员审核开通，开通后用手机号即可登录。</div>
+    </div>
     <div class="dr-row" style="margin-top:8px"><span class="k">状 态</span><span class="badge off" id="loginState">未登录</span></div>
 
     <div class="dr-sec">模 型</div>
@@ -359,6 +372,54 @@ async function login(){
 function logout(){
   S.token='';S.user=null;store.set('token','');store.set('user',null);
   updateUserCard();toast('已退出登录');
+}
+
+/* ── 演示登录 / 注册（对齐管理系统 admin-web 契约，2026-09-05 搬入） ── */
+async function demoLogin(){
+  const btn=$('#demoBtn');btn.textContent='进入演示…';btn.disabled=true;
+  try{
+    S.server=($('#cfgServer').value.trim().replace(/\/+$/,''))||S.server;
+    S.auth=($('#cfgAuth').value.trim().replace(/\/+$/,''))||S.auth;
+    store.set('server',S.server);store.set('auth',S.auth);
+    const r=await fetch(S.auth+'/api/admin/auth/demo-login',{method:'POST',headers:{'Content-Type':'application/json'}});
+    const j=await r.json().catch(()=>({}));
+    const d=j.data||j;
+    if(!r.ok||!d.token)throw new Error(j.msg||j.message||('HTTP '+r.status));
+    S.token=d.token;S.user=d.user||null;
+    store.set('token',S.token);store.set('user',S.user);
+    toast('已进入演示模式（免密体验）');
+    // 幂等初始化演示数据；失败不阻塞进入（与 admin-web 一致）
+    fetch(S.auth+'/api/admin/demo/seed',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+S.token}}).catch(()=>{});
+    greet();updateUserCard();loadModels();pullPending();
+  }catch(e){toast('演示登录失败：'+e.message)}
+  btn.textContent='演示登录（免密）';btn.disabled=false;
+}
+function toggleReg(){
+  const b=$('#regBox');const show=b.style.display==='none';
+  b.style.display=show?'block':'none';
+  $('#regBtn').textContent=show?'收起注册':'注册新账号';
+}
+async function doRegister(){
+  const mobile=$('#regMobile').value.trim(),p1=$('#regPass').value,p2=$('#regPass2').value;
+  if(!/^1\d{10}$/.test(mobile))return toast('请输入正确的 11 位手机号');
+  if(p1.length<8||p1.length>32)return toast('密码需 8-32 位');
+  if(p1!==p2)return toast('两次输入的密码不一致');
+  if(!$('#regAgree').checked)return toast('请先勾选同意用户服务协议与隐私政策');
+  const btn=$('#regSubmit');btn.textContent='提交中…';btn.disabled=true;
+  try{
+    S.auth=($('#cfgAuth').value.trim().replace(/\/+$/,''))||S.auth;store.set('auth',S.auth);
+    const r=await fetch(S.auth+'/api/tenant/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      company_name:mobile,contact_person:mobile,contact_mobile:mobile,
+      admin_username:mobile,admin_password:p1,admin_real_name:mobile,sms_code:''
+    })});
+    const j=await r.json().catch(()=>({}));
+    const d=j.data||j;
+    if(!r.ok)throw new Error(j.msg||j.message||('HTTP '+r.status));
+    toast(d.message||'注册申请已提交，等待平台管理员审核');
+    $('#cfgUser').value=mobile;$('#regPass').value='';$('#regPass2').value='';
+    toggleReg();
+  }catch(e){toast('注册失败：'+e.message)}
+  btn.textContent='提交注册申请';btn.disabled=false;
 }
 
 /* ── 会话管理（本地列表 + conversationId 续聊） ── */
@@ -592,6 +653,9 @@ $('#themeBtn').onclick=()=>{const r=document.documentElement,d=r.dataset.theme==
 $('#setBtn').onclick=()=>{$('#drawer').classList.add('show');$('#mask').classList.add('show')};
 function closeSet(){$('#drawer').classList.remove('show');$('#mask').classList.remove('show')}
 $('#loginBtn').onclick=login;
+$('#demoBtn').onclick=demoLogin;
+$('#regBtn').onclick=toggleReg;
+$('#regSubmit').onclick=doRegister;
 $('#cfgPass').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 
 const txt=$('#txt');
