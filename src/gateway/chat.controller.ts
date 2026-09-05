@@ -35,6 +35,7 @@ import { TenantContext } from '../tenant/tenant-context';
 import { ExternalModelService } from '../tenant/external-model.service';
 import { AiConfigService } from '../tenant/ai-config.service';
 import { VisionService } from '../providers/vision.service';
+import { aiError } from '../common/ai-errors';
 import type { ToolContext } from '../tools/tool.interface';
 import { ChatDto } from './dto/chat.dto';
 import {
@@ -119,22 +120,35 @@ export class ChatController {
    */
   @Post()
   async chat(@Body() dto: ChatDto, @Res() res: Response): Promise<void> {
-    // ── 多租户：从 TenantContext 获取租户信息（R70-07）──
+    // ── 多租户：从 TenantContext 获取租户信息（2026-09-05 鉴权链收紧：身份只认 JWT，
+    //    请求体 tenantId/userId/role 已不作为身份来源，DTO 字段仅为前端兼容保留）──
     const ctxData = this.tenantContext.getData();
-    const tenantId = ctxData?.tenantId ?? dto.tenantId;
+    const tenantId = ctxData?.tenantId;
 
     if (!tenantId) {
-      this.logger.warn('对话请求缺少 tenantId（无 JWT 且请求体未传入）');
+      this.logger.warn('对话请求缺少租户上下文（JWT 缺失或验签失败）');
       res.status(401).json({
         statusCode: 401,
-        message:
-          '未认证：请在 Authorization Header 中携带 JWT，或在请求体中传入 tenantId',
+        ...aiError('AI_001', {
+          detail: '未认证：请在 Authorization Header 中携带 JWT',
+        }),
+      });
+      return;
+    }
+
+    // scope=platform 仅限平台（总台）身份：防止商家侧用户拉起总台跨租户工具（AI_010）
+    if (dto.scope === 'platform' && ctxData?.authType !== 'platform') {
+      res.status(403).json({
+        statusCode: 403,
+        ...aiError('AI_010', {
+          detail: 'platform 工具域仅限总台平台身份调用',
+        }),
       });
       return;
     }
 
     this.logger.log(
-      `收到对话请求：tenant=${tenantId} user=${ctxData?.userId ?? dto.userId ?? 'anonymous'} msg="${dto.message.slice(0, 50)}..."`,
+      `收到对话请求：tenant=${tenantId} user=${ctxData?.userId ?? 'anonymous'} msg="${dto.message.slice(0, 50)}..."`,
     );
 
     // 感知·看：图片 → 视觉模型生成描述并入对话上下文（失败降级纯文本）
@@ -168,9 +182,9 @@ export class ChatController {
         message,
         conversationId: dto.conversationId,
         tenantId,
-        userId: ctxData?.userId ?? dto.userId,
-        role: ctxData?.role ?? dto.role,
-        customerId: ctxData?.customerId ?? dto.customerId,
+        userId: ctxData?.userId,
+        role: ctxData?.role,
+        customerId: ctxData?.customerId,
         authToken: ctxData?.authToken,
         model: dto.model,
         mode: dto.mode,

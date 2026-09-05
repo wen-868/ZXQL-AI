@@ -44,20 +44,27 @@ export class V2Controller {
    */
   @Post('handle')
   async handle(@Body() dto: V2HandleDto): Promise<V2HandleResult> {
+    // 2026-09-05 鉴权链收紧：身份只认 JWT（TenantContext），请求体字段仅为前端兼容保留
     const ctx = this.tenantContext.getData();
-    const tenantId = ctx?.tenantId ?? dto.tenantId;
+    const tenantId = ctx?.tenantId;
     if (!tenantId) {
       return {
         intent: 'clarify',
-        message:
-          '未认证：请在 Authorization Header 中携带 JWT，或在请求体中传入 tenantId',
+        message: '未认证：请在 Authorization Header 中携带 JWT（AI_001）',
+      };
+    }
+    // scope=platform 仅限平台（总台）身份（AI_010）
+    if (dto.scope === 'platform' && ctx?.authType !== 'platform') {
+      return {
+        intent: 'clarify',
+        message: '无权限：platform 工具域仅限总台平台身份调用（AI_010）',
       };
     }
     return this.handleService.handle(dto.input, {
       tenantId,
       userId: ctx?.userId,
       role: ctx?.role,
-      customerId: ctx?.customerId ?? dto.customerId,
+      customerId: ctx?.customerId,
       authToken: ctx?.authToken,
       sessionId: dto.sessionId,
       model: dto.model,

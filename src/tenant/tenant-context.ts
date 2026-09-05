@@ -36,6 +36,8 @@ export interface TenantContextData {
   customerId?: string;
   /** 用户 JWT token（可选，ServiceClient 透传给后端 API） */
   authToken?: string;
+  /** 身份来源（2026-09-05 鉴权链收紧）：merchant=商家 JWT / platform=平台（总台）JWT */
+  authType?: 'merchant' | 'platform';
   /** 会话 ID（可选） */
   sessionId?: string;
 }
@@ -111,6 +113,20 @@ export class TenantContext {
    */
   getAuthToken(): string | undefined {
     return this.storage.getStore()?.authToken;
+  }
+
+  /**
+   * 获取身份来源（merchant=商家 JWT / platform=平台 JWT）
+   */
+  getAuthType(): 'merchant' | 'platform' | undefined {
+    return this.storage.getStore()?.authType;
+  }
+
+  /**
+   * 是否平台（总台）身份（zhixiang-platform JWT）
+   */
+  isPlatform(): boolean {
+    return this.storage.getStore()?.authType === 'platform';
   }
 
   /**

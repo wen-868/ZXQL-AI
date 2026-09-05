@@ -29,6 +29,7 @@ import type { Response } from 'express';
 import { AgentEngineService } from '../brain/agent/agent-engine.service';
 import { TaskRunnerService } from '../brain/agent/task-runner.service';
 import { TenantContext } from '../tenant/tenant-context';
+import { aiError } from '../common/ai-errors';
 import { AgentRunEvent } from '../brain/agent/agent.types';
 import {
   AgentPlanDto,
@@ -58,13 +59,25 @@ export class AgentController {
    */
   @Post('run')
   async run(@Body() dto: AgentRunDto, @Res() res: Response): Promise<void> {
+    // 2026-09-05 鉴权链收紧：身份只认 JWT（TenantContext），请求体 tenantId/userId/role 不再作为身份来源
     const ctxData = this.tenantContext.getData();
-    const tenantId = ctxData?.tenantId ?? dto.tenantId;
+    const tenantId = ctxData?.tenantId;
     if (!tenantId) {
       res.status(401).json({
         statusCode: 401,
-        message:
-          '未认证：请在 Authorization Header 中携带 JWT，或在请求体中传入 tenantId',
+        ...aiError('AI_001', {
+          detail: '未认证：请在 Authorization Header 中携带 JWT',
+        }),
+      });
+      return;
+    }
+    // scope=platform 仅限平台（总台）身份（AI_010）
+    if (dto.scope === 'platform' && ctxData?.authType !== 'platform') {
+      res.status(403).json({
+        statusCode: 403,
+        ...aiError('AI_010', {
+          detail: 'platform 工具域仅限总台平台身份调用',
+        }),
       });
       return;
     }
@@ -79,9 +92,9 @@ export class AgentController {
       for await (const event of this.engine.run({
         goal: dto.goal,
         tenantId,
-        userId: ctxData?.userId ?? dto.userId,
-        role: ctxData?.role ?? dto.role,
-        customerId: ctxData?.customerId ?? dto.customerId,
+        userId: ctxData?.userId,
+        role: ctxData?.role,
+        customerId: ctxData?.customerId,
         authToken: ctxData?.authToken,
         sessionId: dto.conversationId,
         model: dto.model,
@@ -113,16 +126,23 @@ export class AgentController {
     error?: string;
   }> {
     const ctxData = this.tenantContext.getData();
-    const tenantId = ctxData?.tenantId ?? dto.tenantId;
+    const tenantId = ctxData?.tenantId;
     if (!tenantId) {
       return { success: false, error: '未认证：无法确定租户身份' };
+    }
+    // scope=platform 仅限平台（总台）身份（AI_010）
+    if (dto.scope === 'platform' && ctxData?.authType !== 'platform') {
+      return {
+        success: false,
+        error: '无权限：platform 工具域仅限总台平台身份调用（AI_010）',
+      };
     }
     const plan = await this.engine.createPlan({
       goal: dto.goal,
       tenantId,
-      userId: ctxData?.userId ?? dto.userId,
-      role: ctxData?.role ?? dto.role,
-      customerId: ctxData?.customerId ?? dto.customerId,
+      userId: ctxData?.userId,
+      role: ctxData?.role,
+      customerId: ctxData?.customerId,
       authToken: ctxData?.authToken,
       model: dto.model,
       scope: dto.scope,
@@ -184,11 +204,19 @@ export class AgentController {
     @Res() res: Response,
   ): Promise<void> {
     const ctxData = this.tenantContext.getData();
-    const tenantId = ctxData?.tenantId ?? dto.tenantId;
+    const tenantId = ctxData?.tenantId;
     if (!tenantId) {
       res.status(401).json({
         statusCode: 401,
         message: '未认证：无法确定租户身份',
+      });
+      return;
+    }
+    // scope=platform 仅限平台（总台）身份（AI_010）
+    if (dto.scope === 'platform' && ctxData?.authType !== 'platform') {
+      res.status(403).json({
+        statusCode: 403,
+        message: '无权限：platform 工具域仅限总台平台身份调用（AI_010）',
       });
       return;
     }
@@ -203,9 +231,9 @@ export class AgentController {
       for await (const event of this.engine.runPlan(params.id, {
         goal: '',
         tenantId,
-        userId: ctxData?.userId ?? dto.userId,
-        role: ctxData?.role ?? dto.role,
-        customerId: ctxData?.customerId ?? dto.customerId,
+        userId: ctxData?.userId,
+        role: ctxData?.role,
+        customerId: ctxData?.customerId,
         authToken: ctxData?.authToken,
         model: dto.model,
         scope: dto.scope,
