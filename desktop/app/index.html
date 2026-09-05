@@ -317,7 +317,7 @@ function saveS(){store.set('sessions',S.sessions);store.set('cur',S.cur)}
 
 async function api(path,opt={}){
   const r=await fetch(S.server+path,{...opt,headers:{'Content-Type':'application/json','Authorization':'Bearer '+S.token,...(opt.headers||{})}});
-  if(r.status===401){setLoginState(false);throw new Error('登录已失效，请在设置中重新登录')}
+  if(r.status===401){S.token='';store.set('token','');updateUserCard();throw new Error('登录已失效，请在设置中重新登录')}
   return r.json();
 }
 
@@ -498,6 +498,13 @@ async function go(t){
     });
     if(!r.ok){
       const j=await r.json().catch(()=>({}));
+      if(r.status===401||j.code==='AI_001'){
+        // 登录过期：清死 token + 刷新登录卡片 + 自动打开设置抽屉引导重登（2026-09-05 鉴权收紧后必现路径）
+        S.token='';store.set('token','');
+        updateUserCard();
+        try{$('#setBtn').click()}catch(e){}
+        throw new Error('登录已过期，请在设置中重新登录后再试');
+      }
       throw new Error(j.message||j.msg||('HTTP '+r.status));
     }
     const rd=r.body.getReader(),dec=new TextDecoder();let buf='';
