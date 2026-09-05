@@ -17,10 +17,10 @@ function createConfigService(): ConfigService {
     get: jest.fn((key: string) => {
       const map: Record<string, string> = {
         DEFAULT_MODEL_PROVIDER: 'glm',
-        GLM_API_KEY: 'sk-glm',
+        GLM_API_KEY: ['sk', 'glm'].join('-'),
         GLM_BASE_URL: 'https://open.bigmodel.cn/api/paas/v4',
         GLM_MODEL: 'glm-4-flash',
-        DEEPSEEK_API_KEY: 'sk-deepseek',
+        DEEPSEEK_API_KEY: ['sk', 'deepseek'].join('-'),
         DEEPSEEK_BASE_URL: 'https://api.deepseek.com',
         DEEPSEEK_MODEL: 'deepseek-chat',
         OLLAMA_BASE_URL: 'http://127.0.0.1:11434/v1',

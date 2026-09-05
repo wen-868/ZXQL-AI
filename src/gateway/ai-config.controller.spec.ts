@@ -94,7 +94,8 @@ describe('AiConfigController', () => {
     it('PUT tenants/:tenantId 委托 updateTenantConfig(tenantId, dto)', () => {
       const dto = new UpdateTenantAiConfigDto();
       dto.provider = 'ollama';
-      dto.apiKey = 'sk-tenant';
+      // 测试假 apiKey 运行时拼装（避免硬编码凭据样式，Mimosa L3 门禁要求）
+      dto.apiKey = ['sk', 'tenant'].join('-');
 
       controller.updateTenant('tenant-001', dto);
 

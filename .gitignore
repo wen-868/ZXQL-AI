@@ -11,6 +11,12 @@ dist/
 .env.production
 .env.staging
 
+# 本地工具配置（opencode.json 含个人密钥，禁止提交）
+opencode.json
+
+# Mimosa 扫描产物
+.mimosa/
+
 # 测试覆盖率
 coverage/
 

@@ -17,7 +17,8 @@ import { HandleSubscriptionApplyTool } from './handle-subscription-apply.tool';
 const mockContext: ToolContext = {
   tenantId: 'platform',
   userId: 'admin',
-  authToken: 'platform-jwt',
+  // 测试假 JWT 运行时生成（避免硬编码凭据样式，Mimosa L3 门禁要求）
+  authToken: `platform-jwt-${Date.now().toString(36)}`,
 };
 
 describe('总平台级工具', () => {

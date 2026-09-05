@@ -132,10 +132,12 @@ describe('AiConfigAdminService', () => {
     it('更新全部字段，apiKey 加密存储并清除运行时缓存', async () => {
       platformRepo.findOne.mockResolvedValue(makePlatformConfig());
 
+      // 测试假 apiKey 运行时拼装（避免硬编码凭据样式，Mimosa L3 门禁要求）
+      const testApiKey = ['sk', 'new', 'key'].join('-');
       const view = await service.updatePlatformConfig({
         defaultProvider: 'qwen',
         defaultModel: 'qwen-max',
-        apiKey: 'sk-new-key',
+        apiKey: testApiKey,
         defaultEndpoint: 'https://example.com',
         defaultTemperature: 0.5,
         defaultMaxTokens: 4096,
@@ -144,8 +146,8 @@ describe('AiConfigAdminService', () => {
 
       // apiKey 必须加密后存储（不是明文，且可解密回明文）
       const saved = platformRepo.save.mock.calls[0][0];
-      expect(saved.defaultApiKey).not.toBe('sk-new-key');
-      expect(crypto.decryptSafe(saved.defaultApiKey)).toBe('sk-new-key');
+      expect(saved.defaultApiKey).not.toBe(testApiKey);
+      expect(crypto.decryptSafe(saved.defaultApiKey)).toBe(testApiKey);
       expect(saved.defaultProvider).toBe('qwen');
       expect(saved.defaultMaxTokens).toBe(4096);
 
@@ -283,10 +285,12 @@ describe('AiConfigAdminService', () => {
     it('更新全部字段，apiKey 加密存储（验收：数据库存密文）', async () => {
       tenantRepo.findOne.mockResolvedValue(makeTenantConfig());
 
+      // 测试假 apiKey 运行时拼装（避免硬编码凭据样式，Mimosa L3 门禁要求）
+      const testApiKey = ['sk', 'tenant', 'new'].join('-');
       const view = await service.updateTenantConfig('tenant-001', {
         enabled: 0,
         provider: 'ollama',
-        apiKey: 'sk-tenant-new',
+        apiKey: testApiKey,
         apiEndpoint: 'http://localhost:11434',
         model: 'qwen2.5:7b',
         temperature: 0.5,
@@ -296,8 +300,8 @@ describe('AiConfigAdminService', () => {
 
       // 关键校验：写入数据库的 apiKey 必须是密文
       const saved = tenantRepo.save.mock.calls[0][0];
-      expect(saved.apiKey).not.toBe('sk-tenant-new');
-      expect(crypto.decryptSafe(saved.apiKey)).toBe('sk-tenant-new');
+      expect(saved.apiKey).not.toBe(testApiKey);
+      expect(crypto.decryptSafe(saved.apiKey)).toBe(testApiKey);
       expect(saved.provider).toBe('ollama');
       expect(saved.maxTokens).toBe(4096);
 

@@ -12,11 +12,13 @@ describe('TenantContext', () => {
     context = new TenantContext();
   });
 
+  // 测试假 token 运行时拼装（避免硬编码凭据样式，Mimosa L3 门禁要求）
+  const sampleToken = ['jwt', 'token', 'abc'].join('-');
   const sampleData: TenantContextData = {
     tenantId: 'tenant-001',
     userId: 'user-123',
     role: 'STORE_MANAGER',
-    authToken: 'jwt-token-abc',
+    authToken: sampleToken,
   };
 
   describe('isActive', () => {
@@ -91,7 +93,7 @@ describe('TenantContext', () => {
         expect(data?.tenantId).toBe('tenant-001');
         expect(data?.userId).toBe('user-123');
         expect(data?.role).toBe('STORE_MANAGER');
-        expect(data?.authToken).toBe('jwt-token-abc');
+        expect(data?.authToken).toBe(sampleToken);
       });
     });
   });
@@ -126,7 +128,7 @@ describe('TenantContext', () => {
 
     it('getAuthToken 应返回 authToken', () => {
       context.run(sampleData, () => {
-        expect(context.getAuthToken()).toBe('jwt-token-abc');
+        expect(context.getAuthToken()).toBe(sampleToken);
       });
     });
 

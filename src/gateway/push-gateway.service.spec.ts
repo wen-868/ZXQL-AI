@@ -37,13 +37,12 @@ async function startHttpServer(): Promise<{
   return { server, port };
 }
 
-/** 生成合法 JWT */
+/** 生成合法 JWT（不显式传 algorithm：字符串密钥默认即 HS256，生产验签侧已固定） */
 function makeToken(tenantId = 'tenant-1', username = 'store_manager'): string {
   return jwt.sign(
     { id: 1, username, roles: ['STORE_MANAGER'], tenantId },
     JWT_SECRET,
     {
-      algorithm: 'HS256',
       issuer: 'zhixiang-system',
       audience: 'zhixiang-client',
       expiresIn: '1h',

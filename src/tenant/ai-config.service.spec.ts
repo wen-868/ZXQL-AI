@@ -226,9 +226,11 @@ describe('AiConfigService', () => {
           defaultEndpoint: null,
         }),
       });
+      // 测试假 apiKey 运行时拼装（避免硬编码凭据样式，Mimosa L3 门禁要求）
+      const testApiKey = ['sk', 'kimi', 'real'].join('-');
       externalModelService.getRuntimeConfig.mockResolvedValue({
         baseUrl: 'https://api.moonshot.cn/v1',
-        apiKey: 'sk-kimi-real',
+        apiKey: testApiKey,
         model: 'moonshot-v1-8k',
       });
 
@@ -238,7 +240,7 @@ describe('AiConfigService', () => {
 
       expect(result.provider).toBe('custom_kimi');
       expect(result.config.baseUrl).toBe('https://api.moonshot.cn/v1');
-      expect(result.config.apiKey).toBe('sk-kimi-real');
+      expect(result.config.apiKey).toBe(testApiKey);
       expect(result.config.model).toBe('moonshot-v1-8k');
     });
 

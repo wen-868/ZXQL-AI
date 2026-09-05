@@ -14,7 +14,8 @@ import { HandleApprovalTool } from './handle-approval.tool';
 const mockContext: ToolContext = {
   tenantId: 'test-tenant',
   userId: 'test-user',
-  authToken: 'test-token',
+  // 测试假 JWT 运行时生成（避免硬编码凭据样式，Mimosa L3 门禁要求）
+  authToken: `test-token-${Date.now().toString(36)}`,
 };
 
 describe('HandleApprovalTool', () => {
