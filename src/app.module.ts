@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { APP_FILTER } from '@nestjs/core';
+import { AllExceptionsFilter } from './common/ai-exception.filter';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ProvidersModule } from './providers/providers.module';
@@ -23,7 +25,7 @@ import { EvolutionModule } from './evolution/evolution.module';
  * 2. DatabaseModule — TypeORM MySQL 连接 + 5 张 AI 表 Entity 注册 ✅ R70-05 已接入
  * 3. ProvidersModule — DeepSeek / Ollama 模型服务商 ✅ R70-03 已接入
  * 4. BridgeModule — ServiceClient(HTTP 调用后端) + AuditLogger(审计日志) ✅ R70-05 已接入
- * 5. ToolsModule — ToolRegistry + ToolExecutor + EchoTool ✅ R70-04 已接入（R70-05 接入 AuditLogger）
+ * 5. ToolsModule — ToolRegistry + ToolExecutor ✅ R70-04 已接入（R70-05 接入 AuditLogger；2026-09-05 移除 echo 测试工具）
  * 6. TenantModule — TenantContext + CryptoService + AiConfigService + TenantMiddleware ✅ R70-07 已接入
  * 7. BrainModule — ContextBuilder + MemoryManager(Redis) + Orchestrator(Agent Loop) ✅ R70-08 已接入
  * 8. GatewayModule — ChatController(SSE) + AdminController(管理API) ✅ R70-06 已接入（R70-08 接入 Orchestrator）
@@ -44,7 +46,7 @@ import { EvolutionModule } from './evolution/evolution.module';
     ProvidersModule,
     // Bridge 层（ServiceClient HTTP 客户端 + AuditLogger 审计日志）
     BridgeModule,
-    // Tool 系统（ToolRegistry + ToolExecutor + EchoTool 示例工具）
+    // Tool 系统（ToolRegistry + ToolExecutor + 51 个精调业务工具）
     ToolsModule,
     // 多租户层（TenantContext + CryptoService + AiConfigService + TenantMiddleware）
     TenantModule,
@@ -62,6 +64,10 @@ import { EvolutionModule } from './evolution/evolution.module';
     EvolutionModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // 全局异常过滤器：AI_001~013 错误码体系接线（2026-09-05 审查 P2）
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
+  ],
 })
 export class AppModule {}

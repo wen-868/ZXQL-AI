@@ -5,7 +5,6 @@ import { ToolBootstrap } from './tool-bootstrap';
 // R70-14: 智能价格填充引擎（可复用服务）
 import { PriceEngineService } from './price-engine.service';
 import { UnitConverterService } from './unit-converter.service';
-import { EchoTool } from './definitions/echo.tool';
 import { SearchCustomerTool } from './definitions/search-customer.tool';
 import { SearchProductTool } from './definitions/search-product.tool';
 import { CreateProductTool } from './definitions/create-product.tool';
@@ -83,7 +82,6 @@ import { CommonModule } from '../common/common.module';
  * - 业务工具依赖 ServiceClient（调用后端 API）→ BridgeModule 提供
  *
  * 已注册工具（R70-09）：
- * - EchoTool：回显测试工具（utility）
  * - SearchCustomerTool：搜索客户（customer）
  * - SearchProductTool：搜索商品（product）
  * - CheckInventoryTool：查询库存（inventory）
@@ -107,7 +105,6 @@ import { CommonModule } from '../common/common.module';
     // R70-14: 智能价格填充引擎（可复用服务）
     PriceEngineService,
     UnitConverterService,
-    EchoTool,
     // R70-09: 销售管理 7 个工具
     SearchCustomerTool,
     SearchProductTool,

@@ -46,8 +46,8 @@ export class ToolContextDto {
  *
  * 示例请求体：
  * {
- *   "name": "echo",
- *   "args": { "message": "你好" },
+ *   "name": "searchProduct",
+ *   "args": { "keyword": "五粮液" },
  *   "context": { "tenantId": "test-tenant", "userId": "u1" }
  * }
  */

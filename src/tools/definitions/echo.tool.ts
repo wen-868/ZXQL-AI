@@ -2,16 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { ITool, ToolContext, ToolResult } from '../tool.interface';
 
 /**
- * Echo 回显工具（示例工具）
+ * Echo 回显工具（测试夹具）
+ *
+ * ⚠️ 2026-09-05 起**不再注册进生产 ToolRegistry**（tool-bootstrap 已移除，
+ * 工具数口径 51 精调 + 55 目录 = 106）。本文件保留仅作为 spec 的测试夹具：
+ * tool-registry.spec / tool-executor.spec 用它验证注册与执行链路。
  *
  * 用途：验证 Tool 系统框架（ToolRegistry 注册 + ToolExecutor 执行）是否正常工作。
  * 不调用任何外部服务，纯本地回显，便于在 R70-04 阶段做端到端验收。
- *
- * 验收方式：
- *   curl -X POST http://localhost:3016/api/admin/tools/execute \
- *     -H "Content-Type: application/json" \
- *     -d '{"name":"echo","args":{"message":"你好"},"context":{"tenantId":"test-tenant"}}'
- *   预期返回：{"success":true,"data":{"echo":"你好","receivedAt":"..."}}
  *
  * 后续 R70-09~13 实现的真实业务工具（order/inventory/product 等）以此为模板：
  * 1. 实现 ITool 接口

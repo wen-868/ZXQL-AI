@@ -1,6 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ToolRegistry } from './tool-registry';
-import { EchoTool } from './definitions/echo.tool';
 import { SearchCustomerTool } from './definitions/search-customer.tool';
 import { SearchProductTool } from './definitions/search-product.tool';
 import { CreateProductTool } from './definitions/create-product.tool';
@@ -98,7 +97,6 @@ import { ToolGeneratorService } from './catalog/tool-generator.service';
 export class ToolBootstrap implements OnModuleInit {
   constructor(
     private readonly registry: ToolRegistry,
-    private readonly echoTool: EchoTool,
     private readonly searchCustomerTool: SearchCustomerTool,
     private readonly searchProductTool: SearchProductTool,
     private readonly createProductTool: CreateProductTool,
@@ -157,9 +155,8 @@ export class ToolBootstrap implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    // 集中注册所有工具
+    // 集中注册所有工具（2026-09-05：移除 echo 测试工具，不再进入生产注册表与工具数口径）
     this.registry.registerAll([
-      this.echoTool,
       // R70-09: 销售管理 7 个工具
       this.searchCustomerTool,
       this.searchProductTool,
