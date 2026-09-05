@@ -99,7 +99,7 @@ export class OllamaProvider implements IModelProvider {
   configure(config: ProviderConfig): void {
     this.config = {
       baseUrl: config.baseUrl ?? this.config.baseUrl,
-      model: config.model,
+      model: config.model || this.config.model,
       temperature: config.temperature ?? this.config.temperature,
       maxTokens: config.max_tokens ?? this.config.maxTokens,
       timeoutMs: config.timeoutMs ?? this.config.timeoutMs,
