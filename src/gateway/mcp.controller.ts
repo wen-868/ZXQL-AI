@@ -12,17 +12,13 @@
  */
 import { Controller, Get, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { McpServerService } from '../brain/mcp/mcp-server.service';
+import {
+  McpServerService,
+  extractMcpToken,
+} from '../brain/mcp/mcp-server.service';
 
-/** 从请求头提取 MCP Token（Authorization Bearer 优先，其次 x-mcp-token） */
-export function extractMcpToken(req: Request): string | undefined {
-  const auth = req.headers.authorization;
-  if (auth && auth.startsWith('Bearer ')) {
-    return auth.slice(7).trim();
-  }
-  const xToken = req.headers['x-mcp-token'];
-  return typeof xToken === 'string' ? xToken.trim() : undefined;
-}
+/** 再导出（兼容既有引用）：extractMcpToken 实现已移至 McpServerService */
+export { extractMcpToken };
 
 @Controller('ai/mcp')
 export class McpController {

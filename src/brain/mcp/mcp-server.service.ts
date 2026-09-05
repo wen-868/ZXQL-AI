@@ -52,6 +52,23 @@ export interface McpHandleResult {
   body: Record<string, unknown>;
 }
 
+/** 从请求头提取 MCP Token（Authorization Bearer 优先，其次 x-mcp-token；上界 128 字符防异常超长输入） */
+export function extractMcpToken(req: Request): string | undefined {
+  const auth = req.headers.authorization;
+  let raw: string | undefined;
+  if (auth && auth.startsWith('Bearer ')) {
+    raw = auth.slice(7).trim();
+  } else {
+    const xToken = req.headers['x-mcp-token'];
+    raw = typeof xToken === 'string' ? xToken.trim() : undefined;
+  }
+  if (!raw) {
+    return undefined;
+  }
+  // 合法 token 形态为 mcp_+64hex（66 字符），超过 128 字符视为恶意输入直接拒绝
+  return raw.length <= 128 ? raw : undefined;
+}
+
 @Injectable()
 export class McpServerService {
   private readonly logger = new Logger(McpServerService.name);
@@ -128,24 +145,41 @@ export class McpServerService {
   /**
    * 建立 SSE 流（GET /ai/mcp，经典 MCP HTTP+SSE 客户端用）
    *
+   * 2026-09-05 审查 M3 修复：握手前必须先验证 MCP Token（此前 GET 无鉴权，
+   * 匿名可挂长连接消耗资源）。验证失败返回 401，不开流。
+   *
    * 发送 endpoint 事件后保持连接（30s heartbeat），客户端断开时清理。
    */
   handleSse(req: Request, res: Response): void {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
+    const rawToken = extractMcpToken(req);
+    // 同步校验存在性 + 异步校验有效性：无效直接 401，不建立 SSE 连接
+    void this.tokenService.validate(rawToken ?? '').then((token) => {
+      if (!token) {
+        res.status(401).json({
+          statusCode: 401,
+          code: 'AI_001',
+          message: 'MCP Token 无效或缺失（Authorization Bearer / x-mcp-token）',
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
 
-    // endpoint 指向 POST /ai/mcp（Streamable HTTP 风格同 URL）
-    res.write(`event: endpoint\ndata: /ai/mcp\n\n`);
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders();
 
-    const heartbeat = setInterval(() => {
-      res.write(`: keep-alive\n\n`);
-    }, 30000);
-    req.on('close', () => {
-      clearInterval(heartbeat);
-      res.end();
+      // endpoint 指向 POST /ai/mcp（Streamable HTTP 风格同 URL）
+      res.write(`event: endpoint\ndata: /ai/mcp\n\n`);
+
+      const heartbeat = setInterval(() => {
+        res.write(`: keep-alive\n\n`);
+      }, 30000);
+      req.on('close', () => {
+        clearInterval(heartbeat);
+        res.end();
+      });
     });
   }
 
@@ -405,7 +439,7 @@ export class McpServerService {
       },
       secret,
       {
-        algorithm: 'HS256',
+        // 字符串密钥下 jwt.sign 默认即 HS256（与管理系统验签侧 algorithms:['HS256'] 对齐）
         issuer: 'zhixiang-system',
         audience: 'zhixiang-client',
         expiresIn: '15m',

@@ -18,7 +18,9 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { AdminGuard } from '../tenant/admin-auth.guard';
 import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { McpTokenService } from '../brain/mcp/mcp-token.service';
 import { McpTokenEntity } from '../database/entities/mcp-token.entity';
@@ -47,6 +49,7 @@ export class SetMcpTokenEnabledDto {
   enabled!: boolean;
 }
 
+@UseGuards(AdminGuard)
 @Controller('admin/mcp-tokens')
 export class McpAdminController {
   constructor(private readonly tokenService: McpTokenService) {}
@@ -63,20 +66,20 @@ export class McpAdminController {
   }
 
   /**
-   * 生成 MCP Token（token 明文仅本次返回，请交付第三方后妥善保管）
+   * 生成 MCP Token（token 明文仅本次返回，请交付第三方后妥善保管；库中只存 SHA-256 哈希）
    */
   @Post()
   async create(
     @Body() dto: CreateMcpTokenDto,
   ): Promise<{ success: boolean; token?: string; message: string }> {
-    const entity = await this.tokenService.create({
+    const { plaintext } = await this.tokenService.create({
       tenantId: dto.tenantId,
       name: dto.name,
       expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
     });
     return {
       success: true,
-      token: entity.token,
+      token: plaintext,
       message: 'MCP Token 已生成（请立即保存，明文仅本次返回）',
     };
   }
