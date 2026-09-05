@@ -6,3 +6,7 @@ allowBuilds:
 overrides:
   fast-uri: ^3.1.5
   "@napi-rs/canvas": ^0.1.85
+  # 2026-09-05 依赖通告整改：qs<6.16.0 两条 moderate（数组上限绕过/isBuffer DoS，express 链路）、
+  # @xmldom/xmldom<=0.8.14 一条 moderate（XML 片段注入，mammoth/RAG 文档解析链路）
+  qs: ^6.16.0
+  "@xmldom/xmldom": ^0.8.15
