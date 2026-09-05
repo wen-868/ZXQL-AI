@@ -79,13 +79,14 @@ describe('RateLimiterMiddleware', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('无租户上下文：按 X-Forwarded-For 首项 IP 限流', async () => {
+  it('无租户上下文：按 req.ip 限流（trust proxy 已解析反代头，2026-09-05 起）', async () => {
     tenantContext.getData.mockReturnValue(undefined);
     rateLimiter.consume.mockResolvedValue({ allowed: true, remaining: 60 });
     const { res } = createRes();
     const next = jest.fn() as unknown as NextFunction;
     const req = {
       headers: { 'x-forwarded-for': '1.2.3.4, 10.0.0.1' },
+      ip: '1.2.3.4',
     } as unknown as Request;
 
     await middleware.use(req, res, next);
@@ -93,18 +94,17 @@ describe('RateLimiterMiddleware', () => {
     expect(rateLimiter.consume).toHaveBeenCalledWith('ip:1.2.3.4', 1);
   });
 
-  it('无租户且无 X-Forwarded-For：按 req.ip 限流', async () => {
+  it('无租户且 req.ip 缺失：按 unknown 兜底限流', async () => {
     tenantContext.getData.mockReturnValue(undefined);
     rateLimiter.consume.mockResolvedValue({ allowed: true, remaining: 60 });
     const { res } = createRes();
     const next = jest.fn() as unknown as NextFunction;
     const req = {
       headers: {},
-      ip: '10.0.0.1',
     } as unknown as Request;
 
     await middleware.use(req, res, next);
 
-    expect(rateLimiter.consume).toHaveBeenCalledWith('ip:10.0.0.1', 1);
+    expect(rateLimiter.consume).toHaveBeenCalledWith('ip:unknown', 1);
   });
 });

@@ -58,13 +58,13 @@ export class RateLimiterMiddleware implements NestMiddleware {
   }
 
   /**
-   * 获取客户端 IP（优先取 X-Forwarded-For 首项，兼容反向代理）
+   * 获取客户端 IP
+   *
+   * 2026-09-05 审查 H3/M4 修复：main.ts 已设 `trust proxy: loopback`（同机 nginx 反代），
+   * req.ip 由 Express 按 X-Forwarded-For 可信跳数解析，直接采信 req.ip；
+   * 不再手动取 XFF 首项（客户端可伪造，会绕过按 IP 限流）。
    */
   private getClientIp(req: Request): string {
-    const xff = req.headers['x-forwarded-for'];
-    if (typeof xff === 'string' && xff.length > 0) {
-      return xff.split(',')[0].trim();
-    }
     return req.ip ?? 'unknown';
   }
 }

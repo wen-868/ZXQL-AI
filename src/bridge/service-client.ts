@@ -351,9 +351,14 @@ export class ServiceClient {
       headers['X-Request-Id'] = context.requestId;
     }
 
+    // 2026-09-05 审查 H4 加固：config 展开放前面，headers 强制合并
+    //（防止调用方传 config 时把身份头 X-Tenant-Id/Authorization/CSRF 整体覆盖掉）
     return {
-      headers,
       ...config,
+      headers: {
+        ...headers,
+        ...(config?.headers ?? {}),
+      },
     };
   }
 
