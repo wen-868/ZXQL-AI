@@ -3,10 +3,53 @@
   "version": "1.0.0",
   "description": "智享AI 桌面客户端 —— 无边框窗口（Codex 风格）+ AI底座真实对接",
   "main": "main.js",
+  "author": "智享全链",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "electron-builder --win"
   },
   "devDependencies": {
-    "electron": "^33.0.0"
+    "electron": "^33.0.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "cn.onepan.zhixiang-ai",
+    "productName": "智享AI",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "app/**/*"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "智享AI",
+      "artifactName": "智享AI-安装包-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "智享AI-便携版-${version}.${ext}"
+    }
   }
 }
