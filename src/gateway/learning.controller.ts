@@ -7,9 +7,11 @@
  *
  * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-15
  */
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { AdminGuard } from '../tenant/admin-auth.guard';
 import { LearningService } from '../brain/learning/learning.service';
 
+@UseGuards(AdminGuard)
 @Controller('admin/learning')
 export class LearningController {
   constructor(private readonly learning: LearningService) {}

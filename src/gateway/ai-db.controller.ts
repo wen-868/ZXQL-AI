@@ -22,7 +22,9 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { AdminGuard } from '../tenant/admin-auth.guard';
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { CaptureService } from '../evolution/capture.service';
 import { AggregatorService } from '../evolution/aggregator.service';
@@ -50,6 +52,7 @@ export class CreateCorrectionDto {
   reason?: string;
 }
 
+@UseGuards(AdminGuard)
 @Controller('admin/ai-db')
 export class AiDbController {
   constructor(

@@ -8,9 +8,11 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
-import { Controller, Get, Param, Post } from '@nestjs/common';
+import { Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { AdminGuard } from '../tenant/admin-auth.guard';
 import { CircuitBreakerService } from '../tools/circuit-breaker.service';
 
+@UseGuards(AdminGuard)
 @Controller('admin/circuit-breakers')
 export class CircuitBreakerController {
   constructor(private readonly breaker: CircuitBreakerService) {}

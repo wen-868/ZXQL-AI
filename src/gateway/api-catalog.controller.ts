@@ -7,10 +7,12 @@
  *
  * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-15
  */
-import { Controller, Get, Logger, Post } from '@nestjs/common';
+import { Controller, Get, Logger, Post, UseGuards } from '@nestjs/common';
+import { AdminGuard } from '../tenant/admin-auth.guard';
 import { ToolRegistry } from '../tools/tool-registry';
 import { ToolGeneratorService } from '../tools/catalog/tool-generator.service';
 
+@UseGuards(AdminGuard)
 @Controller('admin/api-catalog')
 export class ApiCatalogController {
   private readonly logger = new Logger(ApiCatalogController.name);

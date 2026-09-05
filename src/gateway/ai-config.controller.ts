@@ -21,7 +21,16 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-08-02
  */
-import { Body, Controller, Get, Param, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Put,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { AdminGuard } from '../tenant/admin-auth.guard';
 import { AiConfigAdminService } from '../tenant/ai-config-admin.service';
 import {
   UpdatePlatformAiConfigDto,
@@ -32,6 +41,7 @@ import {
 /** 默认分页大小 */
 const DEFAULT_PAGE_SIZE = 20;
 
+@UseGuards(AdminGuard)
 @Controller('admin/ai-config')
 export class AiConfigController {
   constructor(private readonly adminService: AiConfigAdminService) {}

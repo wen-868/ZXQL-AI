@@ -7,9 +7,11 @@
  *
  * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-16
  */
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { JwtGuard } from '../tenant/admin-auth.guard';
 import { VoiceService } from '../providers/voice.service';
 
+@UseGuards(JwtGuard)
 @Controller('voice')
 export class VoiceController {
   constructor(private readonly voice: VoiceService) {}

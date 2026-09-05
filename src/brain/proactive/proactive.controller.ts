@@ -11,10 +11,19 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-08-02
  */
-import { Controller, Get, Logger, Param, Post } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Logger,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import { AdminGuard } from '../../tenant/admin-auth.guard';
 import { ProactiveService } from './proactive.service';
 import { ProactiveJobInfo, ProactiveTaskResult } from './proactive.types';
 
+@UseGuards(AdminGuard)
 @Controller('admin/proactive')
 export class ProactiveController {
   private readonly logger = new Logger(ProactiveController.name);

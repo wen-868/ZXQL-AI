@@ -17,7 +17,9 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { AdminGuard } from '../tenant/admin-auth.guard';
 import {
   ReviewTaskService,
   ReviewTaskView,
@@ -29,6 +31,7 @@ export interface RejectReviewDto {
   reason: string;
 }
 
+@UseGuards(AdminGuard)
 @Controller('review')
 export class ReviewController {
   constructor(private readonly service: ReviewTaskService) {}

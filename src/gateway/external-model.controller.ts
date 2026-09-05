@@ -20,7 +20,9 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  UseGuards,
 } from '@nestjs/common';
+import { AdminGuard } from '../tenant/admin-auth.guard';
 import {
   ExternalModelInput,
   ExternalModelService,
@@ -33,6 +35,7 @@ export interface TestExternalModelDto {
   modelName: string;
 }
 
+@UseGuards(AdminGuard)
 @Controller('admin/ai-config/external-models')
 export class ExternalModelController {
   constructor(private readonly service: ExternalModelService) {}

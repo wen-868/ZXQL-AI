@@ -13,13 +13,15 @@
  * 对应文档：
  * - docs/AI底座完善度分析报告.md 五、P2 用量计费闭环
  */
-import { Controller, Get, Logger, Query } from '@nestjs/common';
+import { Controller, Get, Logger, Query, UseGuards } from '@nestjs/common';
+import { AdminGuard } from '../tenant/admin-auth.guard';
 import {
   UsageDailyRow,
   UsageStatsService,
   UsageTotals,
 } from './usage-stats.service';
 
+@UseGuards(AdminGuard)
 @Controller('admin/usage')
 export class UsageController {
   private readonly logger = new Logger(UsageController.name);

@@ -8,9 +8,11 @@
  *
  * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-15
  */
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { AdminGuard } from '../tenant/admin-auth.guard';
 import { LongTermMemoryService } from '../brain/memory/long-term-memory.service';
 
+@UseGuards(AdminGuard)
 @Controller('admin/ltm')
 export class LtmController {
   constructor(private readonly ltm: LongTermMemoryService) {}

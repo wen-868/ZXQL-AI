@@ -28,7 +28,9 @@ import {
   Logger,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { AdminGuard } from '../tenant/admin-auth.guard';
 import { DocumentLoaderService } from './document-loader.service';
 import { TextSplitterService } from './text-splitter.service';
 import { EmbeddingService } from './embedding.service';
@@ -39,6 +41,7 @@ import { UploadDocumentDto } from './dto/upload-document.dto';
 /** 单文件最大字节数（10MB） */
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
+@UseGuards(AdminGuard)
 @Controller('rag')
 export class RagController {
   private readonly logger = new Logger(RagController.name);

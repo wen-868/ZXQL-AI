@@ -31,7 +31,9 @@ import {
   Param,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { AdminGuard } from '../tenant/admin-auth.guard';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
@@ -77,6 +79,7 @@ export interface RedisHealth {
   error?: string;
 }
 
+@UseGuards(AdminGuard)
 @Controller('admin')
 export class AdminController {
   private readonly logger = new Logger(AdminController.name);

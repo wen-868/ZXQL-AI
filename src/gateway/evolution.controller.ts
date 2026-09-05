@@ -19,10 +19,13 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { AdminGuard } from '../tenant/admin-auth.guard';
 import { EvolutionService } from '../brain/evolution/evolution.service';
 import type { ProposalInput } from '../brain/evolution/evolution.service';
 
+@UseGuards(AdminGuard)
 @Controller('admin/evolution')
 export class EvolutionController {
   constructor(private readonly service: EvolutionService) {}
