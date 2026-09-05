@@ -60,7 +60,13 @@ cp .env.example .env
 | `ENCRYPTION_KEY` | API Key 加密密钥（32 字节 hex）；部署脚本会强制生成真实密钥 |
 | `GLM_BASE_URL/GLM_API_KEY/GLM_MODEL` | 智谱（默认 `glm-4-flash` 免费） |
 | `EMBEDDING_BASE_URL/EMBEDDING_API_KEY/EMBEDDING_MODEL` | RAG；未配置则自动降级禁用 |
+| `ENABLE_RAG` | RAG 检索增强总开关，默认 `false`（系统数据即知识库；开启需配 EMBEDDING 三项） |
 | `ENABLE_API_CATALOG_TOOLS` | 启动时自动注册 API 目录工具（需管理系统先登记） |
+| `CORS_ORIGINS` | 跨域白名单（逗号分隔）；默认放行 onepan.cn 四站点 + 本地 5173/5174/5175 |
+| `AI_ALLOW_BODY_TENANT` | **应急回退开关**，默认 `false`。`true` 时恢复旧的"请求体身份模式"（可被伪造），仅限前端 JWT 接入故障时临时开启 |
+| `RATE_LIMIT_PER_MINUTE` | 每租户/IP 每分钟请求限额，默认 `60`（超限 429） |
+
+> 🔐 **鉴权说明（2026-09-05 安全审查后）**：AI 底座复用管理系统同一套登录/注册账号体系（JWT 共享 `JWT_SECRET`，商家与平台 JWT issuer/audience 隔离）。所有对话端点（`/api/chat`、`/api/ai/agent/*`、`/api/ai/v2/*`）与管理端点（`/api/admin/*`、`/review`、`/rag`、`/voice`）均要求 `Authorization: Bearer <JWT>`；管理端点进一步要求管理角色（`SUPER_ADMIN/OPERATION_ADMIN/WAREHOUSE_ADMIN/FINANCE_ADMIN`）或平台（总台）身份。身份不再从请求体读取。
 
 > ⚠️ `.env` 已在 `.gitignore` 中，禁止提交；`.env.example` 可提交。
 

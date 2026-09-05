@@ -30,3 +30,5 @@
 | 002 | t_mcp_token（MCP 对接令牌，P0-3） | 业务库 | ✅ 已建（002_mcp_token.sql） |
 | 003 | ai_db 独立库 + ai_experience/ai_correction/ai_sample/ai_evolution_version（认知闭环，P1-1） | ai_db（独立 schema） | ✅ 已建（003_ai_db_evolution.sql） |
 | 004 | t_platform_ai_config 增加 ollama_fallback_enabled（本地兜底开关，P1-3） | 业务库 | ✅ 已建（004_platform_ai_config_fallback.sql） |
+| 005 | t_ai_session_archive（会话冷备归档）+ t_tenant_ai_billing 补 balance 列（计费扣减，批次1） | 业务库 | ✅ 已建（005_session_archive_billing.sql） |
+| 006 | ai_execution_plan（Agent 自主执行计划，第22章） | 业务库 | ✅ 已建（006_ai_execution_plan.sql） |

@@ -46,6 +46,9 @@ COPY --from=build /app/dist ./dist
 # 仅安装生产依赖（锁定版本）
 RUN pnpm install --frozen-lockfile --prod
 
+# 以非 root 运行（2026-09-05 审查：runtime 容器此前以 root 跑 node）
+USER node
+
 EXPOSE 3016
 
 # 与 package.json start:prod 一致（node dist/main）

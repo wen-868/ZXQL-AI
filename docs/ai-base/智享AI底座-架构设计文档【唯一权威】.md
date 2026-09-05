@@ -2197,11 +2197,11 @@ zhixiang-ai-base/（独立仓库 ZXQL-AI，src 结构 v3.6 与代码对齐）
 │   │   ├── tool-registry.ts            # 工具注册表（按租户启停/过滤）
 │   │   ├── tool-executor.ts            # 工具执行器（统一异常/审计）
 │   │   ├── customer-scope.guard.ts     # 运营客户端 customerScope 拦截（AI_010）
-│   │   ├── tool-bootstrap.ts           # 工具装配（精调 52 + 目录 55 = 107）
+│   │   ├── tool-bootstrap.ts           # 工具装配（精调 51 + 目录 55 = 106；2026-09-05 移除 echo 测试工具）
 │   │   ├── price-engine.service.ts     # 价格引擎
 │   │   ├── unit-converter.service.ts   # 箱/支等单位换算
 │   │   ├── definitions/                # 精调工具定义与执行（handlers 演进为 definitions 内实现）
-│   │   │   └── *.tool.ts               # 52 个精调业务工具（写操作带 preview + risk）
+│   │   │   └── *.tool.ts               # 51 个精调业务工具（写操作带 preview + risk）
 │   │   └── catalog/                    # API 目录动态技能（learner/tool-generator 演进落点）
 │   │       ├── api-catalog.ts          # 55 条 API 目录
 │   │       ├── dynamic-api.tool.ts     # 动态 API 工具
