@@ -52,7 +52,15 @@ export interface McpHandleResult {
   body: Record<string, unknown>;
 }
 
-/** 从请求头提取 MCP Token（Authorization Bearer 优先，其次 x-mcp-token；上界 128 字符防异常超长输入） */
+/** 合法 MCP Token 字符集：可打印 ASCII 且无空白（mcp_+64hex=66 字符，历史明文同形态） */
+const MCP_TOKEN_PATTERN = /^[\x21-\x7E]{1,128}$/;
+
+/**
+ * 从请求头提取 MCP Token（Authorization Bearer 优先，其次 x-mcp-token）
+ *
+ * 提取后必须通过字符集白名单校验（可打印 ASCII、1~128 字符）才对外返回：
+ * 既拒绝异常超长/含控制字符的恶意输入，也在此处显式终止不可信输入的传播链。
+ */
 export function extractMcpToken(req: Request): string | undefined {
   const auth = req.headers.authorization;
   let raw: string | undefined;
@@ -62,11 +70,10 @@ export function extractMcpToken(req: Request): string | undefined {
     const xToken = req.headers['x-mcp-token'];
     raw = typeof xToken === 'string' ? xToken.trim() : undefined;
   }
-  if (!raw) {
+  if (!raw || !MCP_TOKEN_PATTERN.test(raw)) {
     return undefined;
   }
-  // 合法 token 形态为 mcp_+64hex（66 字符），超过 128 字符视为恶意输入直接拒绝
-  return raw.length <= 128 ? raw : undefined;
+  return raw;
 }
 
 @Injectable()
