@@ -190,3 +190,120 @@ export function detectIntentCategories(
   if (matched.size === 0 || matched.size >= 6) return undefined;
   return Array.from(matched);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   意图分诊双通道（2026-09-05 超高智能升级）
+   规则快车道（零开销）+ LLM 分诊兜底（新话术不再掉进全量工具集慢车道）
+   ═══════════════════════════════════════════════════════════════ */
+
+/** 业务域中文名（LLM 分诊提示词用） */
+const CATEGORY_LABELS: Record<ToolCategory, string> = {
+  order: '销售管理',
+  inventory: '库存管理',
+  product: '商品管理',
+  customer: '客户管理',
+  purchase: '采购管理',
+  delivery: '配送管理',
+  finance: '财务管理',
+  report: '报表分析',
+  marketing: '营销管理',
+  platform: '总台/平台管理',
+  system: '系统管理',
+  utility: '工具类',
+};
+
+const ALL_CATEGORIES = Object.keys(CATEGORY_LABELS) as ToolCategory[];
+
+/** 意图分诊缓存（消息原文 → 分类），LRU 上限 200 */
+const intentCache = new Map<string, ToolCategory[] | undefined>();
+const INTENT_CACHE_MAX = 200;
+
+/** 意图分诊结果：categories=undefined 表示回退全量工具集 */
+export interface IntentResolution {
+  categories: ToolCategory[] | undefined;
+  /** 命中通道：rules=关键词快车道 / llm=LLM 分诊 / fallback=全量回退 */
+  lane: 'rules' | 'llm' | 'fallback';
+}
+
+/**
+ * 意图分诊双通道：
+ * 1. 关键词规则快车道（命中即返回，零额外开销）
+ * 2. 规则未命中/综合问题 → LLM 分诊（3.5s 超时、输出校验、失败回退全量），
+ *    让新话术/口语化表达也能拿到精准工具子集，而非 7 万 token 全量慢车道
+ *
+ * @param message    用户消息（建议传指代消解后的文本）
+ * @param classifier 可选 LLM 分诊器（返回业务域数组；null/异常=放弃 LLM 通道）
+ */
+export async function resolveIntentCategories(
+  message: string,
+  classifier?: (msg: string) => Promise<string[] | null>,
+): Promise<IntentResolution> {
+  const text = (message ?? '').trim();
+  if (!text) return { categories: undefined, lane: 'fallback' };
+
+  const cached = intentCache.get(text);
+  if (cached !== undefined) {
+    // LRU 触碰
+    intentCache.delete(text);
+    intentCache.set(text, cached);
+    return {
+      categories: cached,
+      lane: cached.length > 0 ? 'rules' : 'fallback',
+    };
+  }
+
+  const ruleHits = detectIntentCategories(text);
+  let result: IntentResolution;
+  if (ruleHits !== undefined) {
+    result = { categories: ruleHits, lane: 'rules' };
+  } else if (classifier) {
+    const llmCats = await classifyWithLlm(text, classifier);
+    result =
+      llmCats.length > 0
+        ? { categories: llmCats, lane: 'llm' }
+        : { categories: undefined, lane: 'fallback' };
+  } else {
+    result = { categories: undefined, lane: 'fallback' };
+  }
+
+  if (intentCache.size >= INTENT_CACHE_MAX) {
+    const oldest = intentCache.keys().next().value;
+    if (oldest !== undefined) intentCache.delete(oldest);
+  }
+  intentCache.set(text, result.categories);
+  return result;
+}
+
+/** LLM 分诊：3.5s 超时 + 枚举校验 + 上限 4 个域，任何异常回退空（全量） */
+async function classifyWithLlm(
+  text: string,
+  classifier: (msg: string) => Promise<string[] | null>,
+): Promise<ToolCategory[]> {
+  try {
+    const raw = await Promise.race([
+      classifier(text),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500)),
+    ]);
+    if (!Array.isArray(raw)) return [];
+    const valid = new Set<string>(ALL_CATEGORIES);
+    return raw
+      .filter((c): c is ToolCategory => typeof c === 'string' && valid.has(c))
+      .slice(0, 4);
+  } catch {
+    return [];
+  }
+}
+
+/** 构建 LLM 分诊提示词（调用方用快速模型 + temperature 0 调用） */
+export function buildLlmClassifierPrompt(message: string): string {
+  const domainList = Object.entries(CATEGORY_LABELS)
+    .map(([k, v]) => `${k}(${v})`)
+    .join('、');
+  return (
+    '你是酒水进销存 SaaS 的意图分诊器。判断用户消息涉及哪些业务域，' +
+    '输出 JSON 字符串数组（0-4 个，按可能性排序），只输出 JSON 数组本身，不要解释。\n' +
+    `业务域：${domainList}\n` +
+    `用户消息：「${message}」\n` +
+    '输出示例：["inventory","report"]'
+  );
+}

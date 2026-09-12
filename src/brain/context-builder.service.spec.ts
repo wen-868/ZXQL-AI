@@ -198,4 +198,25 @@ describe('R70-21 ContextBuilder', () => {
       expect(prompt).not.toContain('## 知识库参考');
     });
   });
+
+  describe('证据与数字纪律（2026-09-05 超高智能升级）', () => {
+    it('默认提示词强制包含证据纪律块（数字可溯源）', () => {
+      const prompt = builder.buildSystemPrompt(
+        { ...baseParams, systemPrompt: undefined },
+        createRegistry(),
+      );
+      expect(prompt).toContain('证据与数字纪律');
+      expect(prompt).toContain('禁止编造');
+      expect(prompt).toContain('YYYY-MM-DD');
+    });
+
+    it('租户自定义提示词时纪律块仍强制追加（不随自定义丢失）', () => {
+      const prompt = builder.buildSystemPrompt(
+        { ...baseParams, systemPrompt: '你是红星酒行的专属助手。' },
+        createRegistry(),
+      );
+      expect(prompt).toContain('红星酒行的专属助手');
+      expect(prompt).toContain('证据与数字纪律');
+    });
+  });
 });

@@ -56,7 +56,10 @@ import { LearningService } from './learning/learning.service';
 import { formatInventoryQty } from './inventory-format';
 import { buildApiToolSummary } from './api-summary';
 import { buildWriteSummary } from './write-summary';
-import { detectIntentCategories } from './intent-detector';
+import {
+  buildLlmClassifierPrompt,
+  resolveIntentCategories,
+} from './intent-detector';
 import { resolveReference } from '../nlp/reference-resolver';
 
 /** Agent Loop 最大迭代次数（防止死循环） */
@@ -298,13 +301,29 @@ export class Orchestrator {
         this.registry,
       );
 
-      // 工具定义（供 LLM function calling）：意图驱动减负（只带相关域工具）+ scope 隔离
+      // 工具定义（供 LLM function calling）：意图分诊双通道（关键词快车道 + LLM 分诊兜底，
+      // 新话术不再回退全量慢车道）+ 用指代消解后的消息 + scope 隔离
+      const intent = await resolveIntentCategories(userMessage, async (msg) => {
+        const prompt = buildLlmClassifierPrompt(msg);
+        const res = await provider.chatSync(
+          [{ role: 'user', content: prompt }],
+          { temperature: 0, max_tokens: 100 },
+        );
+        const content = res.content?.trim() ?? '';
+        const match = content.match(/\[[\s\S]*\]/);
+        if (!match) return null;
+        try {
+          return JSON.parse(match[0]) as string[];
+        } catch {
+          return null;
+        }
+      });
       const toolDefinitions = this.registry.toToolDefinitionsForCategories(
-        detectIntentCategories(params.message),
+        intent.categories,
         params.scope,
       );
       this.logger.debug(
-        `意图工具集：${toolDefinitions.length} 个（消息「${params.message.slice(0, 20)}」）`,
+        `意图分诊：lane=${intent.lane} 工具集=${toolDefinitions.length} 个（消息「${params.message.slice(0, 20)}」）`,
       );
 
       // 构造工具执行上下文
