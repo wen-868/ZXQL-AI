@@ -42,7 +42,10 @@ function createProvider(result?: Partial<ChatResult>): ProviderHarness {
   return { provider, chatSync };
 }
 
-function createExtractor(harness: ProviderHarness): {
+function createExtractor(
+  harness: ProviderHarness,
+  sampleRepo?: { find: jest.Mock },
+): {
   extractor: StructuredExtractor;
   chatSync: jest.Mock;
 } {
@@ -63,6 +66,9 @@ function createExtractor(harness: ProviderHarness): {
     {
       get: jest.fn().mockReturnValue('mgmt'),
     } as never,
+    (sampleRepo ?? {
+      find: jest.fn().mockResolvedValue([]),
+    }) as never,
   );
   return { extractor, chatSync: harness.chatSync };
 }
@@ -364,5 +370,82 @@ describe('P0-2 StructuredExtractor', () => {
       expect(result.needsClarification).toBe(false);
       expect(result.args?.customerName).toBe('红星商行');
     });
+  });
+});
+
+describe('E3 样本回流 few-shot', () => {
+  it('ai_db 高质量样本注入 system 消息（few-shot 块出现在提示词）', async () => {
+    const harness = createProvider({
+      tool_calls: [
+        {
+          id: 'c1',
+          type: 'function',
+          function: {
+            name: 'extract_customer_create',
+            arguments: '{"customerName":"李四"}',
+          },
+        },
+      ],
+    } as never);
+    const sampleRepo = {
+      find: jest.fn().mockResolvedValue([
+        {
+          id: 1,
+          taskType: 'customer_create',
+          prompt: '新建客户李四',
+          completion: '{"customerName":"李四"}',
+          quality: 4,
+        },
+      ]),
+    };
+    const { extractor, chatSync } = createExtractor(harness, sampleRepo);
+
+    const result = await extractor.extract({
+      docType: 'customer_create',
+      utterance: '新建客户李四',
+    });
+
+    expect(result.success).toBe(true);
+    expect(sampleRepo.find).toHaveBeenCalled();
+    const messages = chatSync.mock.calls[0][0] as Array<{
+      role: string;
+      content: string;
+    }>;
+    const sysMsg = messages.find((m) => m.role === 'system');
+    expect(sysMsg?.content).toContain('历史正确示例');
+    expect(sysMsg?.content).toContain('新建客户李四');
+    expect(sysMsg?.content).toContain('{"customerName":"李四"}');
+  });
+
+  it('样本仓读取失败 → 静默降级为无 few-shot，抽取不受阻', async () => {
+    const harness = createProvider({
+      tool_calls: [
+        {
+          id: 'c2',
+          type: 'function',
+          function: {
+            name: 'extract_customer_create',
+            arguments: '{"customerName":"李四"}',
+          },
+        },
+      ],
+    } as never);
+    const sampleRepo = {
+      find: jest.fn().mockRejectedValue(new Error('ai_db down')),
+    };
+    const { extractor, chatSync } = createExtractor(harness, sampleRepo);
+
+    const result = await extractor.extract({
+      docType: 'customer_create',
+      utterance: '新建客户李四',
+    });
+
+    expect(result.success).toBe(true);
+    const messages = chatSync.mock.calls[0][0] as Array<{
+      role: string;
+      content: string;
+    }>;
+    const sysMsg = messages.find((m) => m.role === 'system');
+    expect(sysMsg?.content).not.toContain('历史正确示例');
   });
 });

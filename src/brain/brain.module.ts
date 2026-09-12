@@ -49,6 +49,9 @@ import { CommonModule } from '../common/common.module';
 import { AiSessionArchiveEntity } from '../database/entities/ai-session-archive.entity';
 import { AiExecutionPlanEntity } from '../database/entities/ai-execution-plan.entity';
 import { EvolutionModule } from '../evolution/evolution.module';
+import { AiDbModule } from '../database/ai-db.module';
+import { PlatformAiConfigEntity } from '../database/entities/platform-ai-config.entity';
+import { EvolutionAutonomyScheduler } from './evolution-autonomy.scheduler';
 import { PlannerService } from './agent/planner.service';
 import { SelfHealLoopService } from './agent/self-heal-loop.service';
 import { TaskRunnerService } from './agent/task-runner.service';
@@ -68,6 +71,7 @@ import { ReportService } from './v2/report.service';
       McpTokenEntity,
       AiSessionArchiveEntity,
       AiExecutionPlanEntity,
+      PlatformAiConfigEntity,
     ]),
     ProvidersModule,
     ToolsModule,
@@ -75,6 +79,7 @@ import { ReportService } from './v2/report.service';
     TenantModule,
     RagModule,
     EvolutionModule,
+    AiDbModule,
     CommonModule,
   ],
   providers: [
@@ -101,6 +106,7 @@ import { ReportService } from './v2/report.service';
     AgentEngineService,
     V2HandleService,
     ReportService,
+    EvolutionAutonomyScheduler,
   ],
   exports: [
     Orchestrator,

@@ -12,14 +12,22 @@
  * 4. 必填缺失/非法 → 生成澄清问题（反问用户，不挂残缺草稿）
  * 5. 数量语义辅助：items 缺数量但口语含"10箱/一箱半"时用 nl-parser 补全
  *
- * 负责人: AI底座 | 创建日期: 2026-08-25
+ * E3 样本回流（2026-09-05 持续进化）：抽取前自动拉取 ai_db 中同 taskType 的
+ * 高质量历史样本（纠错样本 quality=4 优先）注入 few-shot——AI 被纠正过的
+ * 话术口径，10 分钟内即成为后续抽取的运行时经验，无需改代码发版。
+ *
+ * 负责人: AI底座 | 创建日期: 2026-08-25 | 更新: 2026-09-05 样本回流 few-shot
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { MoreThanOrEqual, Repository } from 'typeorm';
 import { ProviderRouterService } from '../router/provider-router.service';
 import { AiConfigService } from '../../tenant/ai-config.service';
 import { coerceParam } from '../../nlp/param-coercer';
 import { parseQuantity } from '../../nlp/nl-parser';
+import { AiSampleEntity } from '../../database/entities/ai-sample.entity';
+import { AI_DB_CONNECTION } from '../../database/ai-db.module';
 import type { ChatMessage } from '../../providers/provider.interface';
 import {
   WriteDocSchema,
@@ -88,11 +96,90 @@ export interface ExtractInput {
 export class StructuredExtractor {
   private readonly logger = new Logger(StructuredExtractor.name);
 
+  /** few-shot 缓存（docType → 文本），TTL 10 分钟：纠错样本分钟级生效且不逐请求查库 */
+  private readonly fewShotCache = new Map<
+    string,
+    { text: string; at: number }
+  >();
+  private static readonly FEW_SHOT_TTL_MS = 10 * 60 * 1000;
+
   constructor(
     private readonly router: ProviderRouterService,
     private readonly aiConfigService: AiConfigService,
     private readonly configService: ConfigService,
+    @InjectRepository(AiSampleEntity, AI_DB_CONNECTION)
+    private readonly sampleRepo: Repository<AiSampleEntity>,
   ) {}
+
+  /**
+   * E3 样本回流：拉取同 taskType 的高质量历史样本，生成 few-shot 提示块
+   *
+   * 来源：采集层对话样本（quality：成功路径=3、纠错路径=4），纠错样本优先；
+   * 仅收 completion 可解析为非空 JSON 对象的样本（抽取器的标准答案形态）；
+   * 读取失败静默降级为无示例（不阻断抽取）。
+   */
+  private async fewShotBlockFor(docType: string): Promise<string> {
+    const cached = this.fewShotCache.get(docType);
+    if (
+      cached &&
+      Date.now() - cached.at < StructuredExtractor.FEW_SHOT_TTL_MS
+    ) {
+      return cached.text;
+    }
+
+    let text = '';
+    try {
+      const base = docType.replace(/^write_schema\./, '');
+      const samples = await this.sampleRepo.find({
+        where: [
+          { taskType: base, quality: MoreThanOrEqual(4) },
+          { taskType: base, quality: MoreThanOrEqual(3) },
+        ],
+        order: { createdAt: 'DESC' },
+        take: 8,
+      });
+
+      const shots: string[] = [];
+      const seen = new Set<number>();
+      for (const s of samples) {
+        if (shots.length >= 3) break;
+        if (seen.has(s.id)) continue;
+        seen.add(s.id);
+        const trimmed = (s.completion ?? '').trim();
+        if (!trimmed.startsWith('{')) continue;
+        try {
+          const parsed = JSON.parse(trimmed) as unknown;
+          if (
+            parsed &&
+            typeof parsed === 'object' &&
+            !Array.isArray(parsed) &&
+            Object.keys(parsed).length > 0
+          ) {
+            shots.push(
+              `示例：${(s.prompt ?? '').slice(0, 80)} => ${JSON.stringify(parsed)}`,
+            );
+          }
+        } catch {
+          // 非法 JSON 样本跳过
+        }
+      }
+      if (shots.length > 0) {
+        text =
+          '\n\n历史正确示例（口径参考；数量/名称以本次用户话语为准，勿照抄）：\n' +
+          shots.join('\n');
+        this.logger.debug(
+          `E3 样本回流：docType=${docType} 注入 ${shots.length} 条 few-shot`,
+        );
+      }
+      this.fewShotCache.set(docType, { text, at: Date.now() });
+    } catch (err) {
+      this.logger.warn(
+        `E3 样本回流读取失败（降级为无 few-shot）：${err instanceof Error ? err.message : String(err)}`,
+      );
+      this.fewShotCache.set(docType, { text: '', at: Date.now() });
+    }
+    return text;
+  }
 
   /**
    * 结构化抽取（LLM function calling → JSON 兜底 → 校验 → 澄清）
@@ -117,8 +204,15 @@ export class StructuredExtractor {
 
     let raw: Record<string, unknown> | null = null;
     let llmError: string | undefined;
+    // E3 样本回流：拉取同 taskType 高质量样本注入 few-shot（失败静默降级为无示例）
+    const fewShots = await this.fewShotBlockFor(input.docType);
     try {
-      raw = await this.callExtractLlM(schema, input.utterance, input.model);
+      raw = await this.callExtractLlM(
+        schema,
+        input.utterance,
+        input.model,
+        fewShots,
+      );
     } catch (err) {
       llmError = err instanceof Error ? err.message : String(err);
       this.logger.warn(
@@ -232,6 +326,7 @@ export class StructuredExtractor {
     schema: WriteDocSchema,
     utterance: string,
     model?: string,
+    fewShots = '',
   ): Promise<Record<string, unknown> | null> {
     const resolved = await this.aiConfigService.getResolvedConfig();
     const routed = this.router.route({
@@ -251,7 +346,8 @@ export class StructuredExtractor {
           '数量保留数值（"一箱半"→1.5，"两三瓶"取大值3）；' +
           '金额统一为数字（元）。若用户话语与「' +
           schema.label +
-          '」无关，直接回复"无关"两字，不调用函数。',
+          '」无关，直接回复"无关"两字，不调用函数。' +
+          fewShots,
       },
       { role: 'user', content: utterance },
     ];

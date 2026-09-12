@@ -2803,6 +2803,8 @@ CREATE TABLE ai_evolution_version (
 > 当前 v3.4 骨架覆盖 E1–E3 设计与表结构；E4 本地训练（阈值见上）为规划项。
 >
 > **E5 已落地（2026-09-05）**：真实评测执行器（用例逐条走 StructuredExtractor 与 groundTruth 逐字段比对，替换模拟实现）+ 回归达标线（新版本准确率 ≥ 上一 active 最近评测值 95%，无基线不可判保持 staged）+ 结果落库（`ai_evolution_version.regression_accuracy/evaluated_at`，迁移 007）+ 策略门控自治（总台 `t_platform_ai_config.evolution_auto_activate`，默认 0=人工放行；开启后达标自动激活、未达标自动拦截/回滚）。触发端点：`POST /api/admin/ai-db/versions/:id/auto-close`（用例缺省自动从 ai_db 样本池拉取 taskType=artifact、quality≥3 的最新 20 条）。
+>
+> **E3 样本回流 + E5 自治调度（2026-09-05 同日补完）**：①抽取器运行时样本回流——`StructuredExtractor` 抽取前自动拉取 ai_db 同 taskType 高质量样本（纠错样本 quality=4 优先，10 分钟缓存，读取失败静默降级）注入 system few-shot，AI 被纠正过的口径分钟级成为运行时经验，无需改码发版；②自治调度——`EvolutionAutonomyScheduler` 每 30 分钟自动扫描 staged 版本执行回归闭环（每轮 ≤3 个、单日自动激活 ≤5 次防雪崩、策略关闭时空转），闭环完全脱离人工触发。样本 taskType 双约定兼容（裸 docType / write_schema. 前缀）。
 
 ---
 

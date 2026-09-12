@@ -232,8 +232,15 @@ export class EvolutionVersionService {
     // 1. 评测用例
     let cases: E5EvalCase[] = deps.cases ?? [];
     if (cases.length === 0) {
+      // 样本表 taskType 有两种约定（裸 docType 与 write_schema. 前缀），双兼容查询
       const samples = await this.sampleRepo.find({
-        where: { taskType: artifact, quality: MoreThanOrEqual(3) },
+        where: [
+          { taskType: artifact, quality: MoreThanOrEqual(3) },
+          {
+            taskType: artifact.replace(/^write_schema\./, ''),
+            quality: MoreThanOrEqual(3),
+          },
+        ],
         order: { createdAt: 'DESC' },
         take: 20,
       });
@@ -309,7 +316,8 @@ export class EvolutionVersionService {
         const keys = Object.keys(expected);
         const data = r.data ?? {};
         // 两侧同规则 JSON 串化比较（对象/字符串/数字口径一致，避免 [object Object]）
-        const fmt = (v: unknown): string => (v == null ? '' : JSON.stringify(v));
+        const fmt = (v: unknown): string =>
+          v == null ? '' : JSON.stringify(v);
         ok =
           keys.length > 0 &&
           keys.every((k) => fmt(data[k]).trim() === fmt(expected[k]).trim());
