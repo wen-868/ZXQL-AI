@@ -28,6 +28,8 @@ export class MetricsService {
   private iterationsCount = 0;
   /** ai_db_sample_total{type} */
   private dbSampleTotal = new Map<string, number>();
+  /** ai_answer_selfcheck_total{result}（S2 回答自检：pass/corrected/skip/error） */
+  private selfCheckTotal = new Map<string, number>();
 
   recordRequest(
     tenantId: string,
@@ -79,6 +81,11 @@ export class MetricsService {
     this.dbSampleTotal.set(type, (this.dbSampleTotal.get(type) ?? 0) + 1);
   }
 
+  /** S2 回答自检计数：pass=通过 / corrected=已更正 / skip=未触发 / error=自检异常 */
+  recordAnswerSelfCheck(result: 'pass' | 'corrected' | 'skip' | 'error'): void {
+    this.selfCheckTotal.set(result, (this.selfCheckTotal.get(result) ?? 0) + 1);
+  }
+
   /**
    * 渲染 Prometheus text format（文档 16.3 指标子集）
    *
@@ -121,6 +128,9 @@ export class MetricsService {
     lines.push(`ai_agent_iterations_count ${this.iterationsCount}`);
     for (const [type, value] of this.dbSampleTotal) {
       lines.push(`ai_db_sample_total{type="${type}"} ${value}`);
+    }
+    for (const [result, value] of this.selfCheckTotal) {
+      lines.push(`ai_answer_selfcheck_total{result="${result}"} ${value}`);
     }
 
     return `${lines.join('\n')}\n`;

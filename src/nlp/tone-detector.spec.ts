@@ -8,9 +8,20 @@
 import { detectTone, toneDirective } from './tone-detector';
 
 describe('S4 detectTone（语气识别）', () => {
+  it('不满/投诉 → dissatisfied（最优先档）', () => {
+    expect(detectTone('怎么这么慢，昨天刚进的货怎么查不到')).toBe(
+      'dissatisfied',
+    );
+    expect(detectTone('又错了，能不能行')).toBe('dissatisfied');
+  });
+
   it('急迫词 → urgent', () => {
     expect(detectTone('马上给我查一下库存')).toBe('urgent');
     expect(detectTone('等着用！！')).toBe('urgent');
+  });
+
+  it('不满+急迫并存 → dissatisfied 优先（致歉+解决优先于一切）', () => {
+    expect(detectTone('怎么这么慢！马上给我查！')).toBe('dissatisfied');
   });
 
   it('轻松语气 → casual', () => {

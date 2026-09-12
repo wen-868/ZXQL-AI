@@ -45,6 +45,7 @@ import { StructuredExtractor } from './extraction/structured-extractor';
 import { CaptureService } from '../evolution/capture.service';
 import { MetricsService } from '../common/metrics.service';
 import { BillingService } from '../tenant/billing.service';
+import { AnswerSelfCheckService } from './answer-self-check.service';
 import { WRITE_TOKEN_TTL_MS } from './write-guard.service';
 import type { ChatMessage } from '../providers/provider.interface';
 import type { ToolContext, ToolResult } from '../tools/tool.interface';
@@ -209,6 +210,7 @@ export class Orchestrator {
     private readonly metrics: MetricsService,
     private readonly billing: BillingService,
     private readonly configService: ConfigService,
+    private readonly selfCheck: AnswerSelfCheckService,
   ) {}
 
   /**
@@ -635,64 +637,36 @@ export class Orchestrator {
         }
       }
 
-      // ── 5.7 S2 回答自检（超高智能 2026-09-05）：工具已用且答案含数字 → 轻量核对 ──
-      // 让模型拿工具结果复核一遍自己写的数字，发现问题追发更正（像人交报告前检查一遍）
+      // ── 5.7 S2 回答自检（细化：独立服务+指标，见 answer-self-check.service）──
       const answerForCheck = finalAssistantText.trim() || fallbackSummary;
       if (
         this.configService.get<string>('ENABLE_ANSWER_SELF_CHECK', 'true') ===
           'true' &&
-        toolResults.length > 0 &&
-        /\d/.test(answerForCheck)
+        answerForCheck.length > 0
       ) {
-        try {
-          const digest = toolResults
-            .slice(0, 6)
-            .map(
-              (t) =>
-                `${t.tool}（${t.success ? '成功' : '失败'}）：${JSON.stringify(
-                  t.data ?? t.error ?? {},
-                ).slice(0, 400)}`,
-            )
-            .join('\n');
-          const check = await provider.chatSync(
-            [
-              {
-                role: 'user',
-                content:
-                  `任务：核对回答中的业务数字/名称是否有依据。\n【工具结果】\n${digest}\n【回答】\n${answerForCheck.slice(0, 1200)}\n` +
-                  '仅当回答中的数字或名称在工具结果中找不到依据时才需要更正。只输出 JSON：{"ok":true} 或 {"ok":false,"correction":"更正说明（含正确数字）"}',
-              },
-            ],
-            { temperature: 0, max_tokens: 200 },
-          );
-          const content = check.content?.trim() ?? '';
-          const match = content.match(/\{[\s\S]*\}/);
-          if (match) {
-            const verdict = JSON.parse(match[0]) as {
-              ok?: boolean;
-              correction?: string;
-            };
-            if (verdict.ok === false && verdict.correction) {
-              const fix = `\n\n⚠ 数字自检更正：${verdict.correction}`;
-              yield { type: 'text', content: fix };
-              // 更正并入历史最后一条 assistant 消息，保持上下文一致
-              for (let i = newMessagesToSave.length - 1; i >= 0; i--) {
-                const m = newMessagesToSave[i];
-                if (m.role === 'assistant' && m.content) {
-                  m.content += fix;
-                  break;
-                }
-              }
-              finalAssistantText += fix;
-              this.logger.warn(
-                `S2 回答自检发现数字问题并已更正：${verdict.correction.slice(0, 80)}`,
-              );
+        const fix = await this.selfCheck.verify(
+          (prompt) =>
+            provider
+              .chatSync([{ role: 'user', content: prompt }], {
+                temperature: 0,
+                max_tokens: 200,
+              })
+              .then((r) => r.content ?? ''),
+          toolResults,
+          answerForCheck,
+        );
+        if (fix && fix.ok === false && fix.correction) {
+          const note = `\n\n⚠ 数字自检更正：${fix.correction}`;
+          yield { type: 'text', content: note };
+          // 更正并入历史最后一条 assistant 消息，保持上下文一致
+          for (let i = newMessagesToSave.length - 1; i >= 0; i--) {
+            const m = newMessagesToSave[i];
+            if (m.role === 'assistant' && m.content) {
+              m.content += note;
+              break;
             }
           }
-        } catch (err) {
-          this.logger.warn(
-            `S2 回答自检失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
-          );
+          finalAssistantText += note;
         }
       }
 

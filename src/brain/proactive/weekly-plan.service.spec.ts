@@ -7,6 +7,7 @@
  */
 /* eslint-disable @typescript-eslint/unbound-method -- 测试断言直接引用 jest mock 方法及其调用参数；mock 无需真实异步 */
 import { DataSource } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
 import { AiConfigService } from '../tenant/ai-config.service';
 import { ProviderRouterService } from '../router/provider-router.service';
 import { ProactivePushService } from './proactive-push.service';
@@ -16,6 +17,7 @@ function createService(opts: {
   rows?: Array<{ title: string; content: string; created_at: string }>;
   llmText?: string;
   llmError?: boolean;
+  cronEnabled?: boolean;
 }) {
   const dataSource = {
     query: jest.fn().mockResolvedValue(opts.rows ?? []),
@@ -45,14 +47,24 @@ function createService(opts: {
   const push = {
     push: jest.fn().mockResolvedValue(true),
   } as never as ProactivePushService;
+  const config = {
+    get: jest.fn((key: string) =>
+      key === 'WEEKLY_PLAN_CRON_ENABLED'
+        ? opts.cronEnabled
+          ? 'true'
+          : 'false'
+        : undefined,
+    ),
+  } as never as ConfigService;
 
   const service = new WeeklyPlanService(
     dataSource,
     aiConfigService,
     router,
     push,
+    config,
   );
-  return { service, dataSource, chatSync, push };
+  return { service, dataSource, chatSync, push, config };
 }
 
 describe('S3 WeeklyPlanService', () => {
@@ -97,6 +109,54 @@ describe('S3 WeeklyPlanService', () => {
     const result = await service.buildWeeklyPlan('t_001');
     expect(result.signals).toBe(1);
     expect(result.plan).toContain('1 条主动提醒');
+  });
+
+  it('同标题信号去重：同一预警每天推送，计划只留一条', async () => {
+    const { service, dataSource } = createService({
+      rows: [
+        {
+          title: '库存预警：五粮液低于安全线',
+          content: 'x',
+          created_at: '2026-09-05 08:00:00',
+        },
+        {
+          title: '库存预警：五粮液低于安全线', // 同标题去重
+          content: 'x',
+          created_at: '2026-09-04 08:00:00',
+        },
+        {
+          title: '应收提醒',
+          content: 'x',
+          created_at: '2026-09-03 09:00:00',
+        },
+      ],
+    });
+    const result = await service.buildWeeklyPlan('t_001');
+    expect(result.signals).toBe(2);
+    expect(dataSource.query).toHaveBeenCalled();
+  });
+
+  it('cron 开关关闭 → handleWeeklyCron 空转（不查信号不推送）', async () => {
+    const { service, dataSource, push } = createService({
+      rows: [],
+      cronEnabled: false,
+    });
+    await service.handleWeeklyCron();
+    expect(dataSource.query).not.toHaveBeenCalled();
+    expect(push.push).not.toHaveBeenCalled();
+  });
+
+  it('cron 开关开启 → 自动生成 default 租户周计划', async () => {
+    const { service, push } = createService({
+      rows: [],
+      cronEnabled: true,
+    });
+    await service.handleWeeklyCron();
+    expect(push.push).toHaveBeenCalledWith(
+      'default',
+      'weekly-plan',
+      expect.objectContaining({ title: '本周经营计划（AI 规划）' }),
+    );
   });
 
   it('空信号 + LLM 失败 → 通用周初检查清单', async () => {

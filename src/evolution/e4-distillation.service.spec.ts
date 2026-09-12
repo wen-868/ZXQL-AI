@@ -1,11 +1,12 @@
 /**
  * E4DistillationService 单元测试
  *
- * 覆盖：就绪度看板（阈值判定）+ JSONL 数据集导出（quality≥4、空值过滤、上限裁剪）。
+ * 覆盖：就绪度看板（总量/阈值判定/差值）+ JSONL 数据集导出
+ * （quality≥4、空值过滤、短 prompt 剔除、同 prompt 去重、上限裁剪）。
  *
  * 负责人: AI底座 | 创建日期: 2026-09-05
  */
-/* eslint-disable @typescript-eslint/unbound-method -- 测试断言直接引用 jest mock 方法及其调用参数 */
+/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-member-access -- 测试断言直接引用 jest mock 方法及其调用参数 */
 import { Repository } from 'typeorm';
 import { AiSampleEntity } from '../database/entities/ai-sample.entity';
 import {
@@ -22,7 +23,7 @@ function createService() {
 }
 
 describe('E4DistillationService', () => {
-  it('readiness：quality≥4 样本 ≥50 且平均质量 ≥4 → ready', async () => {
+  it('readiness：quality≥4 样本 ≥50 且平均质量 ≥4 → ready（含总量与差值）', async () => {
     const { service, sampleRepo } = createService();
     const qb = {
       select: jest.fn().mockReturnThis(),
@@ -31,8 +32,18 @@ describe('E4DistillationService', () => {
       groupBy: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
       getRawMany: jest.fn().mockResolvedValue([
-        { taskType: 'customer_create', qualified: 62, avgQuality: '4.3' },
-        { taskType: 'sales_order', qualified: 12, avgQuality: '3.8' },
+        {
+          taskType: 'customer_create',
+          total: 80,
+          qualified: 62,
+          avgQuality: '4.3',
+        },
+        {
+          taskType: 'sales_order',
+          total: 30,
+          qualified: 12,
+          avgQuality: '3.8',
+        },
       ]),
     };
     sampleRepo.createQueryBuilder = jest.fn(() => qb) as never;
@@ -43,18 +54,23 @@ describe('E4DistillationService', () => {
     expect(items[0]).toMatchObject({
       taskType: 'customer_create',
       qualifiedSamples: 62,
+      totalSamples: 80,
       avgQuality: 4.3,
       ready: true,
+      remaining: 0,
     });
-    expect(items[1].ready).toBe(false);
+    expect(items[1]).toMatchObject({
+      taskType: 'sales_order',
+      qualifiedSamples: 12,
+      totalSamples: 30,
+      ready: false,
+      remaining: E4_MIN_SAMPLES - 12,
+    });
     // 阈值参数已下发
-    expect(qb.setParameter).toHaveBeenCalledWith(
-      'q',
-      E4_MIN_SAMPLES >= 50 ? 4 : 4,
-    );
+    expect(qb.setParameter).toHaveBeenCalledWith('q', 4);
   });
 
-  it('exportDataset：仅收 quality≥4 且 prompt/completion 齐备的样本，输出 messages JSONL', async () => {
+  it('exportDataset：训练集卫生——空值剔除、短 prompt 剔除、同 prompt 去重', async () => {
     const { service, sampleRepo } = createService();
     sampleRepo.find = jest.fn().mockResolvedValue([
       {
@@ -62,13 +78,18 @@ describe('E4DistillationService', () => {
         completion: '{"customerName":"李四"}',
         quality: 4,
       },
+      {
+        prompt: '新建客户李四', // 同 prompt 去重
+        completion: '{"customerName":"李四"}',
+        quality: 5,
+      },
       { prompt: '   ', completion: '{"x":1}', quality: 4 }, // 空 prompt 剔除
       { prompt: '坏样本', completion: '', quality: 4 }, // 空 completion 剔除
+      { prompt: '太短', completion: '{"y":2}', quality: 4 }, // <4 字符剔除
     ]);
 
     const out = await service.exportDataset('customer_create', 500);
 
-    expect(out.taskType).toBe('customer_create');
     expect(out.count).toBe(1);
     const parsed = JSON.parse(out.jsonl);
     expect(parsed.messages).toEqual([

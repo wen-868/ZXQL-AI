@@ -2809,6 +2809,8 @@ CREATE TABLE ai_evolution_version (
 > **智能链路硬化（2026-09-05 第三轮）**：①意图分诊双通道——关键词规则快车道未命中（新话术）时走快速 LLM 分诊（3.5s 超时、枚举校验、LRU 200 缓存、失败回退全量），`resolveIntentCategories` 返回 lane（rules/llm/fallback）可观测；分诊输入使用指代消解后的消息；②证据与数字纪律——系统提示词强制追加「证据与数字纪律」内置层（每个业务数字必须来自工具结果、引用注明来源、未覆盖信息明确告知、禁用训练记忆填数），租户自定义提示词也不可关闭。
 >
 > **似人化 S 系列（2026-09-05 第四轮）**：①S2 回答自检——工具已用且答案含数字时，LLM 拿工具结果复核答案数字，失真即追发「数字自检更正」（开关 `ENABLE_ANSWER_SELF_CHECK`，默认开）；②S4 语气适配——`detectTone` 识别急迫/轻松/正式，系统提示词注入节奏指令（急迫先结论≤5行/轻松口语化/正式敬语）；③S1 人格一致性——租户档案注入时要求回应贴合偏好（称呼/先讲哪类指标/详略）；④S5 E4 前置——`E4DistillationService` 就绪度看板（taskType quality≥4 样本量 vs 50 条阈值）+ JSONL 训练集导出（`GET /api/admin/ai-db/e4/readiness|e4/dataset`），离线微调数据管线就绪；⑤S3 主动周计划——`WeeklyPlanService` 聚合本周 ai_proactive 推送信号（t_push_log）→ LLM 规划「本周值得关注的三件事」→ 推送留痕（`POST /api/admin/proactive/weekly-plan`，LLM 失败降级信号清单/通用清单）。
+>
+> **S 系列细化（2026-09-05 第五轮）**：①S2 抽成独立 `AnswerSelfCheckService`（逻辑全测试覆盖：触发门控/提示词/判决解析容错剥围栏/指标四态），明确**口径换算（箱→瓶、元→万元）不算失真**避免误报，指标 `ai_answer_selfcheck_total{result=pass|corrected|skip|error}` 进 Prometheus；②S4 增加第五档**dissatisfied（不满/投诉）**且优先级最高（先致歉认错再给解决办法，不推诿）；③S5 就绪度增加 totalSamples 与 remaining（距 50 条阈值还差多少），数据集**训练集卫生**（同 prompt 去重防过拟合、<4 字符剔除）；④S3 信号按标题去重（同一预警每天推送只留一条）、LLM 输出剥 markdown 围栏、**每周一 09:00 自动生成 default 租户计划**（`WEEKLY_PLAN_CRON_ENABLED` 开关默认关）。
 
 ---
 

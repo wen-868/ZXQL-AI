@@ -40,12 +40,13 @@ export class E4DistillationService {
   ) {}
 
   /**
-   * E4 就绪度看板：按 taskType 统计 quality≥4 样本量与平均质量
+   * E4 就绪度看板：按 taskType 统计 quality≥4 样本量、总样本量、平均质量
    */
   async readiness(): Promise<E4ReadinessItem[]> {
     const raw = await this.sampleRepo
       .createQueryBuilder('s')
       .select('s.task_type', 'taskType')
+      .addSelect('COUNT(*)', 'total')
       .addSelect(
         'SUM(CASE WHEN s.quality >= :q THEN 1 ELSE 0 END)',
         'qualified',
@@ -56,6 +57,7 @@ export class E4DistillationService {
       .orderBy('qualified', 'DESC')
       .getRawMany<{
         taskType: string;
+        total: string | number;
         qualified: string | number;
         avgQuality: string | number;
       }>();
@@ -66,8 +68,10 @@ export class E4DistillationService {
       return {
         taskType: r.taskType,
         qualifiedSamples: qualified,
+        totalSamples: Number(r.total ?? 0),
         avgQuality: Math.round(avgQuality * 100) / 100,
         ready: qualified >= E4_MIN_SAMPLES && avgQuality >= E4_MIN_QUALITY,
+        remaining: Math.max(0, E4_MIN_SAMPLES - qualified),
       };
     });
   }
@@ -75,7 +79,8 @@ export class E4DistillationService {
   /**
    * 导出 JSONL 训练集（quality≥4 且 prompt/completion 齐备的样本）
    *
-   * 格式（messages）：每行一个样本
+   * 训练集卫生：同 prompt 去重（重复样本会让微调过拟合到措辞）、
+   * prompt 过短（<4 字符）剔除；格式为 messages：
    * {"messages":[{"role":"user","content":"..."},{"role":"assistant","content":"..."}]}
    */
   async exportDataset(
@@ -92,10 +97,13 @@ export class E4DistillationService {
     });
 
     const lines: string[] = [];
+    const seenPrompts = new Set<string>();
     for (const s of samples) {
       const prompt = (s.prompt ?? '').trim();
       const completion = (s.completion ?? '').trim();
-      if (!prompt || !completion) continue;
+      if (prompt.length < 4 || seenPrompts.has(prompt)) continue;
+      if (!completion) continue;
+      seenPrompts.add(prompt);
       lines.push(
         JSON.stringify({
           messages: [
