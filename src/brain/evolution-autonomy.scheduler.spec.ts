@@ -5,7 +5,7 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-09-05
  */
-/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await -- 测试断言直接引用 jest mock 方法及其调用参数；mock 闭包无需真实异步 */
+/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/require-await -- 测试断言直接引用 jest mock 方法及其调用参数；mock 闭包无需真实异步 */
 import { Repository } from 'typeorm';
 import { PlatformAiConfigEntity } from '../database/entities/platform-ai-config.entity';
 import { EvolutionAutonomyScheduler } from './evolution-autonomy.scheduler';
