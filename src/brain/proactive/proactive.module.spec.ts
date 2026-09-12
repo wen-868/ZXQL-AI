@@ -24,6 +24,10 @@ import { ReplenishmentAdviceService } from './replenishment-advice.service';
 import { DeliveryAnomalyService } from './delivery-anomaly.service';
 import { CustomerChurnService } from './customer-churn.service';
 import { GrossMarginAnomalyService } from './gross-margin-anomaly.service';
+import { WeeklyPlanService } from './weekly-plan.service';
+import { BrainModule } from '../brain.module';
+import { GatewayModule } from '../../gateway/gateway.module';
+import { TenantModule } from '../../tenant/tenant.module';
 
 /** 读取 Nest 模块元数据（类型安全） */
 function getModuleMetadata(
@@ -33,14 +37,20 @@ function getModuleMetadata(
 }
 
 describe('ProactiveModule', () => {
-  it('导入 BridgeModule 与 DatabaseModule', () => {
+  it('导入 BridgeModule / DatabaseModule / GatewayModule / BrainModule / TenantModule', () => {
     const imports = getModuleMetadata('imports');
     expect(imports).toEqual(
-      expect.arrayContaining([BridgeModule, DatabaseModule]),
+      expect.arrayContaining([
+        BridgeModule,
+        DatabaseModule,
+        GatewayModule,
+        BrainModule,
+        TenantModule,
+      ]),
     );
   });
 
-  it('注册 9 个巡检 Service + 推送服务 + 调度器', () => {
+  it('注册 9 个巡检 Service + 推送服务 + 周计划 + 调度器', () => {
     const providers = getModuleMetadata('providers');
     expect(providers).toContain(InventoryWarningService);
     expect(providers).toContain(OrderAnomalyService);
@@ -52,8 +62,9 @@ describe('ProactiveModule', () => {
     expect(providers).toContain(CustomerChurnService);
     expect(providers).toContain(GrossMarginAnomalyService);
     expect(providers).toContain(ProactivePushService);
+    expect(providers).toContain(WeeklyPlanService);
     expect(providers).toContain(ProactiveService);
-    expect(providers).toHaveLength(11);
+    expect(providers).toHaveLength(12);
   });
 
   it('注册 ProactiveController 并导出 ProactiveService / ProactivePushService', () => {

@@ -21,8 +21,11 @@ import { Module } from '@nestjs/common';
 import { BridgeModule } from '../../bridge/bridge.module';
 import { DatabaseModule } from '../../database/database.module';
 import { GatewayModule } from '../../gateway/gateway.module';
+import { BrainModule } from '../brain.module';
+import { TenantModule } from '../../tenant/tenant.module';
 import { ProactiveController } from './proactive.controller';
 import { ProactivePushService } from './proactive-push.service';
+import { WeeklyPlanService } from './weekly-plan.service';
 import { ProactiveService } from './proactive.service';
 import { InventoryWarningService } from './inventory-warning.service';
 import { OrderAnomalyService } from './order-anomaly.service';
@@ -35,9 +38,17 @@ import { CustomerChurnService } from './customer-churn.service';
 import { GrossMarginAnomalyService } from './gross-margin-anomaly.service';
 
 @Module({
-  imports: [BridgeModule, DatabaseModule, GatewayModule],
+  // BrainModule（ProviderRouterService 供周计划 LLM 路由）+ TenantModule（AiConfigService 解析配置）
+  imports: [
+    BridgeModule,
+    DatabaseModule,
+    GatewayModule,
+    BrainModule,
+    TenantModule,
+  ],
   providers: [
     ProactivePushService,
+    WeeklyPlanService,
     InventoryWarningService,
     OrderAnomalyService,
     ReceivableReminderService,

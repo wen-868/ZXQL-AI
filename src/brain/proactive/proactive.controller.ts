@@ -4,6 +4,7 @@
  * 端点列表：
  * - GET  /api/admin/proactive/jobs             — 列出全部巡检任务及运行状态
  * - POST /api/admin/proactive/jobs/:name/run   — 手动触发单个巡检任务（全部启用租户）
+ * - POST /api/admin/proactive/weekly-plan      — S3 本周经营计划（LLM 基于本周主动信号规划三件事）
  *
  * 用途：
  * - 工作台查看 AI 主动服务调度情况（调度表达式/优先级/最近运行结果）
@@ -17,10 +18,12 @@ import {
   Logger,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AdminGuard } from '../../tenant/admin-auth.guard';
 import { ProactiveService } from './proactive.service';
+import { WeeklyPlanService } from './weekly-plan.service';
 import { ProactiveJobInfo, ProactiveTaskResult } from './proactive.types';
 
 @UseGuards(AdminGuard)
@@ -28,7 +31,10 @@ import { ProactiveJobInfo, ProactiveTaskResult } from './proactive.types';
 export class ProactiveController {
   private readonly logger = new Logger(ProactiveController.name);
 
-  constructor(private readonly proactiveService: ProactiveService) {}
+  constructor(
+    private readonly proactiveService: ProactiveService,
+    private readonly weeklyPlanService: WeeklyPlanService,
+  ) {}
 
   /**
    * 列出全部巡检任务及运行状态
@@ -56,5 +62,17 @@ export class ProactiveController {
   ): Promise<{ job: ProactiveJobInfo; results: ProactiveTaskResult[] }> {
     this.logger.log(`收到 proactive/jobs/${name}/run 请求，开始手动巡检`);
     return this.proactiveService.runJob(name);
+  }
+
+  /**
+   * S3 本周经营计划（LLM 基于本周主动信号规划三件事，生成即推送留痕）
+   *
+   * POST /api/admin/proactive/weekly-plan?tenantId=xxx
+   */
+  @Post('weekly-plan')
+  async weeklyPlan(@Query('tenantId') tenantId?: string) {
+    const tid = tenantId?.trim() || 'default';
+    this.logger.log(`收到 proactive/weekly-plan 请求，tenant=${tid}`);
+    return this.weeklyPlanService.buildWeeklyPlan(tid);
   }
 }

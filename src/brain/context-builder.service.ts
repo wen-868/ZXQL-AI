@@ -46,6 +46,8 @@ export interface BuildContextParams {
   ragContext?: string;
   /** 长期记忆参考（由 build() 内部检索注入：租户档案 + 相关历史经验） */
   ltmContext?: string;
+  /** S4 语气适配指令（由调用方 detectTone 生成；neutral 为空串不追加） */
+  toneDirective?: string;
 }
 
 /**
@@ -173,7 +175,8 @@ export class ContextBuilder {
       const parts: string[] = [];
       if (profiles.length > 0) {
         parts.push(
-          `## 租户档案（该租户的稳定偏好/事实）\n${profiles
+          // S1 人格一致性：档案不只是事实清单，还要求回应贴合偏好（称呼/指标优先级/详略）
+          `## 租户档案（该租户的稳定偏好/事实——回应时请贴合这些偏好：称呼方式、先讲哪类指标、详略程度）\n${profiles
             .map((p) => `- ${p.k}：${JSON.stringify(p.v)}`)
             .join('\n')}`,
         );
@@ -338,6 +341,11 @@ export class ContextBuilder {
 2. 引用关键数据时注明来源（如「据销售单查询结果」「据库存查询结果」）；做对比、合计、计算时，说明基于哪些查询结果。
 3. 工具未覆盖的信息，明确告知「当前未查询到 / 需要先查询 XX」；禁止用猜测顶替业务事实。
 4. 金额单位为元，数量单位跟随工具返回（瓶/箱），日期格式 YYYY-MM-DD。`;
+
+    // S4 语气适配指令（调用方按用户语气生成；空串不追加）
+    if (params.toneDirective && params.toneDirective.trim().length > 0) {
+      prompt += params.toneDirective;
+    }
 
     return prompt;
   }

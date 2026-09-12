@@ -31,11 +31,13 @@
  * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-01
  */
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ToolExecutor } from '../tools/tool-executor';
 import { ToolRegistry } from '../tools/tool-registry';
 import { AuditLogger } from '../bridge/audit-logger';
 import { AiConfigService } from '../tenant/ai-config.service';
 import { TenantContext } from '../tenant/tenant-context';
+import { detectTone, toneDirective } from '../nlp/tone-detector';
 import { ContextBuilder } from './context-builder.service';
 import { MemoryManager } from './memory-manager.service';
 import { ConfirmationService } from './confirmation.service';
@@ -206,6 +208,7 @@ export class Orchestrator {
     private readonly capture: CaptureService,
     private readonly metrics: MetricsService,
     private readonly billing: BillingService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -297,6 +300,8 @@ export class Orchestrator {
           userMessage,
           history,
           systemPrompt: systemPrompt ?? undefined,
+          // S4 语气适配：按用户语气注入节奏指令（急迫先结论/轻松简短/正式敬语）
+          toneDirective: toneDirective(detectTone(userMessage)),
         },
         this.registry,
       );
@@ -616,16 +621,78 @@ export class Orchestrator {
 
       // ── 5.5 兜底总结：模型未输出任何文本但执行过工具时，用工具结果生成摘要 ──
       // 解决模型在工具调用后直接结束（无总结文本）导致前端只显示工具 JSON 的问题
+      let fallbackSummary = '';
       if (finalAssistantText.trim().length === 0 && toolResults.length > 0) {
-        const fallbackText = this.buildFallbackSummary(toolResults);
-        yield { type: 'text', content: fallbackText };
+        fallbackSummary = this.buildFallbackSummary(toolResults);
+        yield { type: 'text', content: fallbackSummary };
         // 将兜底摘要写入最后一条 assistant 消息（供对话历史保存）
         for (let i = newMessagesToSave.length - 1; i >= 0; i--) {
           const m = newMessagesToSave[i];
           if (m.role === 'assistant' && !m.content) {
-            m.content = fallbackText;
+            m.content = fallbackSummary;
             break;
           }
+        }
+      }
+
+      // ── 5.7 S2 回答自检（超高智能 2026-09-05）：工具已用且答案含数字 → 轻量核对 ──
+      // 让模型拿工具结果复核一遍自己写的数字，发现问题追发更正（像人交报告前检查一遍）
+      const answerForCheck = finalAssistantText.trim() || fallbackSummary;
+      if (
+        this.configService.get<string>('ENABLE_ANSWER_SELF_CHECK', 'true') ===
+          'true' &&
+        toolResults.length > 0 &&
+        /\d/.test(answerForCheck)
+      ) {
+        try {
+          const digest = toolResults
+            .slice(0, 6)
+            .map(
+              (t) =>
+                `${t.tool}（${t.success ? '成功' : '失败'}）：${JSON.stringify(
+                  t.data ?? t.error ?? {},
+                ).slice(0, 400)}`,
+            )
+            .join('\n');
+          const check = await provider.chatSync(
+            [
+              {
+                role: 'user',
+                content:
+                  `任务：核对回答中的业务数字/名称是否有依据。\n【工具结果】\n${digest}\n【回答】\n${answerForCheck.slice(0, 1200)}\n` +
+                  '仅当回答中的数字或名称在工具结果中找不到依据时才需要更正。只输出 JSON：{"ok":true} 或 {"ok":false,"correction":"更正说明（含正确数字）"}',
+              },
+            ],
+            { temperature: 0, max_tokens: 200 },
+          );
+          const content = check.content?.trim() ?? '';
+          const match = content.match(/\{[\s\S]*\}/);
+          if (match) {
+            const verdict = JSON.parse(match[0]) as {
+              ok?: boolean;
+              correction?: string;
+            };
+            if (verdict.ok === false && verdict.correction) {
+              const fix = `\n\n⚠ 数字自检更正：${verdict.correction}`;
+              yield { type: 'text', content: fix };
+              // 更正并入历史最后一条 assistant 消息，保持上下文一致
+              for (let i = newMessagesToSave.length - 1; i >= 0; i--) {
+                const m = newMessagesToSave[i];
+                if (m.role === 'assistant' && m.content) {
+                  m.content += fix;
+                  break;
+                }
+              }
+              finalAssistantText += fix;
+              this.logger.warn(
+                `S2 回答自检发现数字问题并已更正：${verdict.correction.slice(0, 80)}`,
+              );
+            }
+          }
+        } catch (err) {
+          this.logger.warn(
+            `S2 回答自检失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
+          );
         }
       }
 

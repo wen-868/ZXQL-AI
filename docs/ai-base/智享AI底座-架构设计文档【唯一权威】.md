@@ -2807,6 +2807,8 @@ CREATE TABLE ai_evolution_version (
 > **E3 样本回流 + E5 自治调度（2026-09-05 同日补完）**：①抽取器运行时样本回流——`StructuredExtractor` 抽取前自动拉取 ai_db 同 taskType 高质量样本（纠错样本 quality=4 优先，10 分钟缓存，读取失败静默降级）注入 system few-shot，AI 被纠正过的口径分钟级成为运行时经验，无需改码发版；②自治调度——`EvolutionAutonomyScheduler` 每 30 分钟自动扫描 staged 版本执行回归闭环（每轮 ≤3 个、单日自动激活 ≤5 次防雪崩、策略关闭时空转），闭环完全脱离人工触发。样本 taskType 双约定兼容（裸 docType / write_schema. 前缀）。
 >
 > **智能链路硬化（2026-09-05 第三轮）**：①意图分诊双通道——关键词规则快车道未命中（新话术）时走快速 LLM 分诊（3.5s 超时、枚举校验、LRU 200 缓存、失败回退全量），`resolveIntentCategories` 返回 lane（rules/llm/fallback）可观测；分诊输入使用指代消解后的消息；②证据与数字纪律——系统提示词强制追加「证据与数字纪律」内置层（每个业务数字必须来自工具结果、引用注明来源、未覆盖信息明确告知、禁用训练记忆填数），租户自定义提示词也不可关闭。
+>
+> **似人化 S 系列（2026-09-05 第四轮）**：①S2 回答自检——工具已用且答案含数字时，LLM 拿工具结果复核答案数字，失真即追发「数字自检更正」（开关 `ENABLE_ANSWER_SELF_CHECK`，默认开）；②S4 语气适配——`detectTone` 识别急迫/轻松/正式，系统提示词注入节奏指令（急迫先结论≤5行/轻松口语化/正式敬语）；③S1 人格一致性——租户档案注入时要求回应贴合偏好（称呼/先讲哪类指标/详略）；④S5 E4 前置——`E4DistillationService` 就绪度看板（taskType quality≥4 样本量 vs 50 条阈值）+ JSONL 训练集导出（`GET /api/admin/ai-db/e4/readiness|e4/dataset`），离线微调数据管线就绪；⑤S3 主动周计划——`WeeklyPlanService` 聚合本周 ai_proactive 推送信号（t_push_log）→ LLM 规划「本周值得关注的三件事」→ 推送留痕（`POST /api/admin/proactive/weekly-plan`，LLM 失败降级信号清单/通用清单）。
 
 ---
 

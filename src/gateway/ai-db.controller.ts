@@ -31,6 +31,7 @@ import { CaptureService } from '../evolution/capture.service';
 import { AggregatorService } from '../evolution/aggregator.service';
 import { ExperienceExtractorService } from '../evolution/experience-extractor.service';
 import { EvolutionVersionService } from '../evolution/evolution-version.service';
+import { E4DistillationService } from '../evolution/e4-distillation.service';
 import { StructuredExtractor } from '../brain/extraction/structured-extractor';
 
 /** 手动提交纠正 */
@@ -63,6 +64,7 @@ export class AiDbController {
     private readonly aggregator: AggregatorService,
     private readonly versions: EvolutionVersionService,
     private readonly structuredExtractor: StructuredExtractor,
+    private readonly e4: E4DistillationService,
   ) {}
 
   /** 经验样本列表 */
@@ -158,6 +160,21 @@ export class AiDbController {
   @Post('extract')
   extract(@Body() dto: { taskType?: string; limit?: number }) {
     return this.extractor.extract(dto.taskType, dto.limit ?? 20);
+  }
+
+  /** E4 就绪度看板（各 taskType 的 quality≥4 样本量/平均质量/是否达训练阈值） */
+  @Get('e4/readiness')
+  e4Readiness() {
+    return this.e4.readiness();
+  }
+
+  /** E4 训练集导出（JSONL messages 格式，quality≥4，供离线微调管线） */
+  @Get('e4/dataset')
+  e4Dataset(
+    @Query('taskType') taskType: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.e4.exportDataset(taskType ?? '', limit ? Number(limit) : 500);
   }
 
   /** 触发跨租户聚合（脱敏公共模式） */

@@ -23,6 +23,7 @@ import { CaptureService } from './capture.service';
 import { AggregatorService } from './aggregator.service';
 import { ExperienceExtractorService } from './experience-extractor.service';
 import { EvolutionVersionService } from './evolution-version.service';
+import { E4DistillationService } from './e4-distillation.service';
 import { CommonModule } from '../common/common.module';
 
 @Module({
@@ -37,12 +38,14 @@ import { CommonModule } from '../common/common.module';
     AggregatorService,
     ExperienceExtractorService,
     EvolutionVersionService,
+    E4DistillationService,
   ],
   exports: [
     CaptureService,
     AggregatorService,
     ExperienceExtractorService,
     EvolutionVersionService,
+    E4DistillationService,
   ],
 })
 export class EvolutionModule {}
