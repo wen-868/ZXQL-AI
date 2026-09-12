@@ -48,6 +48,8 @@ export interface BuildContextParams {
   ltmContext?: string;
   /** S4 语气适配指令（由调用方 detectTone 生成；neutral 为空串不追加） */
   toneDirective?: string;
+  /** G1 业务规则参考（由调用方 KnowledgeRulesService 按意图分类取相关规则；无匹配不传） */
+  rulesContext?: string;
 }
 
 /**
@@ -311,6 +313,11 @@ ${profiles.map((p) => `- ${p.k}：${JSON.stringify(p.v)}`).join('\n')}`,
     // P1：追加长期记忆参考（租户档案 + 相关历史经验）
     if (params.ltmContext && params.ltmContext.trim().length > 0) {
       prompt += `\n\n## 长期记忆参考（以下为该租户的档案与历史经验，回答时贴合这些背景）\n${params.ltmContext}`;
+    }
+
+    // G1：追加业务规则参考（knowledge/ 运营规则按意图注入；与工具结果冲突时以工具结果为准）
+    if (params.rulesContext && params.rulesContext.trim().length > 0) {
+      prompt += `\n\n## 业务规则参考（以下为公司内部运营规则，回答相关问题时必须遵循；与工具查询结果冲突时以工具结果为准）\n${params.rulesContext}`;
     }
 
     // 无论租户使用默认提示词还是自定义提示词，都追加"缺失数据自动创建流程"规则，

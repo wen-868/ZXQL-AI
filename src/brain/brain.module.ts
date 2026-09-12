@@ -53,6 +53,7 @@ import { AiDbModule } from '../database/ai-db.module';
 import { PlatformAiConfigEntity } from '../database/entities/platform-ai-config.entity';
 import { EvolutionAutonomyScheduler } from './evolution-autonomy.scheduler';
 import { AnswerSelfCheckService } from './answer-self-check.service';
+import { KnowledgeRulesService } from './knowledge-rules.service';
 import { PlannerService } from './agent/planner.service';
 import { SelfHealLoopService } from './agent/self-heal-loop.service';
 import { TaskRunnerService } from './agent/task-runner.service';
@@ -109,6 +110,7 @@ import { ReportService } from './v2/report.service';
     ReportService,
     EvolutionAutonomyScheduler,
     AnswerSelfCheckService,
+    KnowledgeRulesService,
   ],
   exports: [
     Orchestrator,

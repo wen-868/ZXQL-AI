@@ -219,4 +219,26 @@ describe('R70-21 ContextBuilder', () => {
       expect(prompt).toContain('证据与数字纪律');
     });
   });
+
+  describe('G1 业务规则参考（知识规则运行时注入）', () => {
+    it('rulesContext 非空 → 注入业务规则段', () => {
+      const prompt = builder.buildSystemPrompt(
+        {
+          ...baseParams,
+          rulesContext: '【库存管理规则】安全线 = 近7日日均销量 × 3。',
+        },
+        createRegistry(),
+      );
+      expect(prompt).toContain('业务规则参考');
+      expect(prompt).toContain('安全线 = 近7日日均销量 × 3');
+    });
+
+    it('rulesContext 未传 → 不注入规则段', () => {
+      const prompt = builder.buildSystemPrompt(
+        { ...baseParams },
+        createRegistry(),
+      );
+      expect(prompt).not.toContain('业务规则参考');
+    });
+  });
 });

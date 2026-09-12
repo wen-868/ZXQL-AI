@@ -38,6 +38,7 @@ import { AuditLogger } from '../bridge/audit-logger';
 import { AiConfigService } from '../tenant/ai-config.service';
 import { TenantContext } from '../tenant/tenant-context';
 import { detectTone, toneDirective } from '../nlp/tone-detector';
+import { KnowledgeRulesService } from './knowledge-rules.service';
 import { ContextBuilder } from './context-builder.service';
 import { MemoryManager } from './memory-manager.service';
 import { ConfirmationService } from './confirmation.service';
@@ -211,6 +212,7 @@ export class Orchestrator {
     private readonly billing: BillingService,
     private readonly configService: ConfigService,
     private readonly selfCheck: AnswerSelfCheckService,
+    private readonly knowledgeRules: KnowledgeRulesService,
   ) {}
 
   /**
@@ -281,6 +283,39 @@ export class Orchestrator {
         this.logger.debug(`加载对话历史：${history.length} 条消息`);
       }
 
+      // ── 3.5 S-G2 自动纠错捕获（进化飞轮输入端，2026-09-05 智能达标审计补全）──
+      // 用户指出 AI 上轮答错（"不对/错了/应该是…"）时，把"上轮回答 + 本轮纠正"
+      // 存为纠正样本入 ai_db → 萃取 → E5 回归 → few-shot 回流，闭环不再依赖
+      // 人工去管理端点录入。误报由萃取层兜底（无改善价值的样本萃取不出来）。
+      const prevAssistant = [...history]
+        .reverse()
+        .find((m) => m.role === 'assistant' && m.content);
+      if (
+        prevAssistant?.content &&
+        /(不对|错了|不是这|搞错|说错|重查|应该是)/.test(params.message) &&
+        this.configService.get<string>(
+          'ENABLE_AUTO_CORRECTION_CAPTURE',
+          'true',
+        ) === 'true'
+      ) {
+        try {
+          await this.capture.captureCorrection({
+            tenantId,
+            taskType: 'dialog_correction',
+            wrongPayload: {
+              answer: String(prevAssistant.content).slice(0, 1000),
+            },
+            rightPayload: { userCorrection: params.message.slice(0, 500) },
+            reason: '对话中用户主动纠错（自动捕获）',
+          });
+          this.logger.log(`自动纠错已捕获：tenant=${tenantId}`);
+        } catch (err) {
+          this.logger.warn(
+            `自动纠错捕获失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+
       // 多轮指代消解：检测"上一单/那个客户/它"并从历史提取上下文提示
       let userMessage = params.message;
       const reference = resolveReference(params.message, history);
@@ -291,25 +326,8 @@ export class Orchestrator {
         );
       }
 
-      // ── 4. 构建上下文 ──
-      // R70-21：build 已升级为异步（内部做 RAG 知识库检索注入，embedding 未配置时自动跳过）
-      const messages = await this.contextBuilder.build(
-        {
-          tenantId,
-          userId,
-          role,
-          customerId,
-          userMessage,
-          history,
-          systemPrompt: systemPrompt ?? undefined,
-          // S4 语气适配：按用户语气注入节奏指令（急迫先结论/轻松简短/正式敬语）
-          toneDirective: toneDirective(detectTone(userMessage)),
-        },
-        this.registry,
-      );
-
-      // 工具定义（供 LLM function calling）：意图分诊双通道（关键词快车道 + LLM 分诊兜底，
-      // 新话术不再回退全量慢车道）+ 用指代消解后的消息 + scope 隔离
+      // ── 4. 意图分诊双通道（先于上下文构建：G1 业务规则注入依赖分诊结果）──
+      // 关键词快车道 + LLM 分诊兜底，新话术不再回退全量慢车道；用指代消解后的消息
       const intent = await resolveIntentCategories(userMessage, async (msg) => {
         const prompt = buildLlmClassifierPrompt(msg);
         const res = await provider.chatSync(
@@ -325,12 +343,37 @@ export class Orchestrator {
           return null;
         }
       });
+
+      // ── 4.2 G1 业务规则：按意图分类取 knowledge/ 相关运营规则注入提示词 ──
+      const rulesContext = this.knowledgeRules.getRulesContext(
+        intent.categories,
+      );
+
+      // ── 5. 构建上下文 ──
+      // R70-21：build 已升级为异步（内部做 RAG 知识库检索注入，embedding 未配置时自动跳过）
+      const messages = await this.contextBuilder.build(
+        {
+          tenantId,
+          userId,
+          role,
+          customerId,
+          userMessage,
+          history,
+          systemPrompt: systemPrompt ?? undefined,
+          // S4 语气适配：按用户语气注入节奏指令（急迫先结论/轻松简短/正式敬语）
+          toneDirective: toneDirective(detectTone(userMessage)),
+          // G1 业务规则：相关域运营规则（默认 RAG 关闭时规则也能进上下文）
+          rulesContext,
+        },
+        this.registry,
+      );
+
       const toolDefinitions = this.registry.toToolDefinitionsForCategories(
         intent.categories,
         params.scope,
       );
       this.logger.debug(
-        `意图分诊：lane=${intent.lane} 工具集=${toolDefinitions.length} 个（消息「${params.message.slice(0, 20)}」）`,
+        `意图分诊：lane=${intent.lane} 工具集=${toolDefinitions.length} 个 规则=${rulesContext ? '注入' : '无'}（消息「${params.message.slice(0, 20)}」）`,
       );
 
       // 构造工具执行上下文

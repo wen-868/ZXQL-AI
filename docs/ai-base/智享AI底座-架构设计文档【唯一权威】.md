@@ -2812,6 +2812,8 @@ CREATE TABLE ai_evolution_version (
 > **似人化 S 系列（2026-09-05 第四轮）**：①S2 回答自检——工具已用且答案含数字时，LLM 拿工具结果复核答案数字，失真即追发「数字自检更正」（开关 `ENABLE_ANSWER_SELF_CHECK`，默认开）；②S4 语气适配——`detectTone` 识别急迫/轻松/正式，系统提示词注入节奏指令（急迫先结论≤5行/轻松口语化/正式敬语）；③S1 人格一致性——租户档案注入时要求回应贴合偏好（称呼/先讲哪类指标/详略）；④S5 E4 前置——`E4DistillationService` 就绪度看板（taskType quality≥4 样本量 vs 50 条阈值）+ JSONL 训练集导出（`GET /api/admin/ai-db/e4/readiness|e4/dataset`），离线微调数据管线就绪；⑤S3 主动周计划——`WeeklyPlanService` 聚合本周 ai_proactive 推送信号（t_push_log）→ LLM 规划「本周值得关注的三件事」→ 推送留痕（`POST /api/admin/proactive/weekly-plan`，LLM 失败降级信号清单/通用清单）。
 >
 > **S 系列细化（2026-09-05 第五轮）**：①S2 抽成独立 `AnswerSelfCheckService`（逻辑全测试覆盖：触发门控/提示词/判决解析容错剥围栏/指标四态），明确**口径换算（箱→瓶、元→万元）不算失真**避免误报，指标 `ai_answer_selfcheck_total{result=pass|corrected|skip|error}` 进 Prometheus；②S4 增加第五档**dissatisfied（不满/投诉）**且优先级最高（先致歉认错再给解决办法，不推诿）；③S5 就绪度增加 totalSamples 与 remaining（距 50 条阈值还差多少），数据集**训练集卫生**（同 prompt 去重防过拟合、<4 字符剔除）；④S3 信号按标题去重（同一预警每天推送只留一条）、LLM 输出剥 markdown 围栏、**每周一 09:00 自动生成 default 租户计划**（`WEEKLY_PLAN_CRON_ENABLED` 开关默认关）。
+>
+> **智能达标审计修复（2026-09-05 第六轮）**：①G1 业务规则运行时注入——knowledge/ 九份运营规则此前仅 RAG 开启时可用（默认关闭+需 embedding），新增 `KnowledgeRulesService` 按意图分诊结果注入相关域规则到系统提示词（文件名→业务域映射、单文档 900 字/总量 1800 字截断、目录缺失降级、KNOWLEDGE_DIR 可覆盖），默认姿态下规则也可达；②G2 对话纠错自动捕获——用户说"不对/错了/应该是"时自动把上轮回答+本轮纠正存入 ai_db 纠正样本（`ENABLE_AUTO_CORRECTION_CAPTURE` 默认开），进化飞轮输入端不再依赖人工去管理端点录入。**已知后续项**：EvidenceLedger 仍仅 graph 模式（主链路已有纪律+自检双闸，ledger 接线为增强项）；指代消解仅覆盖单号/客户/商品三类（时间指代由系统时间说明兜底）；意图 LLM 分诊使用当前路由主模型（glm-4-flash 免费，成本可控）。
 
 ---
 
