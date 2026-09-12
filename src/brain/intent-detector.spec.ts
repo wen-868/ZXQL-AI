@@ -120,6 +120,19 @@ describe('resolveIntentCategories（意图分诊双通道）', () => {
     expect(classifier).toHaveBeenCalledTimes(1);
   });
 
+  it('缓存：fallback（全量回退）消息同样命中缓存（回归：undefined 值曾被误判未命中）', async () => {
+    const classifier = jest.fn().mockResolvedValue([]);
+    const msg = '给我讲个笑话吧';
+    const first = await resolveIntentCategories(msg, classifier);
+    // 前提：该消息确实走 fallback 车道（若关键词表扩充命中需换测试短语）
+    expect(first.lane).toBe('fallback');
+    await resolveIntentCategories(msg, classifier);
+    expect(classifier).toHaveBeenCalledTimes(1); // 修复前：每次都重调
+    const second = await resolveIntentCategories(msg, classifier);
+    expect(second.lane).toBe('fallback');
+    expect(classifier).toHaveBeenCalledTimes(1);
+  });
+
   it('buildLlmClassifierPrompt：包含全部业务域与用户消息', () => {
     const prompt = buildLlmClassifierPrompt('查五粮液库存');
     (

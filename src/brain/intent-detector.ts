@@ -241,14 +241,16 @@ export async function resolveIntentCategories(
   const text = (message ?? '').trim();
   if (!text) return { categories: undefined, lane: 'fallback' };
 
-  const cached = intentCache.get(text);
-  if (cached !== undefined) {
+  // 注意用 has() 而非 get()!==undefined：fallback 消息缓存值是 undefined，
+  // 用 get 判存会让"全量回退"类消息永远无法命中缓存（每次重调 LLM 分诊）
+  if (intentCache.has(text)) {
+    const cached = intentCache.get(text);
     // LRU 触碰
     intentCache.delete(text);
     intentCache.set(text, cached);
     return {
       categories: cached,
-      lane: cached.length > 0 ? 'rules' : 'fallback',
+      lane: cached && cached.length > 0 ? 'rules' : 'fallback',
     };
   }
 

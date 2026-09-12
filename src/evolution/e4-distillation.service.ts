@@ -13,7 +13,7 @@
  */
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { And, MoreThanOrEqual, Repository } from 'typeorm';
+import { MoreThanOrEqual, Repository } from 'typeorm';
 import { AiSampleEntity } from '../database/entities/ai-sample.entity';
 import { AI_DB_CONNECTION } from '../database/ai-db.module';
 
@@ -88,10 +88,7 @@ export class E4DistillationService {
     limit = 500,
   ): Promise<{ taskType: string; count: number; jsonl: string }> {
     const samples = await this.sampleRepo.find({
-      where: {
-        taskType,
-        quality: And(MoreThanOrEqual(E4_MIN_QUALITY), MoreThanOrEqual(1)),
-      },
+      where: { taskType, quality: MoreThanOrEqual(E4_MIN_QUALITY) },
       order: { createdAt: 'DESC' },
       take: Math.min(Math.max(limit, 1), 2000),
     });

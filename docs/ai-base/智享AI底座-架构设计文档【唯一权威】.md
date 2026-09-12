@@ -1857,6 +1857,7 @@ GET /ai/admin/health
 | `ai_active_sessions` | Gauge | `tenant_id` | 活跃会话数 |
 | `ai_balance_remaining` | Gauge | `tenant_id` | 租户预付费余额 |
 | `ai_db_sample_total` | Counter | `tenant_id`, `type`(experience/correction/sample) | **ai_db 脱敏样本采集量**（进化底座健康度） |
+| `ai_answer_selfcheck_total` | Counter | `result`(pass/corrected/skip/error) | **S2 回答自检计数**（corrected 占比即答案数字失真率，>5% 需检查工具返回质量） |
 | `ai_evolution_version` | Gauge | `version`, `status` | **当前生效的进化版本号与状态**（active/rollback） |
 | `ai_evolution_regression_ratio` | Gauge | `version` | **进化版本回归率**（>阈值触发 E5 回滚） |
 

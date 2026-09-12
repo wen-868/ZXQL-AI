@@ -20,6 +20,8 @@ describe('A5 MetricsService', () => {
     metrics.recordAgentIterations(3);
     metrics.recordDbSample('experience');
     metrics.recordDbSample('correction');
+    metrics.recordAnswerSelfCheck('corrected');
+    metrics.recordAnswerSelfCheck('pass');
 
     const out = metrics.render({ queryInventory: 1 });
     expect(out).toContain(
@@ -33,6 +35,8 @@ describe('A5 MetricsService', () => {
     expect(out).toContain('ai_tool_circuit_open{tool_name="queryInventory"} 1');
     expect(out).toContain('ai_agent_iterations_sum 3');
     expect(out).toContain('ai_db_sample_total{type="correction"} 1');
+    expect(out).toContain('ai_answer_selfcheck_total{result="corrected"} 1');
+    expect(out).toContain('ai_answer_selfcheck_total{result="pass"} 1');
   });
 
   it('空指标渲染不抛错', () => {
