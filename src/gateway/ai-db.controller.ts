@@ -9,6 +9,7 @@
  * - GET  /api/admin/ai-db/versions          进化版本列表
  * - POST /api/admin/ai-db/versions/:id/activate   人工确认激活（staged→active）
  * - POST /api/admin/ai-db/versions/:id/rollback   一键回滚（active→rolled_back）
+ * - POST /api/admin/ai-db/versions/:id/auto-close E5 自动闭环（评测+按总台策略自动激活/拦截）
  * - POST /api/admin/ai-db/extract           触发萃取（纠正→版本提案）
  * - POST /api/admin/ai-db/aggregate         触发跨租户聚合（脱敏公共模式）
  *
@@ -30,6 +31,7 @@ import { CaptureService } from '../evolution/capture.service';
 import { AggregatorService } from '../evolution/aggregator.service';
 import { ExperienceExtractorService } from '../evolution/experience-extractor.service';
 import { EvolutionVersionService } from '../evolution/evolution-version.service';
+import { StructuredExtractor } from '../brain/extraction/structured-extractor';
 
 /** 手动提交纠正 */
 export class CreateCorrectionDto {
@@ -60,6 +62,7 @@ export class AiDbController {
     private readonly extractor: ExperienceExtractorService,
     private readonly aggregator: AggregatorService,
     private readonly versions: EvolutionVersionService,
+    private readonly structuredExtractor: StructuredExtractor,
   ) {}
 
   /** 经验样本列表 */
@@ -126,6 +129,29 @@ export class AiDbController {
     @Body() dto: { reviewer?: string },
   ) {
     return this.versions.rollback(id, dto.reviewer ?? 'admin');
+  }
+
+  /**
+   * E5 自动闭环（评测 + 按总台策略自动激活/拦截）
+   *
+   * body.cases 缺省时自动从 ai_db 样本池拉取（taskType=版本 artifact、quality≥3、最新 20 条）。
+   * 策略：t_platform_ai_config.evolution_auto_activate=1 时达标自动激活/未达标自动拦截；默认人工放行。
+   */
+  @Post('versions/:id/auto-close')
+  autoCloseVersion(
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    dto: {
+      cases?: Array<{ prompt: string; completion: string }>;
+      actor?: string;
+    },
+  ) {
+    return this.versions.runAutoClosure(id, {
+      extract: async (docType, utterance) =>
+        await this.structuredExtractor.extract({ docType, utterance }),
+      cases: dto.cases,
+      actor: dto.actor,
+    });
   }
 
   /** 触发萃取（纠正→staged 版本提案） */

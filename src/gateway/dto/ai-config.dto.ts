@@ -57,6 +57,11 @@ export class UpdatePlatformAiConfigDto {
   @IsOptional()
   @IsIn([0, 1])
   ollamaFallbackEnabled?: number;
+
+  /** E5 自治开关（迁移 007：1=回归达标自动激活/未达标自动拦截 0=人工放行，默认） */
+  @IsOptional()
+  @IsIn([0, 1])
+  evolutionAutoActivate?: number;
 }
 
 /** 更新租户 AI 配置 */

@@ -52,6 +52,8 @@ export interface PlatformConfigView {
   defaultSystemPrompt: string | null;
   /** 本地 Ollama 兜底开关（1=开启 0=关闭） */
   ollamaFallbackEnabled: number;
+  /** E5 自治开关（1=回归达标自动激活/未达标自动拦截 0=人工放行，迁移 007） */
+  evolutionAutoActivate: number;
   apiKeySet: boolean;
   apiKeyMasked: string | null;
   createdAt: Date;
@@ -129,6 +131,7 @@ export class AiConfigAdminService {
     defaultMaxTokens?: number;
     defaultSystemPrompt?: string;
     ollamaFallbackEnabled?: number;
+    evolutionAutoActivate?: number;
   }): Promise<PlatformConfigView> {
     let config = await this.platformRepo.findOne({ where: { id: 1 } });
     if (!config) {
@@ -158,6 +161,9 @@ export class AiConfigAdminService {
     }
     if (input.ollamaFallbackEnabled !== undefined) {
       config.ollamaFallbackEnabled = input.ollamaFallbackEnabled;
+    }
+    if (input.evolutionAutoActivate !== undefined) {
+      config.evolutionAutoActivate = input.evolutionAutoActivate;
     }
 
     const saved = await this.platformRepo.save(config);
@@ -412,6 +418,7 @@ export class AiConfigAdminService {
       defaultMaxTokens: config.defaultMaxTokens,
       defaultSystemPrompt: config.defaultSystemPrompt,
       ollamaFallbackEnabled: config.ollamaFallbackEnabled,
+      evolutionAutoActivate: config.evolutionAutoActivate,
       apiKeySet: apiKey !== null && apiKey !== '',
       apiKeyMasked: apiKey ? maskApiKey(apiKey) : null,
       createdAt: config.createdAt,

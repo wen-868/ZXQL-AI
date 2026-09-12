@@ -2800,7 +2800,9 @@ CREATE TABLE ai_evolution_version (
 
 > **回归达标线**（E4/E5 闸门）：新版本在留存样本上抽取通过率/报告采纳率不低于上一活跃版本 **95%**，且不引入新必填缺失；未达则拦截并回滚至上一 `active` 版本。
 
-> 当前 v3.4 骨架覆盖 E1–E3 设计与表结构；E4 本地训练（阈值见上）、E5 自治闭环（策略放行）为规划项。
+> 当前 v3.4 骨架覆盖 E1–E3 设计与表结构；E4 本地训练（阈值见上）为规划项。
+>
+> **E5 已落地（2026-09-05）**：真实评测执行器（用例逐条走 StructuredExtractor 与 groundTruth 逐字段比对，替换模拟实现）+ 回归达标线（新版本准确率 ≥ 上一 active 最近评测值 95%，无基线不可判保持 staged）+ 结果落库（`ai_evolution_version.regression_accuracy/evaluated_at`，迁移 007）+ 策略门控自治（总台 `t_platform_ai_config.evolution_auto_activate`，默认 0=人工放行；开启后达标自动激活、未达标自动拦截/回滚）。触发端点：`POST /api/admin/ai-db/versions/:id/auto-close`（用例缺省自动从 ai_db 样本池拉取 taskType=artifact、quality≥3 的最新 20 条）。
 
 ---
 

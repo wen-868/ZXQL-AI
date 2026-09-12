@@ -7,6 +7,7 @@
  * 依赖：
  * - AiDbModule（ai_db 独立连接 + 4 实体）
  * - ProvidersModule（萃取 LLM 调用）
+ * - 默认业务连接（PlatformAiConfigEntity：E5 自治策略开关读取，迁移 007）
  *
  * 被 BrainModule 导入（Orchestrator/LearningService 采集接入），
  * 服务导出供 Gateway 管理 API 注入。
@@ -14,7 +15,9 @@
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AiDbModule } from '../database/ai-db.module';
+import { PlatformAiConfigEntity } from '../database/entities/platform-ai-config.entity';
 import { ProvidersModule } from '../providers/providers.module';
 import { CaptureService } from './capture.service';
 import { AggregatorService } from './aggregator.service';
@@ -23,7 +26,12 @@ import { EvolutionVersionService } from './evolution-version.service';
 import { CommonModule } from '../common/common.module';
 
 @Module({
-  imports: [AiDbModule, ProvidersModule, CommonModule],
+  imports: [
+    AiDbModule,
+    ProvidersModule,
+    CommonModule,
+    TypeOrmModule.forFeature([PlatformAiConfigEntity]),
+  ],
   providers: [
     CaptureService,
     AggregatorService,

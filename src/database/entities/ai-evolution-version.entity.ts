@@ -84,6 +84,26 @@ export class AiEvolutionVersionEntity {
   })
   approvedBy!: string | null;
 
+  /** 最近一次 E5 回归评测准确率（0-1，迁移 007） */
+  @Column({
+    name: 'regression_accuracy',
+    type: 'decimal',
+    precision: 5,
+    scale: 4,
+    nullable: true,
+    comment: '最近一次 E5 回归评测准确率（0-1）',
+  })
+  regressionAccuracy!: number | string | null;
+
+  /** 最近一次回归评测时间（迁移 007） */
+  @Column({
+    name: 'regression_evaluated_at',
+    type: 'datetime',
+    nullable: true,
+    comment: '最近一次回归评测时间',
+  })
+  regressionEvaluatedAt!: Date | null;
+
   @Column({
     name: 'created_at',
     type: 'datetime',

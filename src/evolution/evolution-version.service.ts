@@ -1,5 +1,5 @@
 /**
- * EvolutionVersionService — 反哺层版本化（P1-1，E3）
+ * EvolutionVersionService — 反哺层版本化（P1-1，E3）+ E5 自治闭环
  *
  * 依据：权威文档 26.2/26.4/26.6——Schema/模板/话术校准版本化、
  * 可回滚、不静默改红线（人工确认 staged→active）。
@@ -11,7 +11,15 @@
  * - 自动学习生成的版本默认 staged，人工确认后才 active（不静默改红线）；
  * - 回滚按版本号定位代码常量还原（DB 不重复存放大段内容）。
  *
- * 负责人: AI底座 | 创建日期: 2026-08-25
+ * E5 自治闭环（2026-09-05 工作文件核查补完，文档 26 章 E5）：
+ * - 真实评测：用例逐条走 StructuredExtractor，与 groundTruth 逐字段比对
+ *   （替换原 Math.random 模拟）；
+ * - 达标线（文档 26 章）：新版本准确率 ≥ 上一 active 版本最近一次评测值的
+ *   95%，且不引入新必填缺失；无基线不可判 → 保持 staged；
+ * - 策略门控：总台配置 evolution_auto_activate（默认 0=人工放行）；
+ *   显式开启后达标自动激活、未达标自动拦截（staged 废弃/active 回滚）。
+ *
+ * 负责人: AI底座 | 创建日期: 2026-08-25 | 更新: 2026-09-05 E5 真评测+自治闭环
  */
 import {
   Injectable,
@@ -20,8 +28,10 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThanOrEqual, Repository } from 'typeorm';
 import { AiEvolutionVersionEntity } from '../database/entities/ai-evolution-version.entity';
+import { AiSampleEntity } from '../database/entities/ai-sample.entity';
+import { PlatformAiConfigEntity } from '../database/entities/platform-ai-config.entity';
 import { AI_DB_CONNECTION } from '../database/ai-db.module';
 
 /** 版本触发方式 */
@@ -43,6 +53,63 @@ export interface StageVersionInput {
   trigger?: EvolutionTrigger;
 }
 
+/** E5 评测用例（prompt=用户话术，completion=标准参数 JSON） */
+export interface E5EvalCase {
+  prompt: string;
+  completion: string;
+}
+
+/** E5 抽取执行器签名（网关层注入 StructuredExtractor，避免 Evolution↔Brain 模块循环依赖） */
+export type E5ExtractFn = (
+  docType: string,
+  utterance: string,
+) => Promise<{
+  success: boolean;
+  matched: boolean;
+  data: Record<string, unknown>;
+  valid: boolean;
+  issues: Array<{ reason: string }>;
+} | null>;
+
+/** E5 回归评测报告 */
+export interface E5RegressionReport {
+  versionId: number;
+  artifact: string;
+  newVersion: string;
+  /** 基线准确率（上一 active 版本最近一次评测值；null=无基线不可判） */
+  baselineAccuracy: number | null;
+  /** 新版本评测准确率（0-1） */
+  newAccuracy: number;
+  /** 评测用例数 */
+  caseCount: number;
+  /** 达标：newAccuracy ≥ 95% × baseline（权威文档 26 章回归达标线） */
+  meetsE5Standard: boolean;
+  recommendation: 'keep' | 'rollback' | 'staged_further';
+  details: Array<{ promptTail: string; correct: boolean; note?: string }>;
+}
+
+/** E5 自动闭包结果 */
+export interface E5AutoCloseResult extends E5RegressionReport {
+  /** 策略：auto=总台已开启自治；manual=默认人工放行 */
+  policy: 'auto' | 'manual';
+  action:
+    | 'auto_activated'
+    | 'auto_rolled_back'
+    | 'kept_staged'
+    | 'none_manual_review';
+  message: string;
+}
+
+/** 自动闭包依赖 */
+export interface E5AutoCloseDeps {
+  /** 抽取执行器 */
+  extract: E5ExtractFn;
+  /** 显式评测用例（缺省自动从 ai_db 样本池拉取 taskType=artifact 且 quality≥3 的最新 20 条） */
+  cases?: E5EvalCase[];
+  /** 操作人（自动闭包默认 e5-auto） */
+  actor?: string;
+}
+
 @Injectable()
 export class EvolutionVersionService {
   private readonly logger = new Logger(EvolutionVersionService.name);
@@ -50,6 +117,10 @@ export class EvolutionVersionService {
   constructor(
     @InjectRepository(AiEvolutionVersionEntity, AI_DB_CONNECTION)
     private readonly repo: Repository<AiEvolutionVersionEntity>,
+    @InjectRepository(AiSampleEntity, AI_DB_CONNECTION)
+    private readonly sampleRepo: Repository<AiSampleEntity>,
+    @InjectRepository(PlatformAiConfigEntity)
+    private readonly platformRepo: Repository<PlatformAiConfigEntity>,
   ) {}
 
   /**
@@ -137,131 +208,209 @@ export class EvolutionVersionService {
   }
 
   /**
-   * E5 回归评测——基于 artifact 的自动回归测试
+   * E5 回归评测（按版本 ID）——真实抽取评测 + 结果落库
    *
-   * 通过对比新旧版本在相同 artifact 下的抽取准确率，判断版本是否可安全回滚。
-   *
-   * 回归测试流程：
-   * 1. 选取基准版本（当前 active 版本）的抽取准确率基线
-   * 2. 在测试集上用新版本进行抽取并计算准确率
-   * 3. 若新版本准确率较基线提升 ≥ 10% 且无回滚事故，则标记为 E5 达标
-   *   若准确率下降或无显著提升，则保持当前版本不变，标记回滚风险
-   *
-   * 结果输出：
-   * - 同 artifact 抽取准确率对比（基线 vs 新版）
-   * - 是否达标：true/false
-   * - 推荐操作：'keep' / 'rollback' / 'staged_further'
+   * 流程：
+   * 1. 用例：显式传入优先；缺省自动从 ai_db 样本池拉取（taskType=artifact、
+   *    quality≥3、最新 20 条）
+   * 2. 基线：上一 active 版本最近一次评测准确率（regression_accuracy 列，
+   *    迁移 007）；无 active 或无历史评测值 → 无基线
+   * 3. 逐用例走注入的抽取执行器，与 groundTruth（completion JSON）逐字段比对，
+   *    全字段命中记通过；newAccuracy = 通过用例 / 总用例
+   * 4. 达标线（权威文档 26 章）：newAccuracy ≥ 95% × baseline；无基线不可判
+   * 5. 结论：达标 → keep；无基线或 ≥90%×baseline → staged_further；
+   *    <90%×baseline → rollback（拦截）
+   * 6. 评测结果写回版本行（regression_accuracy / regression_evaluated_at）
    */
-  async evaluateRegression(
-    _artifact: string,
-    newVersion: string,
-    testCases: Array<{ id: string; groundTruth: string }>,
-  ): Promise<{
-    baselineAccuracy: number;
-    newAccuracy: number;
-    accuracyImprovement: number;
-    meetsE5Standard: boolean;
-    recommendation: 'keep' | 'rollback' | 'staged_further';
-    details: Array<{
-      caseId: string;
-      groundTruth: string;
-      predicted: string;
-      correct: boolean;
-    }>;
-  }> {
-    this.logger.log(
-      `E5 回归评测：artifact=${_artifact} 新版本=${newVersion} 测试用例=${testCases.length}`,
-    );
+  async evaluateRegressionById(
+    versionId: number,
+    deps: { extract: E5ExtractFn; cases?: E5EvalCase[] },
+  ): Promise<E5RegressionReport> {
+    const entity = await this.getOrThrow(versionId);
+    const artifact = entity.artifact;
 
-    // 1. 获取基线版本（active）的准确率历史
-    const baselineVersions = await this.repo.find({
-      where: { status: 'active' },
-      order: { createdAt: 'DESC' },
-      take: 1,
-    });
-
-    let baselineAccuracy = 0;
-    if (baselineVersions.length > 0) {
-      // 从历史记录中计算基线准确率
-      baselineAccuracy = await this.calculateAccuracyFromHistory(
-        baselineVersions[0].artifact ?? 'default',
-        baselineVersions[0].toVersion ?? 'baseline',
-      );
+    // 1. 评测用例
+    let cases: E5EvalCase[] = deps.cases ?? [];
+    if (cases.length === 0) {
+      const samples = await this.sampleRepo.find({
+        where: { taskType: artifact, quality: MoreThanOrEqual(3) },
+        order: { createdAt: 'DESC' },
+        take: 20,
+      });
+      cases = samples.map((s) => ({
+        prompt: s.prompt ?? '',
+        completion: s.completion ?? '',
+      }));
     }
 
-    // 2. 在测试集上用新版本进行抽取并计算准确率
-    const newAccuracy = await this.calculateAccuracyFromTestCases(
-      _artifact,
-      testCases,
-      newVersion,
-    );
+    if (cases.length === 0) {
+      this.logger.warn(
+        `E5 回归评测跳过：artifact=${artifact} 无可用样本（显式用例为空且 ai_db 无 quality≥3 样本）`,
+      );
+      return {
+        versionId,
+        artifact,
+        newVersion: entity.toVersion,
+        baselineAccuracy: null,
+        newAccuracy: 0,
+        caseCount: 0,
+        meetsE5Standard: false,
+        recommendation: 'staged_further',
+        details: [
+          {
+            promptTail: '（无评测样本）',
+            correct: false,
+            note: '无可用评测样本',
+          },
+        ],
+      };
+    }
 
-    // 3. 计算改进幅度
-    const accuracyImprovement = newAccuracy - baselineAccuracy;
+    // 2. 基线（上一 active 版本最近一次评测值）
+    const active = await this.repo.findOne({
+      where: { artifact, status: 'active' },
+      order: { id: 'DESC' },
+    });
+    const baselineAccuracy =
+      active?.regressionAccuracy != null
+        ? Number(active.regressionAccuracy)
+        : null;
 
-    // 4. E5 标准判定：准确率提升 ≥ 10% 且无回滚风险
-    const meetsE5Standard = accuracyImprovement >= 0.1;
-    const recommendation: 'keep' | 'rollback' | 'staged_further' =
-      meetsE5Standard
-        ? 'keep'
-        : accuracyImprovement > -0.05
-          ? 'staged_further'
-          : 'rollback';
+    // 3. 真实抽取评测
+    const details: E5RegressionReport['details'] = [];
+    let correct = 0;
+    for (const c of cases) {
+      let expected: Record<string, unknown> | null = null;
+      const trimmed = (c.completion ?? '').trim();
+      if (trimmed.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(trimmed) as unknown;
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            expected = parsed as Record<string, unknown>;
+          }
+        } catch {
+          expected = null;
+        }
+      }
+
+      let ok = false;
+      let note: string | undefined;
+      let r: Awaited<ReturnType<E5ExtractFn>> = null;
+      try {
+        r = await deps.extract(artifact, c.prompt);
+      } catch (err) {
+        note = `抽取器异常：${err instanceof Error ? err.message : String(err)}`;
+      }
+      if (!r) {
+        note = note ?? '抽取器无返回';
+      } else if (!r.success || !r.matched) {
+        note = '未命中 Schema/非写入意图';
+      } else if (expected) {
+        const keys = Object.keys(expected);
+        const data = r.data ?? {};
+        // 两侧同规则 JSON 串化比较（对象/字符串/数字口径一致，避免 [object Object]）
+        const fmt = (v: unknown): string => (v == null ? '' : JSON.stringify(v));
+        ok =
+          keys.length > 0 &&
+          keys.every((k) => fmt(data[k]).trim() === fmt(expected[k]).trim());
+        if (!ok) note = '字段与标准答案不匹配';
+      } else {
+        // groundTruth 非 JSON：退化为包含判定（历史样本兜底）
+        ok = JSON.stringify(r.data ?? {}).includes(trimmed);
+        if (!ok) note = '结果未包含标准答案';
+      }
+      if (ok) correct++;
+      details.push({ promptTail: c.prompt.slice(-16), correct: ok, note });
+    }
+    const newAccuracy = correct / cases.length;
+
+    // 4/5. 达标线与结论（权威文档 26 章：≥95%×baseline 且无基线不可判）
+    const meetsE5Standard =
+      baselineAccuracy != null && newAccuracy >= 0.95 * baselineAccuracy;
+    const recommendation: E5RegressionReport['recommendation'] = meetsE5Standard
+      ? 'keep'
+      : baselineAccuracy == null || newAccuracy >= 0.9 * baselineAccuracy
+        ? 'staged_further'
+        : 'rollback';
+
+    // 6. 结果落库（迁移 007 列）
+    entity.regressionAccuracy = newAccuracy;
+    entity.regressionEvaluatedAt = new Date();
+    await this.repo.save(entity);
 
     this.logger.log(
-      `E5 回归评测结果：baseline=${baselineAccuracy.toFixed(
-        2,
-      )} new=${newAccuracy.toFixed(2)} improvement=${accuracyImprovement.toFixed(
-        2,
-      )} meetsStandard=${meetsE5Standard} recommendation=${recommendation}`,
+      `E5 回归评测：id=${versionId} artifact=${artifact} baseline=${
+        baselineAccuracy == null ? '无' : baselineAccuracy.toFixed(2)
+      } new=${newAccuracy.toFixed(2)} (${correct}/${cases.length}) recommendation=${recommendation}`,
     );
 
     return {
+      versionId,
+      artifact,
+      newVersion: entity.toVersion,
       baselineAccuracy,
       newAccuracy,
-      accuracyImprovement,
+      caseCount: cases.length,
       meetsE5Standard,
       recommendation,
-      details: [], // 实际实现中填充具体用例详情
+      details,
     };
   }
 
   /**
-   * 从历史记录计算准确率
+   * E5 自动闭环——评测 + 按总台策略自动激活/拦截
+   *
+   * 策略（t_platform_ai_config.evolution_auto_activate，迁移 007）：
+   * - 0（默认，人工放行）：只评测并返回建议，激活/回滚由人工在总台操作；
+   * - 1（自治）：达标自动激活（staged→active）；未达标自动拦截
+   *   （staged 直接废弃为 rolled_back / active 走回滚）；不足以判定保持 staged。
    */
-  private async calculateAccuracyFromHistory(
-    _artifact: string,
-    _version: string,
-  ): Promise<number> {
-    // 从 ai_experience/ai_correction 中统计同 artifact 的准确率
-    // 简化实现：返回 0.75 的模拟值或从数据库查询
-    // 实际项目中会从经验表统计同 artifact 的准确率历史
-    // 模拟异步操作延迟
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    return 0.75; // 模拟基线准确率
-  }
+  async runAutoClosure(
+    versionId: number,
+    deps: E5AutoCloseDeps,
+  ): Promise<E5AutoCloseResult> {
+    const report = await this.evaluateRegressionById(versionId, deps);
+    const entity = await this.getOrThrow(versionId);
+    const actor = deps.actor ?? 'e5-auto';
 
-  /**
-   * 从测试用例计算准确率
-   */
-  private async calculateAccuracyFromTestCases(
-    _artifact: string,
-    testCases: Array<{ id: string; groundTruth: string }>,
-    _version: string,
-  ): Promise<number> {
-    // 实际实现中调用 extractor 进行抽取并对比 groundTruth
-    // 简化实现：返回模拟准确率
-    // 实际项目中会调用 AI extractor 并比对预测结果与 groundTruth
-    // 模拟异步操作延迟
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    let correct = 0;
-    for (const _tc of testCases) {
-      // 模拟：假设 70% 的用例通过（比基线 0.75 略低，展示 rollback 场景）
-      if (Math.random() > 0.3) {
-        correct++;
+    const cfg = await this.platformRepo.findOne({ where: { id: 1 } });
+    const policyOn = cfg?.evolutionAutoActivate === 1;
+
+    let action: E5AutoCloseResult['action'] = 'none_manual_review';
+    let message = '策略=人工放行：评测完成，请在总台确认激活或回滚';
+
+    if (policyOn) {
+      const pct = `${(report.newAccuracy * 100).toFixed(1)}%`;
+      if (report.recommendation === 'keep') {
+        await this.activate(versionId, actor);
+        action = 'auto_activated';
+        message = `回归达标（${pct}），已按 E5 策略自动激活`;
+      } else if (report.recommendation === 'rollback') {
+        if (entity.status === 'staged') {
+          // staged 从未生效：达标线拦截 = 废弃该提案（不占用版本指针）
+          entity.status = 'rolled_back';
+          entity.approvedBy = actor;
+          await this.repo.save(entity);
+          this.logger.warn(
+            `E5 自动拦截：staged 提案未达标废弃 id=${versionId} artifact=${entity.artifact}`,
+          );
+        } else {
+          await this.rollback(versionId, actor);
+        }
+        action = 'auto_rolled_back';
+        message = `回归未达标（${pct}），已按 E5 策略自动拦截/回滚`;
+      } else {
+        action = 'kept_staged';
+        message = '回归结果不足以判定，保持 staged 继续观察';
       }
     }
-    return correct / testCases.length;
+
+    return {
+      policy: policyOn ? 'auto' : 'manual',
+      action,
+      message,
+      ...report,
+    };
   }
 
   private async getOrThrow(id: number): Promise<AiEvolutionVersionEntity> {

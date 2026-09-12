@@ -93,6 +93,15 @@ export class PlatformAiConfigEntity {
   })
   ollamaFallbackEnabled!: number;
 
+  /** E5 自治开关（迁移 007：1=回归达标自动激活/未达标自动拦截 0=人工放行，默认） */
+  @Column({
+    name: 'evolution_auto_activate',
+    type: 'tinyint',
+    default: 0,
+    comment: 'E5 自治开关：1=自动激活/拦截 0=人工放行（默认）',
+  })
+  evolutionAutoActivate!: number;
+
   /** 创建时间 */
   @Column({
     name: 'created_at',
