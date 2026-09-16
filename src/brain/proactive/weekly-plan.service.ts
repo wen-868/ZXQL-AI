@@ -78,7 +78,7 @@ export class WeeklyPlanService {
    */
   async buildWeeklyPlan(tenantId: string): Promise<WeeklyPlanResult> {
     // 1. 本周主动信号（t_push_log ai_proactive 通道，schema 与推送服务一致）
-    const rows = await this.dataSource.query(
+    const rows = await this.dataSource.query<WeeklySignalRow[]>(
       `SELECT title, content, created_at
          FROM t_push_log
         WHERE channel = 'ai_proactive'

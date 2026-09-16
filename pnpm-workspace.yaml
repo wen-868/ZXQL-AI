@@ -3,6 +3,10 @@ packages:
 allowBuilds:
   unrs-resolver: true
   "@napi-rs/canvas": true
+# 注意：下面这组 overrides 同时声明在 package.json 的 pnpm.overrides（镜像），
+# 用于兼容 pnpm 9（生产环境 pnpm 9.15.9 只读 package.json，不读本文件）。
+# 改动任一处必须两处同步，否则 pnpm install --frozen-lockfile 会报
+# ERR_PNPM_LOCKFILE_CONFIG_MISMATCH。
 overrides:
   fast-uri: ^3.1.5
   "@napi-rs/canvas": ^0.1.85
