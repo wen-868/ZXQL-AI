@@ -21,6 +21,10 @@
  *   - { type: 'text', content: string }           — LLM 生成的增量文本
  *   - { type: 'tool_start', tool: string }         — 开始执行工具
  *   - { type: 'tool_result', tool: string, ... }   — 工具执行结果
+ *   - { type: 'plan_start', steps: [...] }         — G-A 复杂目标规划完成（步骤列表）
+ *   - { type: 'plan_step', index, total, label, status } — G-A 计划步骤完成进度
+ *   - { type: 'reflection', tool, action:'retry', recovered } — G-C 失败自动重试
+ *   - { type: 'task_artifact', tool, artifact }    — G-B 任务产物（文件/链接）
  *   - { type: 'done', conversationId, usage }      — 对话完成
  *   - { type: 'error', message: string }           — 错误事件
  *
@@ -39,6 +43,14 @@ import { AiConfigService } from '../tenant/ai-config.service';
 import { TenantContext } from '../tenant/tenant-context';
 import { detectTone, toneDirective } from '../nlp/tone-detector';
 import { KnowledgeRulesService } from './knowledge-rules.service';
+import {
+  isComplexGoal,
+  matchPlanStepsByTool,
+  stepsToPlanContext,
+} from './chat-planning';
+import { PlannerService } from './agent/planner.service';
+import type { PlanStep } from './agent/agent.types';
+import { LongTermMemoryService } from './memory/long-term-memory.service';
 import { ContextBuilder } from './context-builder.service';
 import { MemoryManager } from './memory-manager.service';
 import { ConfirmationService } from './confirmation.service';
@@ -157,6 +169,41 @@ export type OrchestratorBaseEvent =
       message: string;
       /** A3 文档 11.5：标准错误码（如 AI_009） */
       code?: string;
+    }
+  | {
+      /**
+       * G-A（2026-09-05 参考架构对照）：复杂目标规划完成——
+       * steps 为拆解后的步骤列表（前端可展示"第 N 步/共 M 步"进度）。
+       */
+      type: 'plan_start';
+      steps: Array<{ id: string; label: string; tool: string | null }>;
+    }
+  | {
+      /** G-A：计划步骤完成（工具命中该步骤时下发，status=done） */
+      type: 'plan_step';
+      index: number;
+      total: number;
+      label: string;
+      status: 'done';
+    }
+  | {
+      /**
+       * G-C：工具失败自动重试（Reflection 显式化）——
+       * retry 前发一次（recovered=false），重试后再发一次携带结果。
+       */
+      type: 'reflection';
+      tool: string;
+      action: 'retry';
+      recovered: boolean;
+    }
+  | {
+      /**
+       * G-B：任务产物（文件/链接）——工具结果 data.artifact 透传，
+       * 前端渲染可下载/可预览的产物卡片（Final Answer 之外的 Task 出口）。
+       */
+      type: 'task_artifact';
+      tool: string;
+      artifact: Record<string, unknown>;
     };
 
 /** Orchestrator 产出事件（react + graph） */
@@ -213,6 +260,8 @@ export class Orchestrator {
     private readonly configService: ConfigService,
     private readonly selfCheck: AnswerSelfCheckService,
     private readonly knowledgeRules: KnowledgeRulesService,
+    private readonly planner: PlannerService,
+    private readonly ltm: LongTermMemoryService,
   ) {}
 
   /**
@@ -349,6 +398,43 @@ export class Orchestrator {
         intent.categories,
       );
 
+      // ── 4.3 G-A 复杂目标显式规划（Planner 进主链路，2026-09-05 参考架构对照）──
+      // 顺序连接词/并列动作 → PlannerService 拆步骤 → plan_start 事件（前端可展示
+      // "第 N 步/共 M 步"）→ 计划注入系统提示词，ReAct 循环按步骤推进。
+      // graph 模式自带图编排，不重复规划。
+      let chatPlan: PlanStep[] = [];
+      if (
+        params.mode !== 'graph' &&
+        this.configService.get<string>('ENABLE_CHAT_PLANNER', 'true') ===
+          'true' &&
+        isComplexGoal(userMessage)
+      ) {
+        try {
+          chatPlan = await this.planner.plan({
+            tenantId,
+            goal: userMessage,
+            model: params.model,
+            scope: params.scope,
+          });
+          yield {
+            type: 'plan_start',
+            steps: chatPlan.map((s) => ({
+              id: s.id,
+              label: s.label,
+              tool: s.tool ?? null,
+            })),
+          };
+          this.logger.log(
+            `G-A 复杂目标已规划：${chatPlan.length} 步（目标「${userMessage.slice(0, 30)}」）`,
+          );
+        } catch (err) {
+          this.logger.warn(
+            `G-A 规划失败（降级直跑）：${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+      const planContext = stepsToPlanContext(chatPlan);
+
       // ── 5. 构建上下文 ──
       // R70-21：build 已升级为异步（内部做 RAG 知识库检索注入，embedding 未配置时自动跳过）
       const messages = await this.contextBuilder.build(
@@ -364,6 +450,8 @@ export class Orchestrator {
           toneDirective: toneDirective(detectTone(userMessage)),
           // G1 业务规则：相关域运营规则（默认 RAG 关闭时规则也能进上下文）
           rulesContext,
+          // G-A 执行计划：复杂目标拆解的步骤块
+          planContext,
         },
         this.registry,
       );
@@ -434,6 +522,8 @@ export class Orchestrator {
       let totalPromptTokens = 0;
       let totalCompletionTokens = 0;
       const allToolCalls: Record<string, unknown>[] = [];
+      // G-A 计划步骤完成跟踪（plan_step 事件去重）
+      const doneStepIds = new Set<string>();
       // 工具结果记录：模型未输出总结文本时用于生成兜底摘要
       const toolResults: Array<{
         tool: string;
@@ -531,10 +621,44 @@ export class Orchestrator {
 
           this.logger.debug(`执行工具：${tc.function.name}`);
 
-          const toolResult = await this.executor.executeToolCall(
-            tc,
-            toolContext,
-          );
+          let toolResult = await this.executor.executeToolCall(tc, toolContext);
+
+          // ── G-C Reflection 显式化（2026-09-05 参考架构对照）：失败自动重试一次 ──
+          // 查询类失败多为瞬时抖动；写操作 preview 阶段未真正执行，重试同样安全。
+          // 重试成功则以成功结果继续流程（LLM 直接看到恢复后的数据）；
+          // 仍失败才把失败结果交给 LLM 处理。reflection 事件供前端展示"已自动重试"。
+          if (
+            !toolResult.success &&
+            this.configService.get<string>('ENABLE_TOOL_AUTO_RETRY', 'true') ===
+              'true'
+          ) {
+            yield {
+              type: 'reflection',
+              tool: tc.function.name,
+              action: 'retry',
+              recovered: false,
+            };
+            const retried = await this.executor.executeToolCall(
+              tc,
+              toolContext,
+            );
+            if (retried.success) {
+              toolResult = retried;
+              this.logger.log(
+                `G-C 工具失败已自动重试成功：${tc.function.name}`,
+              );
+            } else {
+              this.logger.warn(
+                `G-C 工具自动重试仍失败：${tc.function.name} err=${retried.error ?? '-'}`,
+              );
+            }
+            yield {
+              type: 'reflection',
+              tool: tc.function.name,
+              action: 'retry',
+              recovered: toolResult.success,
+            };
+          }
 
           // ── P0-2 StructuredExtractor：写参数结构化抽取增强 ──
           // 写工具返回 preview 后，用原始用户消息做结构化抽取：
@@ -638,6 +762,42 @@ export class Orchestrator {
             error: toolResult.error,
           });
 
+          // ── G-B Task 任务产物协议（2026-09-05 参考架构对照）──
+          // 工具结果 data.artifact = {name, kind, url?, summary?} 时下发
+          // task_artifact 事件（前端渲染可下载/可预览的产物卡片）。
+          const maybeArtifact = (
+            toolResult.data as
+              { artifact?: Record<string, unknown> } | undefined
+          )?.artifact;
+          if (
+            maybeArtifact &&
+            typeof maybeArtifact === 'object' &&
+            typeof (maybeArtifact as { name?: unknown }).name === 'string'
+          ) {
+            yield {
+              type: 'task_artifact',
+              tool: tc.function.name,
+              artifact: maybeArtifact,
+            };
+          }
+
+          // ── G-A plan_step 进度：工具命中计划步骤 → 标记该步完成 ──
+          if (chatPlan.length > 0) {
+            for (const idx of matchPlanStepsByTool(
+              chatPlan,
+              tc.function.name,
+              doneStepIds,
+            )) {
+              yield {
+                type: 'plan_step',
+                index: idx,
+                total: chatPlan.length,
+                label: chatPlan[idx].label,
+                status: 'done',
+              };
+            }
+          }
+
           // 工具结果加入消息历史
           const toolMsg: ChatMessage = {
             role: 'tool',
@@ -710,6 +870,56 @@ export class Orchestrator {
             }
           }
           finalAssistantText += note;
+        }
+      }
+
+      // ── 5.9 G-D 偏好自动沉淀（2026-09-05 参考架构对照：Memory 长期记忆写入端）──
+      // 用户表达稳定偏好（"以后/记住/我喜欢/别再"）时，LLM 提炼一条档案写入
+      // LTM —— S1 人格一致性从此有米下锅。仅在有 userId 时执行（偏好按人存）。
+      if (
+        userId &&
+        this.configService.get<string>('ENABLE_PREFERENCE_DISTILL', 'true') ===
+          'true' &&
+        /(记住|以后|以后都|以后请|我喜欢|我不喜欢|别再|下次直接|以后直接)/.test(
+          params.message,
+        )
+      ) {
+        try {
+          const prefRes = await provider.chatSync(
+            [
+              {
+                role: 'user',
+                content:
+                  `从用户消息中提炼一条**稳定**的长期偏好（称呼方式/关注指标/详略习惯/流程习惯）。\n消息：「${params.message.slice(0, 200)}」\n` +
+                  '只输出 JSON：{"key":"称呼|指标优先|详略|流程习惯","value":"一句话偏好"}；若只是一次性要求而非稳定偏好，输出 {"skip":true}',
+              },
+            ],
+            { temperature: 0, max_tokens: 120 },
+          );
+          const pm = (prefRes.content ?? '').match(/\{[\s\S]*\}/);
+          if (pm) {
+            const pref = JSON.parse(pm[0]) as {
+              skip?: boolean;
+              key?: string;
+              value?: string;
+            };
+            if (!pref.skip && pref.key && pref.value) {
+              await this.ltm.upsertProfile(
+                tenantId,
+                `pref:${pref.key}`,
+                pref.value,
+                'user',
+                userId,
+              );
+              this.logger.log(
+                `G-D 用户偏好已沉淀：user=${userId} key=${pref.key}`,
+              );
+            }
+          }
+        } catch (err) {
+          this.logger.warn(
+            `G-D 偏好沉淀失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
+          );
         }
       }
 

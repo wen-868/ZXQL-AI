@@ -50,6 +50,8 @@ export interface BuildContextParams {
   toneDirective?: string;
   /** G1 业务规则参考（由调用方 KnowledgeRulesService 按意图分类取相关规则；无匹配不传） */
   rulesContext?: string;
+  /** G-A 执行计划（复杂目标经 PlannerService 拆解后的步骤块；无计划不传） */
+  planContext?: string;
 }
 
 /**
@@ -318,6 +320,11 @@ ${profiles.map((p) => `- ${p.k}：${JSON.stringify(p.v)}`).join('\n')}`,
     // G1：追加业务规则参考（knowledge/ 运营规则按意图注入；与工具结果冲突时以工具结果为准）
     if (params.rulesContext && params.rulesContext.trim().length > 0) {
       prompt += `\n\n## 业务规则参考（以下为公司内部运营规则，回答相关问题时必须遵循；与工具查询结果冲突时以工具结果为准）\n${params.rulesContext}`;
+    }
+
+    // G-A：追加执行计划（复杂目标拆解的步骤，ReAct 循环按计划推进）
+    if (params.planContext && params.planContext.trim().length > 0) {
+      prompt += `\n\n${params.planContext}`;
     }
 
     // 无论租户使用默认提示词还是自定义提示词，都追加"缺失数据自动创建流程"规则，

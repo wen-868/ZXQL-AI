@@ -2814,6 +2814,14 @@ CREATE TABLE ai_evolution_version (
 > **S 系列细化（2026-09-05 第五轮）**：①S2 抽成独立 `AnswerSelfCheckService`（逻辑全测试覆盖：触发门控/提示词/判决解析容错剥围栏/指标四态），明确**口径换算（箱→瓶、元→万元）不算失真**避免误报，指标 `ai_answer_selfcheck_total{result=pass|corrected|skip|error}` 进 Prometheus；②S4 增加第五档**dissatisfied（不满/投诉）**且优先级最高（先致歉认错再给解决办法，不推诿）；③S5 就绪度增加 totalSamples 与 remaining（距 50 条阈值还差多少），数据集**训练集卫生**（同 prompt 去重防过拟合、<4 字符剔除）；④S3 信号按标题去重（同一预警每天推送只留一条）、LLM 输出剥 markdown 围栏、**每周一 09:00 自动生成 default 租户计划**（`WEEKLY_PLAN_CRON_ENABLED` 开关默认关）。
 >
 > **智能达标审计修复（2026-09-05 第六轮）**：①G1 业务规则运行时注入——knowledge/ 九份运营规则此前仅 RAG 开启时可用（默认关闭+需 embedding），新增 `KnowledgeRulesService` 按意图分诊结果注入相关域规则到系统提示词（文件名→业务域映射、单文档 900 字/总量 1800 字截断、目录缺失降级、KNOWLEDGE_DIR 可覆盖），默认姿态下规则也可达；②G2 对话纠错自动捕获——用户说"不对/错了/应该是"时自动把上轮回答+本轮纠正存入 ai_db 纠正样本（`ENABLE_AUTO_CORRECTION_CAPTURE` 默认开），进化飞轮输入端不再依赖人工去管理端点录入。**已知后续项**：EvidenceLedger 仍仅 graph 模式（主链路已有纪律+自检双闸，ledger 接线为增强项）；指代消解仅覆盖单号/客户/商品三类（时间指代由系统时间说明兜底）；意图 LLM 分诊使用当前路由主模型（glm-4-flash 免费，成本可控）。
+>
+> **AI Agent 参考架构对照与差距补齐（2026-09-05 第七轮）**：对照「AI Agent 完整架构」参考图（Planner/Reasoning/Memory/Tool/MCP/Reflection 六组件 + 双出口）逐组件审计，结论：Reasoning 循环、Tool、交互展示达标且工具数远超参考；差距五项——
+> - **G-A Planner 未进主链路**（PlannerService 仅在 /ai/agent 通道，chat 多步目标直接 ReAct 盲跑，无显式步骤规划）→ 修复：`chat-planning.ts` 复杂目标分诊（顺序连接词/并列动作启发式）+ PlannerService 拆步骤 + `plan_start/plan_step` SSE 事件 + 计划注入系统提示词（`ENABLE_CHAT_PLANNER` 默认开）；
+> - **G-B Task 任务产物层缺失**（SSE 无 artifact 类事件，"生成对账单发我"无承载）→ 修复：`task_artifact` 事件协议（name/kind/url/summary），工具结果 `data.artifact` 字段自动透传；
+> - **G-C Reflection 主链路半程**（数字自检有，但失败工具无显式重试）→ 修复：工具失败自动重试一次（成功则以成功结果继续流程），`reflection` 事件可观测（`ENABLE_TOOL_AUTO_RETRY` 默认开）；
+> - **G-D 偏好自动沉淀缺失**（LTM 档案只读少写，S1 无米下锅）→ 修复：偏好标记话语（"以后/记住/我喜欢"）触发 LLM 提炼稳定偏好 upsert 档案（`ENABLE_PREFERENCE_DISTILL` 默认开）；
+> - **G-E MCP 仅 Server 不作 Client**（连接外部系统的通用扩展位缺失，酒水场景优先级低，架构驱动再动，暂不实施）。
+> 超出参考图的能力（自主进化 E1-E5、多租户、写全审核、降级熔断、计费审计）维持不变。
 
 ---
 
