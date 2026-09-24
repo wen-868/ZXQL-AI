@@ -2826,6 +2826,8 @@ CREATE TABLE ai_evolution_version (
 > **深度优化整合（2026-09-05 第八轮）**：①O1 系统提示词工具清单瘦身——此前全量 106 个工具描述注入系统提示词（约 1 万字符）且与 function calling 定义双重注入，现按意图分诊子集注入（`BuildContextParams.toolListForPrompt`），分诊未命中（全量回退）时保持全量；②O2 桌面端渲染四个新事件——`plan_start`（执行计划卡：步骤列表）、`plan_step`（进度 N/M）、`reflection`（失败自动重试状态）、`task_artifact`（产物卡带打开/下载链接），参考架构能力在产品界面可见；③O3 指标补齐——`ai_chat_plan_total`（规划次数）、`ai_tool_retry_total{recovered}`（重试恢复率，持续偏低说明工具层质量需治理）；④O5 knowledge 规则缓存 10 分钟 TTL——规则文档编辑免重启生效。
 >
 > **找茬审计修复（2026-09-05 第九轮）**：①`MAX_ITERATIONS` 10→14（G-A 规划最多 12 步，原 10 轮上限会让多步计划中途撞 AI_009）；②G-C 自动重试加 `isWriteOperation` 门控——只读工具才自动重试，写工具 confirm 执行后若因超时/响应丢失失败，重试有重复开单风险，改为交 LLM 如实告知；③辅助 LLM 调用（意图分诊/S2 自检/G-D 偏好提炼）token 计入 usage 与 `billing.consume`（此前三处 chatSync 少报）；④工具执行超时闸门 `TOOL_TIMEOUT_MS`（默认 60s，超时转失败结果交 LLM，防工具卡死挂住 SSE 流）；⑤触发词收紧（偏好沉淀去掉裸"以后"、自动纠错去掉"不是这"，减少无谓辅助调用）。遗留：#4 审计明文（合规项）、#7 桌面端会话恢复丢结构化卡、#8 agent 通道智能升级同步、#9 plan_step 工具名匹配兜底。
+>
+> **本地全栈真机测试（2026-09-05 第十轮）**：本地拉起 MariaDB+后端(8080)+AI 底座(3016) 实测新代码。**发现并修复一个环境级 bug**：本地建库未指定字符集 → MariaDB 默认 latin1 传染给 synchronize 建出的全部 AI 表 → **中文写入审计/纠错/样本表全部静默失败**（"Incorrect string value"）；修复=库级 utf8mb4 重建+重推。**新增 `scripts/dev-schema-push.js`**：以 TypeORM 实体为真理源一键建表（15 业务表+ai_db 4 表，含全部新列），根治 001 迁移"待归档"导致的本地/测试环境无 DDL 来源问题（⚠️ 仅限本地，生产以 migrations 增量为准）。**实测通过清单**：无/伪 token 401 AI_001、AdminGuard 三态（401/403 AI_010/200）、简单对话全链（真 GLM）、复杂目标 plan_start(4步)→plan_step→done 且真实业务数据经 HTTP 桥返回、G1 规则 9 份加载+意图分诊双轨（fallback 49 工具/rules 8 工具，O1 实效）、**S2 自检实战拦截幻觉**（LLM 把工具结果的 120 瓶答成 9999 瓶被自动更正）、G2 同会话纠错自动入 ai_db、指标端点计数准确、Nest @Post 默认 201 属正常。**移交后台侧问题**：测试库 demo 用户 roles=[]（生产 demo 有 SUPER_ADMIN，种子不一致，AdminGuard 拒绝行为正确）。
 
 ---
 
