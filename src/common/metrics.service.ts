@@ -30,6 +30,10 @@ export class MetricsService {
   private dbSampleTotal = new Map<string, number>();
   /** ai_answer_selfcheck_total{result}（S2 回答自检：pass/corrected/skip/error） */
   private selfCheckTotal = new Map<string, number>();
+  /** ai_chat_plan_total（G-A 主链路规划次数） */
+  private planTotal = 0;
+  /** ai_tool_retry_total{recovered}（G-C 工具失败自动重试） */
+  private retryTotal = new Map<string, number>();
 
   recordRequest(
     tenantId: string,
@@ -86,6 +90,17 @@ export class MetricsService {
     this.selfCheckTotal.set(result, (this.selfCheckTotal.get(result) ?? 0) + 1);
   }
 
+  /** G-A 主链路规划计数（复杂目标经 Planner 拆解） */
+  recordPlan(): void {
+    this.planTotal += 1;
+  }
+
+  /** G-C 工具失败自动重试计数（recovered=重试后成功） */
+  recordToolRetry(recovered: boolean): void {
+    const key = recovered ? 'recovered' : 'failed';
+    this.retryTotal.set(key, (this.retryTotal.get(key) ?? 0) + 1);
+  }
+
   /**
    * 渲染 Prometheus text format（文档 16.3 指标子集）
    *
@@ -131,6 +146,10 @@ export class MetricsService {
     }
     for (const [result, value] of this.selfCheckTotal) {
       lines.push(`ai_answer_selfcheck_total{result="${result}"} ${value}`);
+    }
+    lines.push(`ai_chat_plan_total ${this.planTotal}`);
+    for (const [recovered, value] of this.retryTotal) {
+      lines.push(`ai_tool_retry_total{recovered="${recovered}"} ${value}`);
     }
 
     return `${lines.join('\n')}\n`;

@@ -2822,6 +2822,8 @@ CREATE TABLE ai_evolution_version (
 > - **G-D 偏好自动沉淀缺失**（LTM 档案只读少写，S1 无米下锅）→ 修复：偏好标记话语（"以后/记住/我喜欢"）触发 LLM 提炼稳定偏好 upsert 档案（`ENABLE_PREFERENCE_DISTILL` 默认开）；
 > - **G-E MCP 仅 Server 不作 Client**（连接外部系统的通用扩展位缺失，酒水场景优先级低，架构驱动再动，暂不实施）。
 > 超出参考图的能力（自主进化 E1-E5、多租户、写全审核、降级熔断、计费审计）维持不变。
+>
+> **深度优化整合（2026-09-05 第八轮）**：①O1 系统提示词工具清单瘦身——此前全量 106 个工具描述注入系统提示词（约 1 万字符）且与 function calling 定义双重注入，现按意图分诊子集注入（`BuildContextParams.toolListForPrompt`），分诊未命中（全量回退）时保持全量；②O2 桌面端渲染四个新事件——`plan_start`（执行计划卡：步骤列表）、`plan_step`（进度 N/M）、`reflection`（失败自动重试状态）、`task_artifact`（产物卡带打开/下载链接），参考架构能力在产品界面可见；③O3 指标补齐——`ai_chat_plan_total`（规划次数）、`ai_tool_retry_total{recovered}`（重试恢复率，持续偏低说明工具层质量需治理）；④O5 knowledge 规则缓存 10 分钟 TTL——规则文档编辑免重启生效。
 
 ---
 

@@ -60,21 +60,31 @@ export class KnowledgeRulesService {
   /** knowledge 目录（可用 KNOWLEDGE_DIR 环境变量覆盖；测试可 setDir 注入） */
   private dir = join(process.cwd(), process.env.KNOWLEDGE_DIR ?? 'knowledge');
   private cache: RuleDoc[] | null = null;
+  /** 规则缓存加载时间（配合 10 分钟 TTL：knowledge/*.md 编辑后免重启生效） */
+  private loadedAt = 0;
+  private static readonly RULES_TTL_MS = 10 * 60 * 1000;
 
   /** 测试注入目录用（生产勿调） */
   setDirForTests(dir: string): void {
     this.dir = dir;
     this.cache = null;
+    this.loadedAt = 0;
   }
 
-  /** 惰性加载 knowledge/*.md（目录缺失/读取失败 → 空数组，不阻断对话） */
+  /** 惰性加载 knowledge/*.md（目录缺失/读取失败 → 空数组，不阻断对话；10 分钟 TTL，规则编辑免重启生效） */
   private load(): RuleDoc[] {
-    if (this.cache) return this.cache;
+    if (
+      this.cache &&
+      Date.now() - this.loadedAt < KnowledgeRulesService.RULES_TTL_MS
+    ) {
+      return this.cache;
+    }
     const docs: RuleDoc[] = [];
     try {
       if (!existsSync(this.dir)) {
         this.logger.warn(`知识规则目录不存在：${this.dir}（规则注入降级为空）`);
         this.cache = docs;
+        this.loadedAt = Date.now();
         return docs;
       }
       for (const file of readdirSync(this.dir)) {
@@ -95,6 +105,7 @@ export class KnowledgeRulesService {
       );
     }
     this.cache = docs;
+    this.loadedAt = Date.now();
     return docs;
   }
 

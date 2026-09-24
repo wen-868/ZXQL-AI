@@ -427,6 +427,7 @@ export class Orchestrator {
           this.logger.log(
             `G-A 复杂目标已规划：${chatPlan.length} 步（目标「${userMessage.slice(0, 30)}」）`,
           );
+          this.metrics.recordPlan();
         } catch (err) {
           this.logger.warn(
             `G-A 规划失败（降级直跑）：${err instanceof Error ? err.message : String(err)}`,
@@ -434,6 +435,14 @@ export class Orchestrator {
         }
       }
       const planContext = stepsToPlanContext(chatPlan);
+
+      // O1 系统提示词工具清单瘦身：分诊命中域时只注入相关域工具描述
+      //（全量 106 个约 1 万字符，与 function calling 定义双重注入严重浪费）
+      const allTools = this.registry.list();
+      const promptTools =
+        intent.categories && intent.categories.length > 0
+          ? allTools.filter((t) => intent.categories!.includes(t.category))
+          : allTools;
 
       // ── 5. 构建上下文 ──
       // R70-21：build 已升级为异步（内部做 RAG 知识库检索注入，embedding 未配置时自动跳过）
@@ -452,6 +461,8 @@ export class Orchestrator {
           rulesContext,
           // G-A 执行计划：复杂目标拆解的步骤块
           planContext,
+          // O1 系统提示词工具清单（分诊子集）
+          toolListForPrompt: promptTools,
         },
         this.registry,
       );
@@ -652,6 +663,7 @@ export class Orchestrator {
                 `G-C 工具自动重试仍失败：${tc.function.name} err=${retried.error ?? '-'}`,
               );
             }
+            this.metrics.recordToolRetry(toolResult.success);
             yield {
               type: 'reflection',
               tool: tc.function.name,

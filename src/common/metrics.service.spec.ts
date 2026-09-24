@@ -22,6 +22,9 @@ describe('A5 MetricsService', () => {
     metrics.recordDbSample('correction');
     metrics.recordAnswerSelfCheck('corrected');
     metrics.recordAnswerSelfCheck('pass');
+    metrics.recordPlan();
+    metrics.recordToolRetry(true);
+    metrics.recordToolRetry(false);
 
     const out = metrics.render({ queryInventory: 1 });
     expect(out).toContain(
@@ -37,6 +40,9 @@ describe('A5 MetricsService', () => {
     expect(out).toContain('ai_db_sample_total{type="correction"} 1');
     expect(out).toContain('ai_answer_selfcheck_total{result="corrected"} 1');
     expect(out).toContain('ai_answer_selfcheck_total{result="pass"} 1');
+    expect(out).toContain('ai_chat_plan_total 1');
+    expect(out).toContain('ai_tool_retry_total{recovered="recovered"} 1');
+    expect(out).toContain('ai_tool_retry_total{recovered="failed"} 1');
   });
 
   it('空指标渲染不抛错', () => {

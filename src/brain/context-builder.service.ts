@@ -52,6 +52,12 @@ export interface BuildContextParams {
   rulesContext?: string;
   /** G-A 执行计划（复杂目标经 PlannerService 拆解后的步骤块；无计划不传） */
   planContext?: string;
+  /** O1 系统提示词工具清单（意图分诊后的子集；不传注入全量——106 工具全量描述约 1 万字符） */
+  toolListForPrompt?: Array<{
+    name: string;
+    category: string;
+    description: string;
+  }>;
 }
 
 /**
@@ -298,8 +304,12 @@ ${profiles.map((p) => `- ${p.k}：${JSON.stringify(p.v)}`).join('\n')}`,
 - 用户未指定日期时，查询报表/单据默认使用今天或本月/本月至今，严禁使用示例或训练数据中的旧日期（如 2023 年）。
 - 涉及"本月/上月/今天/昨天/本周"等相对时间时，以上述当前日期为准计算。`;
 
-    // 追加可用工具描述
-    const tools = registry.list();
+    // 追加可用工具描述（O1：优先用意图分诊后的子集——全量 106 个工具描述
+    // 注入系统提示词约 1 万字符，与 function calling 定义双重注入严重浪费）
+    const tools =
+      params.toolListForPrompt && params.toolListForPrompt.length > 0
+        ? params.toolListForPrompt
+        : registry.list();
     if (tools.length > 0) {
       const toolList = tools
         .map((t) => `- ${t.name}（${t.category}）：${t.description}`)

@@ -550,7 +550,7 @@ async function go(t){
   if(sess.title==='新对话'){sess.title=t.slice(0,20);renderSessions()}
   const b=aiEl();b.classList.add('typing');
   const bd=b.parentElement.querySelector('.bd');
-  const tlMap={};let toolCount=0,toolFail=0;
+  const tlMap={};let toolCount=0,toolFail=0;let planItem=null,planTotal=0,planDone=0;
   try{
     const r=await fetch(S.server+'/api/chat',{
       method:'POST',
@@ -598,6 +598,30 @@ async function go(t){
             case 'review_required':{
               const s=ev.stage||ev.label||ev.message||ev.type;
               tlDone(bd,tlAdd(bd,s),true,'');break}
+            case 'plan_start':{
+              // G-A 执行计划卡：展示拆解步骤，后续 plan_step 逐步更新进度
+              const steps=ev.steps||[];planTotal=steps.length;planDone=0;
+              planItem=tlAdd(bd,`执行计划（${planTotal} 步）`);
+              tlDone(bd,planItem,true,steps.map((s,i)=>`${i+1}.${s.label}`).join(' → '));
+              break}
+            case 'plan_step':{
+              planDone++;
+              if(planItem)tlDone(bd,planItem,true,`进度 ${planDone}/${planTotal} · 完成：${ev.label}`);
+              break}
+            case 'reflection':{
+              // G-C 自动重试：工具条目实时反映重试状态
+              if(ev.action==='retry'&&!ev.recovered){
+                tlDone(bd,tlMap[ev.tool]||tlAdd(bd,ev.tool),true,'失败 · 自动重试中…');
+              }else if(ev.recovered&&tlMap[ev.tool]){
+                tlDone(bd,tlMap[ev.tool],true,'重试成功');
+              }
+              break}
+            case 'task_artifact':{
+              // G-B 任务产物卡：文件/链接可直接打开
+              const a=ev.artifact||{};
+              const line=document.createElement('div');line.className='usage-line';line.style.cssText='font-size:12px;margin-top:8px;line-height:1.6';
+              line.innerHTML=`📎 任务产物：<b>${esc(a.name||'文件')}</b>${a.url?` · <a href="${esc(a.url)}" target="_blank" style="color:var(--blue)">打开 / 下载</a>`:''}${a.summary?`<div style="color:var(--sub);font-size:11px">${esc(a.summary)}</div>`:''}`;
+              bd.appendChild(line);end();break}
             case 'done':
               sess.id=ev.conversationId||sess.id;
               if(ev.usage){const u=ev.usage;const d=document.createElement('div');d.className='usage-line';d.style.cssText='font-size:11px;color:var(--sub);opacity:.75;margin-top:6px';d.textContent=`${u.totalTokens||0} tokens · ${(u.latencyMs/1000||0).toFixed(1)}s · ${u.iterations||0} 轮`;bd.appendChild(d)}
