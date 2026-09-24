@@ -43,6 +43,7 @@ import { AiConfigService } from '../tenant/ai-config.service';
 import { TenantContext } from '../tenant/tenant-context';
 import { detectTone, toneDirective } from '../nlp/tone-detector';
 import { KnowledgeRulesService } from './knowledge-rules.service';
+import { EvidenceLedgerService } from './evidence/evidence-ledger.service';
 import {
   isComplexGoal,
   matchPlanStepsByTool,
@@ -265,6 +266,7 @@ export class Orchestrator {
     private readonly configService: ConfigService,
     private readonly selfCheck: AnswerSelfCheckService,
     private readonly knowledgeRules: KnowledgeRulesService,
+    private readonly evidence: EvidenceLedgerService,
     private readonly planner: PlannerService,
     private readonly ltm: LongTermMemoryService,
   ) {}
@@ -799,6 +801,28 @@ export class Orchestrator {
             data: toolResult.data,
             error: toolResult.error,
           });
+
+          // C2 写操作逐笔证据台账（2026-09-05 能力补齐：EvidenceLedger 接入主链路，
+          // 此前仅 graph 模式使用）：写工具经确认实际执行（非预览）时记录
+          // 意图+参数+结果 → 审计留痕，供撤销/追责/评测溯源
+          if (
+            toolMeta?.isWriteOperation === true &&
+            !toolResult.preview &&
+            toolResult.success
+          ) {
+            try {
+              this.evidence.recordWrite(
+                toolContext,
+                tc.function.name,
+                execArgs,
+                toolResult,
+              );
+            } catch (err) {
+              this.logger.warn(
+                `写台账记录失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
+              );
+            }
+          }
 
           // ── G-B Task 任务产物协议（2026-09-05 参考架构对照）──
           // 工具结果 data.artifact = {name, kind, url?, summary?} 时下发

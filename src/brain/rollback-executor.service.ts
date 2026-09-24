@@ -46,6 +46,23 @@ const ROLLBACK_MAP: Record<string, RollbackConfig> = {
       return result?.orderNo ?? result?.data?.orderNo ?? null;
     },
   },
+  // 2026-09-05 撤销能力补齐：销售单创建 → cancelOrder（billNo 即单号）
+  createSalesOrder: {
+    rollbackTool: 'cancelOrder',
+    extractOrderNo: (op) => {
+      const fromArgs = (op.args?.orderNo as string | undefined) ?? null;
+      if (fromArgs) return fromArgs;
+      const result = op.result as
+        | {
+            billNo?: string;
+            data?: { billNo?: string; orderNo?: string };
+          }
+        | undefined;
+      return (
+        result?.data?.billNo ?? result?.data?.orderNo ?? result?.billNo ?? null
+      );
+    },
+  },
 };
 
 @Injectable()

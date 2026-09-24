@@ -2836,6 +2836,8 @@ CREATE TABLE ai_evolution_version (
 > **写流程真机深测与反编造护栏（2026-09-05 第十三轮）**：写全审核闭环首次端到端实测——预览挂起（confirmationId）→空 body 确认执行（真建商品 spuId=10）→防重复确认→operationId 撤销窗，全链通过；三端确认契约核实（admin-web 空 body / 桌面端 {} / 底座 DTO 只收可选 remark，均兼容）。**发现并修复 P1 功能缺口：写参数编造**——用户未提供价格时 LLM 自行编造 ¥200/¥180 填入建商品参数并挂预览。修复：StructuredExtractor 新增反编造护栏（product_create 的 retailPrice/wholesalePrice 数值必须能在用户话语中找到阿拉伯数字，否则拦截为澄清"请明确提供后再执行"；数量类字段豁免——parseQuantity 语义换算合法）。端到端复验：编造价格场景从挂幻觉预览变为拦截澄清。**新发现清单（待办）**：①回滚映射 ROLLBACK_MAP 仅覆盖 createPurchaseOrder 1 种操作（createProduct 等 19 种写操作撤销是骨架态，补齐需后端逐类型取消端点配合）；②无参数开单时 LLM 以纯文本提问而非 clarify 事件（体验可统一）。**测试里程碑：1000 用例达成。**
 >
 > **工具调用能力基准（2026-09-05 第十四轮）**：新增 `scripts/tool-bench.js`（对标 Codex 级代理行为的 5 用例矩阵：单跳查询/链式两跳/多跳写流程/诚实回报/多轮续接，断言工具序列+答案内容+终态事件）。首轮得分 5/14（36%）暴露 **P0 安全漏洞：LLM 在参数里自带 confirm=true 绕过写全审核直接开单**（XS 单号真实落库）。修复：ToolExecutor 增加**写全审核强制门**——写工具的 confirm=true 仅允许经 ConfirmationService 通道（allowConfirm=true，全仓唯一调用方）注入，其余任何调用方（chat/MCP/agent/admin/v2）一律强制降级为预览并告警日志。复测：两次"现在就开"话术均止步 pending_write、日志两次强制降级。其余发现定性：TC2/TC4 失败根因=并行会话测试库商品主数据与库存数据不同步（后端 keyword 搜"五粮液"0 命中但库存行存在），工具行为忠实；证据纪律新增第 5 条（多行返回先核对名称与所问一致，错配行必须指出）。
+>
+> **能力缺口盘点与补齐（2026-09-05 第十五轮）**：对照全量能力清单盘点后落地三项——①**撤销映射补齐**：ROLLBACK_MAP 新增 createSalesOrder→cancelOrder（billNo 提取），撤销能力从 1 种→2 种（其余 18 种仍需后端逐类型取消端点）；②**EvidenceLedger 接入主链路**（此前仅 graph 模式）：写工具经确认实际执行后逐笔记录意图+参数+结果到证据台账（审计留痕，供撤销/追责/评测溯源），主链路与 graph 双通道覆盖；③**审计 PII 掩码开关** `AUDIT_MASK_MESSAGE`（默认 false 存明文；true 时手机号/证件号打码入审计库，合规可开）。规划中暂缓项（理由入档）：E4 蒸馏本体（等样本阈值+Ollama 设施）、MCP Client（架构扩展位）、桌面端结构化卡持久化（前端体验项）、澄清事件统一（现纯文本提问可用）、指代消解时间类（系统时间说明已覆盖）、agent 通道同步（能力不缺、待统一编排器重构一并做）、总台前端四页（跨仓 saas-admin）。
 
 ---
 

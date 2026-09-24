@@ -149,6 +149,18 @@ export class AuditLogger {
         });
       }
 
+      // 合规脱敏（2026-09-05 找茬审计 #4）：AUDIT_MASK_MESSAGE=true 时对
+      // 对话原文做 PII 掩码（手机号/连续证件号），审计仍可排障但不存明文 PII
+      let userMessage = record.userMessage ?? null;
+      if (
+        userMessage &&
+        (process.env.AUDIT_MASK_MESSAGE || 'false') === 'true'
+      ) {
+        userMessage = userMessage
+          .replace(/1[3-9]\d{9}/g, (m) => m.slice(0, 3) + '****' + m.slice(-2))
+          .replace(/\d{15,18}/g, (m) => m.slice(0, 4) + '****' + m.slice(-3));
+      }
+
       const entity = this.auditLogRepo.create({
         tenantId: record.tenantId,
         userId: record.userId ?? null,
@@ -156,7 +168,7 @@ export class AuditLogger {
         provider: record.provider ?? null,
         model: record.model ?? null,
         intent: record.intent ?? null,
-        userMessage: record.userMessage ?? null,
+        userMessage,
         toolCalls: toolCalls.length > 0 ? toolCalls : null,
         promptTokens: record.promptTokens,
         completionTokens: record.completionTokens,

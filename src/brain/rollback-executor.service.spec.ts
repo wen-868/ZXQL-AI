@@ -73,9 +73,34 @@ describe('RollbackExecutorService', () => {
     );
   });
 
+  it('createSalesOrder 命中新映射并自动执行取消销售单（billNo 提取）', async () => {
+    const execute = jest.fn().mockResolvedValue({
+      success: true,
+      data: { status: 'CANCELLED', message: '销售单已取消' },
+    });
+    registry.register({
+      name: 'cancelOrder',
+      execute,
+    } as unknown as ITool);
+
+    const res = await service.executeRollback(
+      makeOperation({
+        toolName: 'createSalesOrder',
+        result: { billNo: 'XS2026092570288' },
+      }),
+      { tenantId: 't1', authToken: 'jwt' },
+    );
+    expect(res.handled).toBe(true);
+    expect(res.success).toBe(true);
+    expect(execute).toHaveBeenCalledWith(
+      { orderNo: 'XS2026092570288', reason: expect.any(String) as string },
+      expect.anything(),
+    );
+  });
+
   it('无回滚映射的操作降级为引导', async () => {
     const res = await service.executeRollback(
-      makeOperation({ toolName: 'createSalesOrder' }),
+      makeOperation({ toolName: 'createProduct' }),
       { tenantId: 't1' },
     );
     expect(res.handled).toBe(false);
