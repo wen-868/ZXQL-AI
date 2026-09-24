@@ -64,7 +64,12 @@ export class KnowledgeRulesService {
   private loadedAt = 0;
   private static readonly RULES_TTL_MS = 10 * 60 * 1000;
 
-  /** 测试注入目录用（生产勿调） */
+  /** O8 启动预热：首个用户请求不再承担首次加载成本 */
+  onModuleInit(): void {
+    void this.load();
+  }
+
+  /** 测试注入目录用（生产勿调；重置缓存立即生效） */
   setDirForTests(dir: string): void {
     this.dir = dir;
     this.cache = null;

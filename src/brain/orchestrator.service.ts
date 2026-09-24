@@ -60,10 +60,7 @@ import { MetricsService } from '../common/metrics.service';
 import { BillingService } from '../tenant/billing.service';
 import { AnswerSelfCheckService } from './answer-self-check.service';
 import { WRITE_TOKEN_TTL_MS } from './write-guard.service';
-import type {
-  ChatMessage,
-  ToolCall,
-} from '../providers/provider.interface';
+import type { ChatMessage, ToolCall } from '../providers/provider.interface';
 import type { ToolContext, ToolResult } from '../tools/tool.interface';
 import { GraphExecutorService } from './graph/graph-executor.service';
 import {
@@ -406,29 +403,43 @@ export class Orchestrator {
         }
       });
 
+      // ── 4.1 O7 规划先行启动（与分诊并行，2026-09-05 性能优化）──
+      // 复杂目标时 Planner LLM 调用与意图分诊并发执行，省一次串行等待（约 1-2s）。
+      // graph 模式自带图编排，不重复规划。
+      const plannerEnabled =
+        params.mode !== 'graph' &&
+        this.configService.get<string>('ENABLE_CHAT_PLANNER', 'true') ===
+          'true';
+      const shouldPlan =
+        plannerEnabled && isComplexGoal(userMessage) && intent.lane !== 'chat';
+      const planPromise: Promise<PlanStep[]> = shouldPlan
+        ? this.planner
+            .plan({
+              tenantId,
+              goal: userMessage,
+              model: params.model,
+              scope: params.scope,
+            })
+            .catch((err) => {
+              this.logger.warn(
+                `G-A 规划失败（降级直跑）：${err instanceof Error ? err.message : String(err)}`,
+              );
+              return [];
+            })
+        : Promise.resolve([]);
+
       // ── 4.2 G1 业务规则：按意图分类取 knowledge/ 相关运营规则注入提示词 ──
       const rulesContext = this.knowledgeRules.getRulesContext(
         intent.categories,
       );
 
-      // ── 4.3 G-A 复杂目标显式规划（Planner 进主链路，2026-09-05 参考架构对照）──
+      // ── 4.3 G-A 复杂目标显式规划（Planner 进主链路，参考架构对照）──
       // 顺序连接词/并列动作 → PlannerService 拆步骤 → plan_start 事件（前端可展示
       // "第 N 步/共 M 步"）→ 计划注入系统提示词，ReAct 循环按步骤推进。
-      // graph 模式自带图编排，不重复规划。
       let chatPlan: PlanStep[] = [];
-      if (
-        params.mode !== 'graph' &&
-        this.configService.get<string>('ENABLE_CHAT_PLANNER', 'true') ===
-          'true' &&
-        isComplexGoal(userMessage)
-      ) {
-        try {
-          chatPlan = await this.planner.plan({
-            tenantId,
-            goal: userMessage,
-            model: params.model,
-            scope: params.scope,
-          });
+      if (shouldPlan) {
+        chatPlan = await planPromise;
+        if (chatPlan.length > 0) {
           yield {
             type: 'plan_start',
             steps: chatPlan.map((s) => ({
@@ -441,21 +452,19 @@ export class Orchestrator {
             `G-A 复杂目标已规划：${chatPlan.length} 步（目标「${userMessage.slice(0, 30)}」）`,
           );
           this.metrics.recordPlan();
-        } catch (err) {
-          this.logger.warn(
-            `G-A 规划失败（降级直跑）：${err instanceof Error ? err.message : String(err)}`,
-          );
         }
       }
       const planContext = stepsToPlanContext(chatPlan);
 
-      // O1 系统提示词工具清单瘦身：分诊命中域时只注入相关域工具描述
-      //（全量 106 个约 1 万字符，与 function calling 定义双重注入严重浪费）
+      // O1 系统提示词工具清单瘦身：分诊命中域时只注入相关域工具描述；
+      // O6 chat 车道（纯寒暄）注入空清单（零工具直答，省 2 万+ token/次）
       const allTools = this.registry.list();
       const promptTools =
-        intent.categories && intent.categories.length > 0
-          ? allTools.filter((t) => intent.categories!.includes(t.category))
-          : allTools;
+        intent.lane === 'chat'
+          ? []
+          : intent.categories && intent.categories.length > 0
+            ? allTools.filter((t) => intent.categories!.includes(t.category))
+            : allTools;
 
       // ── 5. 构建上下文 ──
       // R70-21：build 已升级为异步（内部做 RAG 知识库检索注入，embedding 未配置时自动跳过）
@@ -474,16 +483,20 @@ export class Orchestrator {
           rulesContext,
           // G-A 执行计划：复杂目标拆解的步骤块
           planContext,
-          // O1 系统提示词工具清单（分诊子集）
+          // O1 系统提示词工具清单（分诊子集；O6 chat 车道为空）
           toolListForPrompt: promptTools,
         },
         this.registry,
       );
 
-      const toolDefinitions = this.registry.toToolDefinitionsForCategories(
-        intent.categories,
-        params.scope,
-      );
+      // O6 chat 车道：零工具定义（LLM 直接回答，不进 function calling）
+      const toolDefinitions =
+        intent.lane === 'chat'
+          ? []
+          : this.registry.toToolDefinitionsForCategories(
+              intent.categories,
+              params.scope,
+            );
       this.logger.debug(
         `意图分诊：lane=${intent.lane} 工具集=${toolDefinitions.length} 个 规则=${rulesContext ? '注入' : '无'}（消息「${params.message.slice(0, 20)}」）`,
       );

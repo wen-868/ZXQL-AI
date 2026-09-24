@@ -305,11 +305,11 @@ ${profiles.map((p) => `- ${p.k}：${JSON.stringify(p.v)}`).join('\n')}`,
 - 涉及"本月/上月/今天/昨天/本周"等相对时间时，以上述当前日期为准计算。`;
 
     // 追加可用工具描述（O1：优先用意图分诊后的子集——全量 106 个工具描述
-    // 注入系统提示词约 1 万字符，与 function calling 定义双重注入严重浪费）
-    const tools =
-      params.toolListForPrompt && params.toolListForPrompt.length > 0
-        ? params.toolListForPrompt
-        : registry.list();
+    // 注入系统提示词约 1 万字符，与 function calling 定义双重注入严重浪费；
+    // O6：chat 车道传空数组 = 刻意零工具，不再回退全量）
+    const tools = params.toolListForPrompt
+      ? params.toolListForPrompt
+      : registry.list();
     if (tools.length > 0) {
       const toolList = tools
         .map((t) => `- ${t.name}（${t.category}）：${t.description}`)

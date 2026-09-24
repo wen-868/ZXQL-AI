@@ -110,6 +110,32 @@ describe('resolveIntentCategories（意图分诊双通道）', () => {
     expect(result.categories).toBeUndefined();
   });
 
+  it('LLM 返回 none（纯寒暄）→ chat 车道（零工具直答）', async () => {
+    const classifier = jest.fn().mockResolvedValue(['none']);
+    const result = await resolveIntentCategories('给我讲个笑话吧', classifier);
+    expect(result.lane).toBe('chat');
+    expect(result.categories).toEqual([]);
+  });
+
+  it('缓存：同消息第二次直接命中（不重复调 LLM，lane 一并命中）', async () => {
+    const classifier = jest.fn().mockResolvedValue(['none']);
+    const msg = '今天天气真不错啊';
+    const first = await resolveIntentCategories(msg, classifier);
+    const second = await resolveIntentCategories(msg, classifier);
+    expect(first.lane).toBe('chat');
+    expect(second.lane).toBe('chat');
+    expect(classifier).toHaveBeenCalledTimes(1);
+  });
+
+  it('buildLlmClassifierPrompt：包含 none 指引与全部业务域', () => {
+    const prompt = buildLlmClassifierPrompt('查五粮液库存');
+    expect(prompt).toContain('"none"');
+    expect(prompt).toContain('纯寒暄');
+    (['order', 'inventory', 'finance', '查五粮液库存'] as const).forEach(
+      (frag) => expect(prompt).toContain(frag),
+    );
+  });
+
   it('缓存：同消息第二次直接命中（不重复调 LLM）', async () => {
     const classifier = jest.fn().mockResolvedValue(['finance']);
     const msg = '外头没收上来的款项大概什么状况啊';
@@ -122,7 +148,8 @@ describe('resolveIntentCategories（意图分诊双通道）', () => {
 
   it('缓存：fallback（全量回退）消息同样命中缓存（回归：undefined 值曾被误判未命中）', async () => {
     const classifier = jest.fn().mockResolvedValue([]);
-    const msg = '给我讲个笑话吧';
+    // 注意：分诊缓存是模块级共享，每条测试消息必须全局唯一（否则命中前测缓存）
+    const msg = '帮我把这段话润色一下再发出去';
     const first = await resolveIntentCategories(msg, classifier);
     // 前提：该消息确实走 fallback 车道（若关键词表扩充命中需换测试短语）
     expect(first.lane).toBe('fallback');

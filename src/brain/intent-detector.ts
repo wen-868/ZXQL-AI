@@ -214,25 +214,29 @@ const CATEGORY_LABELS: Record<ToolCategory, string> = {
 
 const ALL_CATEGORIES = Object.keys(CATEGORY_LABELS) as ToolCategory[];
 
-/** 意图分诊缓存（消息原文 → 分类），LRU 上限 200 */
-const intentCache = new Map<string, ToolCategory[] | undefined>();
+/** 意图分诊缓存（消息原文 → 完整分诊结果），LRU 上限 200 */
+const intentCache = new Map<string, IntentResolution>();
 const INTENT_CACHE_MAX = 200;
 
-/** 意图分诊结果：categories=undefined 表示回退全量工具集 */
+/** 意图分诊结果
+ *
+ * - categories=undefined 且 lane=fallback：回退全量工具集
+ * - lane=chat：纯寒暄/闲聊（分诊判定与业务无关），零工具直答（O6 性能优化）
+ */
 export interface IntentResolution {
   categories: ToolCategory[] | undefined;
-  /** 命中通道：rules=关键词快车道 / llm=LLM 分诊 / fallback=全量回退 */
-  lane: 'rules' | 'llm' | 'fallback';
+  /** 命中通道：rules=关键词快车道 / llm=LLM 分诊 / chat=纯寒暄零工具 / fallback=全量回退 */
+  lane: 'rules' | 'llm' | 'chat' | 'fallback';
 }
 
 /**
  * 意图分诊双通道：
  * 1. 关键词规则快车道（命中即返回，零额外开销）
- * 2. 规则未命中/综合问题 → LLM 分诊（3.5s 超时、输出校验、失败回退全量），
- *    让新话术/口语化表达也能拿到精准工具子集，而非 7 万 token 全量慢车道
+ * 2. 规则未命中/综合问题 → LLM 分诊（3.5s 超时、输出校验、失败回退全量）；
+ *    分诊判定纯寒暄 → lane=chat，主循环零工具直答（省 2 万+ token/次）
  *
  * @param message    用户消息（建议传指代消解后的文本）
- * @param classifier 可选 LLM 分诊器（返回业务域数组；null/异常=放弃 LLM 通道）
+ * @param classifier 可选 LLM 分诊器（返回业务域数组，含 "none"=纯寒暄；null/异常=放弃 LLM 通道）
  */
 export async function resolveIntentCategories(
   message: string,
@@ -241,17 +245,13 @@ export async function resolveIntentCategories(
   const text = (message ?? '').trim();
   if (!text) return { categories: undefined, lane: 'fallback' };
 
-  // 注意用 has() 而非 get()!==undefined：fallback 消息缓存值是 undefined，
-  // 用 get 判存会让"全量回退"类消息永远无法命中缓存（每次重调 LLM 分诊）
+  // 注意用 has() 而非 get()!==undefined：缓存值可能是 undefined（fallback）
   if (intentCache.has(text)) {
-    const cached = intentCache.get(text);
+    const cached = intentCache.get(text) as IntentResolution;
     // LRU 触碰
     intentCache.delete(text);
     intentCache.set(text, cached);
-    return {
-      categories: cached,
-      lane: cached && cached.length > 0 ? 'rules' : 'fallback',
-    };
+    return cached;
   }
 
   const ruleHits = detectIntentCategories(text);
@@ -259,10 +259,11 @@ export async function resolveIntentCategories(
   if (ruleHits !== undefined) {
     result = { categories: ruleHits, lane: 'rules' };
   } else if (classifier) {
-    const llmCats = await classifyWithLlm(text, classifier);
-    result =
-      llmCats.length > 0
-        ? { categories: llmCats, lane: 'llm' }
+    const llm = await classifyWithLlm(text, classifier);
+    result = llm.chat
+      ? { categories: [], lane: 'chat' }
+      : llm.cats.length > 0
+        ? { categories: llm.cats, lane: 'llm' }
         : { categories: undefined, lane: 'fallback' };
   } else {
     result = { categories: undefined, lane: 'fallback' };
@@ -272,7 +273,7 @@ export async function resolveIntentCategories(
     const oldest = intentCache.keys().next().value;
     if (oldest !== undefined) intentCache.delete(oldest);
   }
-  intentCache.set(text, result.categories);
+  intentCache.set(text, result);
   return result;
 }
 
@@ -280,19 +281,24 @@ export async function resolveIntentCategories(
 async function classifyWithLlm(
   text: string,
   classifier: (msg: string) => Promise<string[] | null>,
-): Promise<ToolCategory[]> {
+): Promise<{ cats: ToolCategory[]; chat: boolean }> {
   try {
     const raw = await Promise.race([
       classifier(text),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500)),
     ]);
-    if (!Array.isArray(raw)) return [];
+    if (!Array.isArray(raw)) return { cats: [], chat: false };
+    // O6：分诊判定纯寒暄/与业务无关 → chat 车道（零工具直答）
+    if (raw.includes('none')) return { cats: [], chat: true };
     const valid = new Set<string>(ALL_CATEGORIES);
-    return raw
-      .filter((c): c is ToolCategory => typeof c === 'string' && valid.has(c))
-      .slice(0, 4);
+    return {
+      cats: raw
+        .filter((c): c is ToolCategory => typeof c === 'string' && valid.has(c))
+        .slice(0, 4),
+      chat: false,
+    };
   } catch {
-    return [];
+    return { cats: [], chat: false };
   }
 }
 
@@ -305,7 +311,8 @@ export function buildLlmClassifierPrompt(message: string): string {
     '你是酒水进销存 SaaS 的意图分诊器。判断用户消息涉及哪些业务域，' +
     '输出 JSON 字符串数组（0-4 个，按可能性排序），只输出 JSON 数组本身，不要解释。\n' +
     `业务域：${domainList}\n` +
+    '若消息是纯寒暄/闲聊/与业务无关的常识问答（不需要调用任何工具），输出 ["none"]。\n' +
     `用户消息：「${message}」\n` +
-    '输出示例：["inventory","report"]'
+    '输出示例：["inventory","report"] 或 ["none"]'
   );
 }
