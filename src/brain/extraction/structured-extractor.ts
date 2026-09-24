@@ -312,12 +312,65 @@ export class StructuredExtractor {
       };
     }
 
+    // 反编造护栏（2026-09-05 真机测试发现）：合并前核对数值字段——
+    // 用户话语中完全不存在的价格/金额，若 LLM 参数里冒出来（编造），
+    // 拦下反问而不是挂一个带幻觉价格的草稿。仅核对我方定义的"来源=用户话语"字段。
+    const fabricated = this.detectFabricatedNumbers(docType, input.utterance, {
+      ...input.args,
+      ...result.data,
+    });
+    if (fabricated.length > 0) {
+      this.logger.warn(
+        `写参数疑似编造已拦截：tool=${input.toolName} 字段=${fabricated.join(',')}`,
+      );
+      return {
+        used: true,
+        needsClarification: true,
+        questions: [
+          `检测到您未在消息中提到${fabricated.join('、')}的具体数值，请明确提供后再执行（避免按臆测价格创建）`,
+        ],
+        issues: fabricated.map((f) => ({
+          field: f,
+          reason: 'required' as const,
+          message: `参数 ${f} 在用户消息中无依据`,
+          question: `请提供${f}的数值`,
+        })),
+      };
+    }
+
     // 抽取成功：合并进现有参数（只补缺失）
     return {
       used: true,
       needsClarification: false,
       args: this.mergeArgs(input.args, result.data),
     };
+  }
+
+  /**
+   * 反编造核对：price/amount 类字段的数值必须能在用户话语中找到
+   * （数字或其中文口语形态，如 "两百" 不核——仅核阿拉伯数字）。
+   * 数量类字段跳过（parseQuantity 有合法语义换算，如 "一箱半"→1.5）。
+   */
+  private detectFabricatedNumbers(
+    docType: string,
+    utterance: string,
+    args: Record<string, unknown>,
+  ): string[] {
+    if (docType !== 'product_create') return [];
+    const FIELDS: Array<[string, string]> = [
+      ['retailPrice', '零售价'],
+      ['wholesalePrice', '批发价'],
+    ];
+    const fabricated: string[] = [];
+    for (const [f, label] of FIELDS) {
+      const v = args[f];
+      if (v === undefined || v === null) continue;
+      const digits = String(v).replace(/\.0+$/, '');
+      if (digits && !utterance.includes(digits)) {
+        fabricated.push(label);
+      }
+    }
+    return fabricated;
   }
 
   // ── LLM 抽取 ──

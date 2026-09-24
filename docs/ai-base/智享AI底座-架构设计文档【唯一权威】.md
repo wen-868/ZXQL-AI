@@ -2832,6 +2832,8 @@ CREATE TABLE ai_evolution_version (
 > **性能基准与优化（2026-09-05 第十一轮）**：新增 `scripts/perf-bench.js`（TTFB/总耗时/token/迭代数分场景采样 + 5 并发，用法 `node scripts/perf-bench.js`）。基线数据暴露最大热点：**寒暄类消息走 fallback 车道时全量工具定义注入，单次 25,891 tokens / TTFB 5.7s**。三项优化——①**O6 纯寒暄零工具车道**：分诊提示词增加 `["none"]` 语义，判定与业务无关时 `lane=chat`，function calling 定义与提示词工具清单全部置空，LLM 直答；②**O7 规划分诊并行**：复杂目标时 Planner LLM 调用与意图分诊 `Promise.all` 并发（省一次串行等待）；③**O8 规则启动预热**：KnowledgeRulesService onModuleInit 预加载。**复测对比（中位数）**：寒暄 tokens 25,891→**1,804（-93%）**、TTFB 5,687ms→**1,522ms（-73%）**；单工具查询总耗时 16,720→9,036ms（-46%，方差收敛）；并发 5/5 成功（瓶颈在智谱免费档吞吐，非服务端）。缓存注意：分诊缓存模块级共享，spec 测试消息必须全局唯一。
 >
 > **性能深测第二轮（2026-09-05 第十二轮）**：①O11 工具结果 JSON 去null瘦身（剔除 boxRatio:null 等无信息量字段，LLM 上下文与历史轮次都省 token）；②O10 基准脚本补 prompt/completion 拆分与首工具/首文本计时；③O12 自检最小长度门槛 `SELF_CHECK_MIN_CHARS`（默认 60 字符，短事实句跳过自检省一次串行 LLM 调用；0=全检）。**关键测量结论**：schema 审计显示工具定义已紧凑（削描述会伤 function calling 质量，放弃）；**延迟方差由智谱免费档服务端主导**——同构请求 10s~48s 波动、GLM usage 上报本身不稳定（同消息 prompt 计数 7.2k/14.1k 交替），与我们的 prompt 体量无相关性。**工程侧性能工作已达结构性下限**：进一步提升的路径=付费档/自托管模型（部署侧决策）。
+>
+> **写流程真机深测与反编造护栏（2026-09-05 第十三轮）**：写全审核闭环首次端到端实测——预览挂起（confirmationId）→空 body 确认执行（真建商品 spuId=10）→防重复确认→operationId 撤销窗，全链通过；三端确认契约核实（admin-web 空 body / 桌面端 {} / 底座 DTO 只收可选 remark，均兼容）。**发现并修复 P1 功能缺口：写参数编造**——用户未提供价格时 LLM 自行编造 ¥200/¥180 填入建商品参数并挂预览。修复：StructuredExtractor 新增反编造护栏（product_create 的 retailPrice/wholesalePrice 数值必须能在用户话语中找到阿拉伯数字，否则拦截为澄清"请明确提供后再执行"；数量类字段豁免——parseQuantity 语义换算合法）。端到端复验：编造价格场景从挂幻觉预览变为拦截澄清。**新发现清单（待办）**：①回滚映射 ROLLBACK_MAP 仅覆盖 createPurchaseOrder 1 种操作（createProduct 等 19 种写操作撤销是骨架态，补齐需后端逐类型取消端点配合）；②无参数开单时 LLM 以纯文本提问而非 clarify 事件（体验可统一）。**测试里程碑：1000 用例达成。**
 
 ---
 

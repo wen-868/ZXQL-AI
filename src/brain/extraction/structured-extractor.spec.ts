@@ -449,3 +449,65 @@ describe('E3 样本回流 few-shot', () => {
     expect(sysMsg?.content).not.toContain('历史正确示例');
   });
 });
+
+describe('反编造护栏（写参数数值核对）', () => {
+  function productCall(args: Record<string, unknown>) {
+    return {
+      tool_calls: [
+        {
+          id: 'call-p',
+          type: 'function',
+          function: {
+            name: 'extract_product_create',
+            arguments: JSON.stringify(args),
+          },
+        },
+      ],
+    } as never;
+  }
+
+  it('价格在话语中 → 正常合并放行', async () => {
+    const harness = createProvider(
+      productCall({ name: '五粮液 52度', baseUnit: '瓶', retailPrice: 200 }),
+    );
+    const { extractor } = createExtractor(harness);
+    const result = await extractor.tryEnhance({
+      toolName: 'createProduct',
+      utterance: '新建商品五粮液 52度，零售价200元',
+      args: { name: '五粮液 52度' },
+    });
+    expect(result.needsClarification).toBe(false);
+    expect(result.args?.retailPrice).toBe(200);
+  });
+
+  it('价格是编造的（话语中无此数字）→ 拦截反问', async () => {
+    const harness = createProvider(
+      productCall({
+        name: '五粮液 52度',
+        retailPrice: 200,
+        wholesalePrice: 180,
+      }),
+    );
+    const { extractor } = createExtractor(harness);
+    const result = await extractor.tryEnhance({
+      toolName: 'createProduct',
+      utterance: '新建商品五粮液 52度 500ml',
+      args: { name: '五粮液 52度' },
+    });
+    expect(result.needsClarification).toBe(true);
+    expect(result.questions?.[0]).toContain('零售价');
+  });
+
+  it('数量类字段不受护栏影响（boxRatio 语义换算合法）', async () => {
+    const harness = createProvider(
+      productCall({ name: '五粮液 52度', baseUnit: '瓶' }),
+    );
+    const { extractor } = createExtractor(harness);
+    const result = await extractor.tryEnhance({
+      toolName: 'createProduct',
+      utterance: '新建商品五粮液 52度',
+      args: { name: '五粮液 52度', boxRatio: 1.5 },
+    });
+    expect(result.needsClarification).toBe(false);
+  });
+});
