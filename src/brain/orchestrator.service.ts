@@ -837,11 +837,15 @@ export class Orchestrator {
           }
 
           // 工具结果加入消息历史
+          // O11 瘦身：剔除 null/undefined 字段（如库存行的 boxRatio:null 等，
+          // 对 LLM 无信息量），下一轮 prompt 与后续轮历史都省 token
           const toolMsg: ChatMessage = {
             role: 'tool',
             tool_call_id: tc.id,
             name: tc.function.name,
-            content: JSON.stringify(toolResult),
+            content: JSON.stringify(toolResult, (_k, v) =>
+              v === null || v === undefined ? undefined : v,
+            ),
           };
           messages.push(toolMsg);
           newMessagesToSave.push(toolMsg);
@@ -879,11 +883,16 @@ export class Orchestrator {
       }
 
       // ── 5.7 S2 回答自检（细化：独立服务+指标，见 answer-self-check.service）──
+      // 性能门槛（O12）：短答案（< 自检最小长度，默认 60 字符）跳过——单事实句
+      // 幻觉空间小，省一次串行 LLM 调用（约 1-1.5s）；长多数据回答仍全检。
       const answerForCheck = finalAssistantText.trim() || fallbackSummary;
+      const selfCheckMinChars = Number(
+        this.configService.get<number>('SELF_CHECK_MIN_CHARS', 60),
+      );
       if (
         this.configService.get<string>('ENABLE_ANSWER_SELF_CHECK', 'true') ===
           'true' &&
-        answerForCheck.length > 0
+        answerForCheck.length >= selfCheckMinChars
       ) {
         const fix = await this.selfCheck.verify(
           (prompt) =>

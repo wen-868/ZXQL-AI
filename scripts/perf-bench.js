@@ -28,7 +28,7 @@ async function login() {
   return token;
 }
 
-/** 单次对话：返回 {ttfb, total, tokens, iterations, types, toolCalls, textLen} */
+/** 单次对话：返回 {ttfb, total, promptTokens, completionTokens, tokens, iterations, toolCalls, tTool, tText, textLen} */
 async function chat(token, message, conversationId) {
   const t0 = Date.now();
   const res = await fetch(`${AI_BASE}/api/chat`, {
@@ -45,10 +45,14 @@ async function chat(token, message, conversationId) {
   const reader = res.body.getReader();
   let buf = '';
   let ttfb = null;
+  let tTool = null;
+  let tText = null;
   let text = '';
   const types = new Set();
   let toolCalls = 0;
   let tokens = 0;
+  let promptTokens = 0;
+  let completionTokens = 0;
   let iterations = 0;
   while (true) {
     const { done, value } = await reader.read();
@@ -68,11 +72,20 @@ async function chat(token, message, conversationId) {
           continue;
         }
         types.add(ev.type);
-        if (ev.type === 'text') text += ev.content || '';
-        if (ev.type === 'tool_start') toolCalls++;
+        if (ev.type === 'text') {
+          if (tText === null) tText = Date.now() - t0;
+          text += ev.content || '';
+        }
+        if (ev.type === 'tool_start') {
+          if (tTool === null) tTool = Date.now() - t0;
+          toolCalls++;
+        }
         if (ev.type === 'done') {
-          tokens = ev.usage?.totalTokens || 0;
-          iterations = ev.usage?.iterations || 0;
+          const u = ev.usage || {};
+          tokens = u.totalTokens || 0;
+          promptTokens = u.promptTokens || 0;
+          completionTokens = u.completionTokens || 0;
+          iterations = u.iterations || 0;
         }
       }
     }
@@ -80,9 +93,13 @@ async function chat(token, message, conversationId) {
   return {
     ttfb,
     total: Date.now() - t0,
+    promptTokens,
+    completionTokens,
     tokens,
     iterations,
     toolCalls,
+    tTool,
+    tText,
     textLen: text.length,
     types: [...types].join('+'),
   };
@@ -114,7 +131,7 @@ const SCENARIOS = [
         const r = await chat(token, sc.msg, cid);
         results[sc.id].push(r);
         console.log(
-          `${sc.id} #${k + 1}: TTFB ${r.ttfb}ms | 总耗时 ${r.total}ms | tokens ${r.tokens} | 迭代 ${r.iterations} | 工具 ${r.toolCalls} | 事件 ${r.types}`,
+          `${sc.id} #${k + 1}: TTFB ${r.ttfb}ms | 首工具 ${r.tTool ?? '-'}ms | 首文本 ${r.tText ?? '-'}ms | 总耗时 ${r.total}ms | prompt ${r.promptTokens} + completion ${r.completionTokens} = ${r.tokens} tokens | 迭代 ${r.iterations} | 工具 ${r.toolCalls}`,
         );
       } catch (e) {
         console.log(`${sc.id} #${k + 1}: 失败 — ${e.message}`);
