@@ -51,6 +51,7 @@ export class ToolExecutor {
   async executeToolCall(
     toolCall: ToolCall,
     context: ToolContext,
+    options?: { allowConfirm?: boolean },
   ): Promise<ToolResult> {
     const toolName = toolCall.function.name;
     const start = Date.now();
@@ -67,6 +68,22 @@ export class ToolExecutor {
         error: errorMsg,
         suggestion: '请检查 function calling 参数是否为合法 JSON 对象',
       };
+    }
+
+    // 0. 写全审核强制门（2026-09-05 tool-bench 发现 P0：LLM 可在参数里自带
+    //    confirm=true 绕过预览直接执行写操作）。写工具的 confirm=true 仅允许
+    //    经写全审核确认通道（ConfirmationService，allowConfirm=true）注入；
+    //    其余任何调用方（chat/MCP/agent/admin/v2）一律强制降级为预览。
+    const toolForGate = this.registry.get(toolName);
+    if (
+      toolForGate?.isWriteOperation &&
+      args.confirm === true &&
+      !options?.allowConfirm
+    ) {
+      args = { ...args, confirm: false };
+      this.logger.warn(
+        `写工具 confirm=true 已强制降级为预览（confirm 仅允许经确认通道执行）：${toolName}`,
+      );
     }
 
     // 2. 查找工具

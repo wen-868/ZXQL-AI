@@ -402,6 +402,8 @@ export class ConfirmationService {
         },
       },
       toolContext,
+      // 写全审核确认通道：唯一允许 confirm=true 的调用方（executor 强制门放行）
+      { allowConfirm: true },
     );
 
     if (!result.success) {
