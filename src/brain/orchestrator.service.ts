@@ -60,7 +60,10 @@ import { MetricsService } from '../common/metrics.service';
 import { BillingService } from '../tenant/billing.service';
 import { AnswerSelfCheckService } from './answer-self-check.service';
 import { WRITE_TOKEN_TTL_MS } from './write-guard.service';
-import type { ChatMessage } from '../providers/provider.interface';
+import type {
+  ChatMessage,
+  ToolCall,
+} from '../providers/provider.interface';
 import type { ToolContext, ToolResult } from '../tools/tool.interface';
 import { GraphExecutorService } from './graph/graph-executor.service';
 import {
@@ -78,8 +81,13 @@ import {
 } from './intent-detector';
 import { resolveReference } from '../nlp/reference-resolver';
 
-/** Agent Loop 最大迭代次数（防止死循环） */
-const MAX_ITERATIONS = 10;
+/**
+ * Agent Loop 最大迭代次数（防止死循环）
+ *
+ * 14 = MAX_PLAN_STEPS(12) + 规划首轮 + 总结轮：G-A 引入主链路规划后，
+ * 复杂目标最多 12 步，上限必须 ≥ 步数否则多步计划会中途撞 AI_009。
+ */
+const MAX_ITERATIONS = 14;
 
 /** 将未知类型安全转为展示文本：字符串/数字/布尔原样返回，其余按兜底值处理（避免 [object Object]） */
 function toText(value: unknown, fallback = ''): string {
@@ -341,7 +349,7 @@ export class Orchestrator {
         .find((m) => m.role === 'assistant' && m.content);
       if (
         prevAssistant?.content &&
-        /(不对|错了|不是这|搞错|说错|重查|应该是)/.test(params.message) &&
+        /(不对|错了|搞错|说错|重查|应该是)/.test(params.message) &&
         this.configService.get<string>(
           'ENABLE_AUTO_CORRECTION_CAPTURE',
           'true',
@@ -376,13 +384,18 @@ export class Orchestrator {
       }
 
       // ── 4. 意图分诊双通道（先于上下文构建：G1 业务规则注入依赖分诊结果）──
-      // 关键词快车道 + LLM 分诊兜底，新话术不再回退全量慢车道；用指代消解后的消息
+      // 关键词快车道 + LLM 分诊兜底，新话术不再回退全量慢车道；用指代消解后的消息。
+      // 辅助调用 token 全部计入用量与计费（#3：此前三处 chatSync 的 token 少报）
+      let auxPromptTokens = 0;
+      let auxCompletionTokens = 0;
       const intent = await resolveIntentCategories(userMessage, async (msg) => {
         const prompt = buildLlmClassifierPrompt(msg);
         const res = await provider.chatSync(
           [{ role: 'user', content: prompt }],
           { temperature: 0, max_tokens: 100 },
         );
+        auxPromptTokens += res.prompt_tokens ?? 0;
+        auxCompletionTokens += res.completion_tokens ?? 0;
         const content = res.content?.trim() ?? '';
         const match = content.match(/\[[\s\S]*\]/);
         if (!match) return null;
@@ -632,14 +645,17 @@ export class Orchestrator {
 
           this.logger.debug(`执行工具：${tc.function.name}`);
 
-          let toolResult = await this.executor.executeToolCall(tc, toolContext);
+          let toolResult = await this.executeToolWithTimeout(tc, toolContext);
 
-          // ── G-C Reflection 显式化（2026-09-05 参考架构对照）：失败自动重试一次 ──
-          // 查询类失败多为瞬时抖动；写操作 preview 阶段未真正执行，重试同样安全。
-          // 重试成功则以成功结果继续流程（LLM 直接看到恢复后的数据）；
-          // 仍失败才把失败结果交给 LLM 处理。reflection 事件供前端展示"已自动重试"。
+          // ── G-C Reflection 显式化：失败自动重试一次（仅只读工具）──
+          // 查询类失败多为瞬时抖动，重试直接恢复；
+          // 写操作（isWriteOperation）不自动重试：confirm=true 后服务端可能已
+          // 实际执行（超时/响应丢失场景），重试有重复开单风险——写失败交给 LLM
+          // 如实告知用户处理。reflection 事件供前端展示"已自动重试"。
+          const toolMeta = this.registry.get(tc.function.name);
           if (
             !toolResult.success &&
+            toolMeta?.isWriteOperation !== true &&
             this.configService.get<string>('ENABLE_TOOL_AUTO_RETRY', 'true') ===
               'true'
           ) {
@@ -649,10 +665,7 @@ export class Orchestrator {
               action: 'retry',
               recovered: false,
             };
-            const retried = await this.executor.executeToolCall(
-              tc,
-              toolContext,
-            );
+            const retried = await this.executeToolWithTimeout(tc, toolContext);
             if (retried.success) {
               toolResult = retried;
               this.logger.log(
@@ -866,7 +879,12 @@ export class Orchestrator {
                 temperature: 0,
                 max_tokens: 200,
               })
-              .then((r) => r.content ?? ''),
+              .then((r) => {
+                // #3 辅助调用 token 计入用量与计费
+                auxPromptTokens += r.prompt_tokens ?? 0;
+                auxCompletionTokens += r.completion_tokens ?? 0;
+                return r.content ?? '';
+              }),
           toolResults,
           answerForCheck,
         );
@@ -885,14 +903,15 @@ export class Orchestrator {
         }
       }
 
-      // ── 5.9 G-D 偏好自动沉淀（2026-09-05 参考架构对照：Memory 长期记忆写入端）──
-      // 用户表达稳定偏好（"以后/记住/我喜欢/别再"）时，LLM 提炼一条档案写入
+      // ── 5.9 G-D 偏好自动沉淀（参考架构对照：Memory 长期记忆写入端）──
+      // 用户表达稳定偏好（"记住/以后都/我喜欢/别再"）时，LLM 提炼一条档案写入
       // LTM —— S1 人格一致性从此有米下锅。仅在有 userId 时执行（偏好按人存）。
+      // #6 触发词收紧：去掉裸"以后"（"以后价格会变吗"类疑问不再误触发）。
       if (
         userId &&
         this.configService.get<string>('ENABLE_PREFERENCE_DISTILL', 'true') ===
           'true' &&
-        /(记住|以后|以后都|以后请|我喜欢|我不喜欢|别再|下次直接|以后直接)/.test(
+        /(记住|帮我记住|以后都|以后请|以后固定|以后直接|我喜欢|我不喜欢|别再)/.test(
           params.message,
         )
       ) {
@@ -908,6 +927,9 @@ export class Orchestrator {
             ],
             { temperature: 0, max_tokens: 120 },
           );
+          // #3 辅助调用 token 计入用量与计费
+          auxPromptTokens += prefRes.prompt_tokens ?? 0;
+          auxCompletionTokens += prefRes.completion_tokens ?? 0;
           const pm = (prefRes.content ?? '').match(/\{[\s\S]*\}/);
           if (pm) {
             const pref = JSON.parse(pm[0]) as {
@@ -934,6 +956,11 @@ export class Orchestrator {
           );
         }
       }
+
+      // #3 辅助调用 token 并入总账（意图分诊/S2 自检/G-D 偏好提炼三处，
+      // 此前少报导致 usage 行低估、billing.consume 少扣）
+      totalPromptTokens += auxPromptTokens;
+      totalCompletionTokens += auxCompletionTokens;
 
       // ── 6. 保存对话历史 ──
       await this.memoryManager.saveHistory(
@@ -1096,6 +1123,34 @@ export class Orchestrator {
         errorMessage: errorMsg,
       });
     }
+  }
+
+  /**
+   * #5 工具执行超时闸门（2026-09-05 找茬审计）：
+   * executor 层此前无超时保护，非 HTTP 路径的工具逻辑卡死会挂住整个 SSE 流。
+   * 超时（默认 60s，TOOL_TIMEOUT_MS 可调）转为失败结果交 LLM 处理，
+   * 不再无限等待。底层 promise 无法真正取消，但流程不再被挂起。
+   */
+  private async executeToolWithTimeout(
+    tc: ToolCall,
+    toolContext: ToolContext,
+  ): Promise<ToolResult> {
+    const timeoutMs = Number(
+      this.configService.get<number>('TOOL_TIMEOUT_MS', 60000),
+    );
+    return await Promise.race([
+      this.executor.executeToolCall(tc, toolContext),
+      new Promise<ToolResult>((resolve) =>
+        setTimeout(
+          () =>
+            resolve({
+              success: false,
+              error: `工具执行超时（${timeoutMs}ms），请稍后重试或简化请求`,
+            }),
+          timeoutMs,
+        ),
+      ),
+    ]);
   }
 
   /**

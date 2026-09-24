@@ -2824,6 +2824,8 @@ CREATE TABLE ai_evolution_version (
 > 超出参考图的能力（自主进化 E1-E5、多租户、写全审核、降级熔断、计费审计）维持不变。
 >
 > **深度优化整合（2026-09-05 第八轮）**：①O1 系统提示词工具清单瘦身——此前全量 106 个工具描述注入系统提示词（约 1 万字符）且与 function calling 定义双重注入，现按意图分诊子集注入（`BuildContextParams.toolListForPrompt`），分诊未命中（全量回退）时保持全量；②O2 桌面端渲染四个新事件——`plan_start`（执行计划卡：步骤列表）、`plan_step`（进度 N/M）、`reflection`（失败自动重试状态）、`task_artifact`（产物卡带打开/下载链接），参考架构能力在产品界面可见；③O3 指标补齐——`ai_chat_plan_total`（规划次数）、`ai_tool_retry_total{recovered}`（重试恢复率，持续偏低说明工具层质量需治理）；④O5 knowledge 规则缓存 10 分钟 TTL——规则文档编辑免重启生效。
+>
+> **找茬审计修复（2026-09-05 第九轮）**：①`MAX_ITERATIONS` 10→14（G-A 规划最多 12 步，原 10 轮上限会让多步计划中途撞 AI_009）；②G-C 自动重试加 `isWriteOperation` 门控——只读工具才自动重试，写工具 confirm 执行后若因超时/响应丢失失败，重试有重复开单风险，改为交 LLM 如实告知；③辅助 LLM 调用（意图分诊/S2 自检/G-D 偏好提炼）token 计入 usage 与 `billing.consume`（此前三处 chatSync 少报）；④工具执行超时闸门 `TOOL_TIMEOUT_MS`（默认 60s，超时转失败结果交 LLM，防工具卡死挂住 SSE 流）；⑤触发词收紧（偏好沉淀去掉裸"以后"、自动纠错去掉"不是这"，减少无谓辅助调用）。遗留：#4 审计明文（合规项）、#7 桌面端会话恢复丢结构化卡、#8 agent 通道智能升级同步、#9 plan_step 工具名匹配兜底。
 
 ---
 
