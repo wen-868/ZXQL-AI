@@ -2838,6 +2838,8 @@ CREATE TABLE ai_evolution_version (
 > **工具调用能力基准（2026-09-05 第十四轮）**：新增 `scripts/tool-bench.js`（对标 Codex 级代理行为的 5 用例矩阵：单跳查询/链式两跳/多跳写流程/诚实回报/多轮续接，断言工具序列+答案内容+终态事件）。首轮得分 5/14（36%）暴露 **P0 安全漏洞：LLM 在参数里自带 confirm=true 绕过写全审核直接开单**（XS 单号真实落库）。修复：ToolExecutor 增加**写全审核强制门**——写工具的 confirm=true 仅允许经 ConfirmationService 通道（allowConfirm=true，全仓唯一调用方）注入，其余任何调用方（chat/MCP/agent/admin/v2）一律强制降级为预览并告警日志。复测：两次"现在就开"话术均止步 pending_write、日志两次强制降级。其余发现定性：TC2/TC4 失败根因=并行会话测试库商品主数据与库存数据不同步（后端 keyword 搜"五粮液"0 命中但库存行存在），工具行为忠实；证据纪律新增第 5 条（多行返回先核对名称与所问一致，错配行必须指出）。
 >
 > **能力缺口盘点与补齐（2026-09-05 第十五轮）**：对照全量能力清单盘点后落地三项——①**撤销映射补齐**：ROLLBACK_MAP 新增 createSalesOrder→cancelOrder（billNo 提取），撤销能力从 1 种→2 种（其余 18 种仍需后端逐类型取消端点）；②**EvidenceLedger 接入主链路**（此前仅 graph 模式）：写工具经确认实际执行后逐笔记录意图+参数+结果到证据台账（审计留痕，供撤销/追责/评测溯源），主链路与 graph 双通道覆盖；③**审计 PII 掩码开关** `AUDIT_MASK_MESSAGE`（默认 false 存明文；true 时手机号/证件号打码入审计库，合规可开）。规划中暂缓项（理由入档）：E4 蒸馏本体（等样本阈值+Ollama 设施）、MCP Client（架构扩展位）、桌面端结构化卡持久化（前端体验项）、澄清事件统一（现纯文本提问可用）、指代消解时间类（系统时间说明已覆盖）、agent 通道同步（能力不缺、待统一编排器重构一并做）、总台前端四页（跨仓 saas-admin）。
+>
+> **可做项清零（2026-09-05 第十六轮）**：①**桌面端结构化卡持久化**——plan_start/task_artifact/确认执行结果摘要存入会话消息 cards 字段，刷新后计划/产物/执行结果不再丢失（renderMsgs 重渲染）；②**MCP 全生命周期实测通过（WorkBuddy 实测项完成，模拟客户端）**：发 token（明文一次）→initialize→tools/list(50)→tools/call 写预览（写闸门经 MCP 生效）→write_guard_confirm→**真实创建商品**；实测发现并修复 **MCP 服务账号 CSRF bug**——toolContext.userId='mcp' 与服务 JWT id=0 不一致，后端 CSRF 期望 HMAC(secret,'0') 导致服务账号写请求 403，对齐为 '0' 后闭环；③**agent 通道规则注入同步**——task-runner 的 agent 步提示词按目标意图注入相关域业务规则（agent 通道与 chat 通道规则覆盖拉齐）；④澄清追问一次性列全（回复格式要求第 6 条）。**剩余不可做项（均外部触发）**：E4 蒸馏（样本阈值+设施）、MCP Client（等外部需求）、总台四页（跨仓+规格确认）、agent 通道统一编排器重构（需立项）、生产部署（用户操作）。
 
 ---
 

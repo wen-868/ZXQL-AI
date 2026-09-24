@@ -442,7 +442,10 @@ function renderMsgs(){
   if(s.msgs.length===0){greetLine();return}
   for(const m of s.msgs){
     if(m.r==='u')userEl(m.t);
-    else{const b=aiEl();b.textContent=m.t}
+    else{const b=aiEl();b.textContent=m.t;
+      // 结构化卡持久化：计划/产物/执行结果摘要随会话恢复
+      if(m.cards&&m.cards.length){const cd=document.createElement('div');cd.style.cssText='font-size:11px;color:var(--sub);margin-top:6px;line-height:1.8';cd.innerHTML=m.cards.map(c=>esc(c)).join('<br>');b.appendChild(cd)}
+    }
   }
   const d=document.createElement('div');d.className='divider';d.innerHTML=`<i>${ic('msg',12)}</i><span>对话内容</span>`;col.appendChild(d);
   end();
@@ -493,6 +496,7 @@ function tlFinish(b,ok){
 /* 写确认卡（真实 R70-15 确认机制） */
 function showConfirm(host,token,preview,expireAt){
   const b=host.classList&&host.classList.contains('bd')?host:aiBody();
+  const opLabel=(preview&&preview.operation)||'写操作';
   const c=document.createElement('div');c.className='confirm';
   const det=preview&&preview.details?Object.entries(preview.details):[];
   const rows=det.map(([k,v])=>`<tr><td class="k">${esc(k)}</td><td class="${/金额|合计|总价/.test(k)?'amt':''}">${esc(String(v))}</td></tr>`).join('');
@@ -523,6 +527,9 @@ function showConfirm(host,token,preview,expireAt){
       c.querySelector('.bar').remove();tm.remove();
       c.querySelector('.note').innerHTML=`${ic('file',12)} 已写入系统 · 审计留痕${r.operationId?(' · 3 分钟内可撤销（'+r.operationId+'）'):''}`;
       c.querySelector('.acts').remove();end();
+      // 结构化卡持久化：执行结果随会话保存
+      const lastA=[...curSession().msgs].reverse().find(m=>m.r==='a');
+      if(lastA){(lastA.cards=lastA.cards||[]).push('✅ 已执行：'+opLabel+(r.operationId?`（操作ID ${r.operationId.slice(0,8)}，可撤销）`:''));saveS()}
     }else{
       this.textContent='确认执行';this.disabled=false;
       toast('执行失败：'+(r.error||'未知错误'));
@@ -550,7 +557,8 @@ async function go(t){
   if(sess.title==='新对话'){sess.title=t.slice(0,20);renderSessions()}
   const b=aiEl();b.classList.add('typing');
   const bd=b.parentElement.querySelector('.bd');
-  const tlMap={};let toolCount=0,toolFail=0;let planItem=null,planTotal=0,planDone=0;
+  const tlMap={};let toolCount=0,toolFail=0;let planItem=null,planTotal=0,planDone=0;const cards=[];
+  const attachCards=()=>{const lastA=[...sess.msgs].reverse().find(m=>m.r==='a');if(lastA&&cards.length)lastA.cards=[...cards]};
   try{
     const r=await fetch(S.server+'/api/chat',{
       method:'POST',
@@ -603,6 +611,7 @@ async function go(t){
               const steps=ev.steps||[];planTotal=steps.length;planDone=0;
               planItem=tlAdd(bd,`执行计划（${planTotal} 步）`);
               tlDone(bd,planItem,true,steps.map((s,i)=>`${i+1}.${s.label}`).join(' → '));
+              cards.push(`📋 执行计划(${planTotal}步)：`+steps.map((s,i)=>`${i+1}.${s.label}`).join(' → '));
               break}
             case 'plan_step':{
               planDone++;
@@ -621,7 +630,9 @@ async function go(t){
               const a=ev.artifact||{};
               const line=document.createElement('div');line.className='usage-line';line.style.cssText='font-size:12px;margin-top:8px;line-height:1.6';
               line.innerHTML=`📎 任务产物：<b>${esc(a.name||'文件')}</b>${a.url?` · <a href="${esc(a.url)}" target="_blank" style="color:var(--blue)">打开 / 下载</a>`:''}${a.summary?`<div style="color:var(--sub);font-size:11px">${esc(a.summary)}</div>`:''}`;
-              bd.appendChild(line);end();break}
+              bd.appendChild(line);end();
+              cards.push(`📎 任务产物：${a.name||'文件'}${a.url?' · '+a.url:''}`);
+              break}
             case 'done':
               sess.id=ev.conversationId||sess.id;
               if(ev.usage){const u=ev.usage;const d=document.createElement('div');d.className='usage-line';d.style.cssText='font-size:11px;color:var(--sub);opacity:.75;margin-top:6px';d.textContent=`${u.totalTokens||0} tokens · ${(u.latencyMs/1000||0).toFixed(1)}s · ${u.iterations||0} 轮`;bd.appendChild(d)}
@@ -640,6 +651,7 @@ async function go(t){
   b.classList.remove('typing');
   if(toolCount)tlFinish(bd,toolFail===0);
   sess.msgs.push({r:'a',t:b.textContent||'（无文本回复）'});
+  attachCards();
   saveS();end();
   busy=false;$('#send').disabled=false;
 }

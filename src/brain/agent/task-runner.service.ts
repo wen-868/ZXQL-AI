@@ -25,6 +25,8 @@ import { PlannerService } from './planner.service';
 import { CaptureService } from '../../evolution/capture.service';
 import { MetricsService } from '../../common/metrics.service';
 import { AuditLogger } from '../../bridge/audit-logger';
+import { detectIntentCategories } from '../intent-detector';
+import { KnowledgeRulesService } from '../knowledge-rules.service';
 import { AiConfigService } from '../../tenant/ai-config.service';
 import { ProviderRouterService } from '../router/provider-router.service';
 import { WRITE_TOKEN_TTL_MS } from '../write-guard.service';
@@ -74,6 +76,7 @@ export class TaskRunnerService {
     private readonly auditLogger: AuditLogger,
     private readonly router: ProviderRouterService,
     private readonly aiConfigService: AiConfigService,
+    private readonly knowledgeRules: KnowledgeRulesService,
   ) {}
 
   // ──────────────────────────────────────────────────────────
@@ -645,9 +648,16 @@ export class TaskRunnerService {
     toolCalls: Array<Record<string, unknown>>,
   ): AsyncGenerator<AgentRunEvent, StepOutcome> {
     const resolved = await this.aiConfigService.getResolvedConfig();
+    // agent 通道规则注入同步（2026-09-05 能力补齐）：按目标意图取相关域运营规则
+    const goalRules = this.knowledgeRules.getRulesContext(
+      detectIntentCategories(plan.goal),
+    );
     const systemPrompt =
-      step.prompt ??
-      `你是「${step.label}」域的专家 Agent，负责完成用户目标：${plan.goal}`;
+      (step.prompt ??
+        `你是「${step.label}」域的专家 Agent，负责完成用户目标：${plan.goal}`) +
+      (goalRules
+        ? `\n\n## 业务规则参考（执行工具时必须遵循；与工具结果冲突时以工具结果为准）\n${goalRules}`
+        : '');
     const messages: ChatMessage[] = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: plan.goal },

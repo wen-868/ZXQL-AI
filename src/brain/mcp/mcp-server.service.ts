@@ -417,7 +417,9 @@ export class McpServerService {
   private buildToolContext(tenantId: string): ToolContext {
     return {
       tenantId,
-      userId: 'mcp',
+      // 必须与服务 JWT 的 id（0）一致：后端 CSRF 期望 HMAC(secret, req.user.id)，
+      // 此前 'mcp' 与服务 JWT id 不一致导致服务账号写请求 403 CSRF（2026-09-05 MCP 实测发现）
+      userId: '0',
       sessionId: `mcp_${Date.now()}`,
       role: 'admin',
       authToken: this.buildServiceJwt(tenantId),
