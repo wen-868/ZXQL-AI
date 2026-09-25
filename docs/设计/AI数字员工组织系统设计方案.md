@@ -705,6 +705,7 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 | 澄清事件统一 | 无参数写意图从纯文本提问升级为 clarify 事件（需前端同步渲染） |
 | 孤儿任务记录 | dispatchTask 先建任务记录再校验 taskRunner，未装配时留下 running 孤儿记录（建议改为先校验 runner 再落库；单测已固化当前行为） |
 | spec 历史 TS 错误 28 处 | 全量 `tsc -p tsconfig.json` 仍有 28 处错误，全部在既有 *.spec.ts（历史遗留，非本轮引入）；按错误责任制需分批清零 |
+| lint 门禁红（10 error / 1 warning） | 2026-09-26 Jest 门禁修复后首次全量 `eslint` 取证：**10 error + 1 warning**，分布于 6 个文件（`answer-self-check.service.spec.ts` 4×unbound-method、`structured-extractor.spec.ts` 2×no-unsafe-member-access、`structured-extractor.ts` 1×no-base-to-string、`orchestrator.service.ts:950` 1×no-unsafe-return、`weekly-plan.service.spec.ts` 1×no-unsafe-assignment+1 warning、`e4-distillation.service.spec.ts` 1×no-unsafe-assignment）。**全部历史遗留**：eslint.config.mjs 自 init 未变，报错文件最后改动为 `ac9a70c`/`ef790e8`（早于本轮），且**仓库无 CI**，故第三条门禁从未真正执行过 |
 
 **🟡 有前置条件（条件成熟即启动）**
 
@@ -715,7 +716,7 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 | 生产部署 | **需用户执行**（P0 confirm 穿透修复等全部能力待上线，无迁移、零配置） |
 | ima 密钥作废 | 需用户在平台侧操作 |
 | 生产性能/能力观测 | 依赖生产部署完成后跑 perf-bench/tool-bench |
-| Jest 门禁本机不可用 | **jest 30.4.2 在本机解析 transform 失败**（`Module ts-jest in the transform option was not found`；绝对路径/实体目录/任意 .cjs 均失败，与 ts-jest 无关）。需决策：降级 jest 29 / 升 ts-jest 30 / `pnpm install --node-linker=hoisted`。当前取证方式：ts-node 最小运行时执行 spec |
+| ~~Jest 门禁本机不可用~~ | ✅ **已修复（2026-09-26）**：根因是 pnpm isolated 布局导致 jest 无法解析 transform 包，与 jest/ts-jest 版本无关。处置＝新增 `.npmrc`（`node-linker=hoisted`）+ 重建 node_modules + `test/setup-dom-matrix.js`（pdfjs-dist 需要 DOMMatrix）。结果：`npx jest` 106 套件 / 1016 用例全过。详见踩坑日志 [36] |
 
 **🔴 需决策/跨仓协作**
 
@@ -737,7 +738,22 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 |---|---|---|---|
 | P0-1 | `orchestrator.service.ts:522` 数字员工人设表达式 `employeePersona ?? systemPrompt ?? undefined ?? undefined` 触发 TS2871，构建类型检查 exit=2（远端 main 构建失败） | 改为 `employeePersona \|\| systemPrompt \|\| undefined`（`systemPrompt` 为 `string \| null`，目标字段为 `string \| undefined`；`\|\|` 同时让空人设回退默认提示词） | `npx tsc --noEmit -p tsconfig.build.json` → EXIT=0 |
 | P0-2 | 数字员工 MVP 新增 1185 行零单测，12.8.2 声称的"深度拒绝有单测语义"无对应用例 | 新增 `src/brain/employee/employee.service.spec.ts`（9 例）+ `src/tools/definitions/dispatch-employee-task.tool.spec.ts`（6 例） | 15/15 通过；`eslint` 0 error / 0 warning；全量 tsc 本次改动文件 0 错误（总错误 29→28，剩余 28 为既有 spec 历史遗留） |
+| P0-3 | Jest 门禁整机不可用：`Module ts-jest in the transform option was not found`，门禁三条（build/lint/test）实际只剩两条，所谓"全绿"无证据 | 根因**不是** jest/ts-jest 版本，而是 **pnpm `isolated`（符号链接）布局导致 jest 无法解析 transform 包**。处置＝新增 `.npmrc`（`node-linker=hoisted`）+ 重装依赖 + 新增 `test/setup-dom-matrix.js`（`pdf-parse → pdfjs-dist` 在 node 环境需要 `DOMMatrix`）+ `package.json` 加 `setupFiles` | 重装后 `node_modules/ts-jest` 由 symlink 变为真实目录；`npx jest` → **106 套件 / 1016 用例全过**，耗时 159.9s |
 
 **P0-2 用例清单**：派发即返回（任务 running + 署名 + 触发执行）、边表外拒绝、深度上限拒绝（depth 1 通过 / depth 2 拒绝）、用户直接交办、目标不存在、执行器未装配、执行异常落 failed、摘要截断 4000、列表边表回显；工具层：元信息、两处参数缺失、身份透传（callerUid/dispatchDepth）、无员工身份、服务拒绝回传。
+
+**P0-3 取证说明**：曾六次试探（含绝对路径 transform、降级 jest 29 预案）均误判为 jest 30 transform 解析链损坏；后在 `/tmp/jestlab` 用 **npm 扁平布局 + 同版本 jest 30 + ts-jest 29** 复现成功，反证为 pnpm 布局问题。另注意：Git Bash 下 `/tmp/x` 传给 Node 会被解析为 `<当前盘>:\tmp\x`（非 `C:\Users\...\Temp`），此前基于绝对路径的试探结论全部无效。详见踩坑日志 [36]。
+
+**测试基线更新**：104 套件 / 1001 用例（旧基线，未含 MVP 与 P0-2 新增）→ **106 套件 / 1016 用例**（2026-09-26 实测）。
+
+**门禁现状（2026-09-26 三条实测，结论先行：2 绿 1 红）**
+
+| 门禁 | 命令 | 结果 |
+|---|---|---|
+| build 类型检查 | `npx tsc --noEmit -p tsconfig.build.json` | ✅ EXIT=0 |
+| test | `npx jest` | ✅ 106 套件 / 1016 用例全过 |
+| lint | `npx eslint "{src,apps,libs,test}/**/*.ts"` | ❌ 10 error / 1 warning（全部历史遗留，已入 12.8.3 🟢 清单） |
+
+> 备注：三项此前**均无法取证**——Jest 因 pnpm 布局跑不起来，lint 因无 CI 且从未全量执行。故历史上"三条全绿"的说法均无证据支撑。
 
 
