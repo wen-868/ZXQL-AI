@@ -519,8 +519,8 @@ export class Orchestrator {
           userMessage,
           history,
           // 数字员工：岗位人设覆盖默认助手提示词，并附加员工身份
-          systemPrompt:
-            employeePersona ?? systemPrompt ?? undefined ?? undefined,
+          // 数字员工人设优先；systemPrompt 为 null/空时回退 undefined（避免 ?? undefined 触发 TS2871）
+          systemPrompt: employeePersona || systemPrompt || undefined,
           employeeIdentity: employee
             ? {
                 name: employee.name,
