@@ -33,3 +33,4 @@
 | 005 | t_ai_session_archive（会话冷备归档）+ t_tenant_ai_billing 补 balance 列（计费扣减，批次1） | 业务库 | ✅ 已建（005_session_archive_billing.sql） |
 | 006 | ai_execution_plan（Agent 自主执行计划，第22章） | 业务库 | ✅ 已建（006_ai_execution_plan.sql） |
 | 007 | t_platform_ai_config 补 evolution_auto_activate（E5 自治开关）+ ai_evolution_version 补 regression_accuracy/regression_evaluated_at（回归评测落库） | 业务库 + ai_db | ✅ 已建（007_e5_auto_close.sql） |
+| 008 | t_ai_employee（岗位档案，含 dispatch_uids 边表）+ t_ai_employee_task（任务留痕）+ t_ai_audit_log 补 employee_uid（审计署名） | 业务库 | ✅ 已建（008_digital_employee.sql） |

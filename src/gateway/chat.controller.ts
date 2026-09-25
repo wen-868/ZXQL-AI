@@ -190,6 +190,7 @@ export class ChatController {
         mode: dto.mode,
         graphId: dto.graphId,
         scope: dto.scope,
+        employeeUid: dto.employeeUid,
       })) {
         this.sendSse(res, event);
       }

@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ToolRegistry } from './tool-registry';
 import { ToolExecutor } from './tool-executor';
 import { ToolBootstrap } from './tool-bootstrap';
+import { EmployeeModule } from '../brain/employee/employee.module';
+import { DispatchEmployeeTaskTool } from './definitions/dispatch-employee-task.tool';
 // R70-14: 智能价格填充引擎（可复用服务）
 import { PriceEngineService } from './price-engine.service';
 import { UnitConverterService } from './unit-converter.service';
@@ -96,10 +98,11 @@ import { CommonModule } from '../common/common.module';
  * 3. 在 ToolBootstrap 构造函数注入该工具，并在 onModuleInit 的 registerAll 数组中添加
  */
 @Module({
-  imports: [BridgeModule, CommonModule],
+  imports: [BridgeModule, CommonModule, EmployeeModule],
   providers: [
     ToolRegistry,
     ToolExecutor,
+    DispatchEmployeeTaskTool,
     CircuitBreakerService,
     ToolBootstrap,
     // R70-14: 智能价格填充引擎（可复用服务）

@@ -89,6 +89,6 @@ export class TenantModule implements NestModule {
       .apply(RequestLoggingMiddleware)
       .forRoutes('*')
       .apply(TenantMiddleware, RateLimiterMiddleware)
-      .forRoutes('chat', 'ai/agent', 'ai/v2');
+      .forRoutes('chat', 'ai/agent', 'ai/v2', 'ai/employees');
   }
 }

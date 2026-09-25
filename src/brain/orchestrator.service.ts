@@ -44,6 +44,7 @@ import { TenantContext } from '../tenant/tenant-context';
 import { detectTone, toneDirective } from '../nlp/tone-detector';
 import { KnowledgeRulesService } from './knowledge-rules.service';
 import { EvidenceLedgerService } from './evidence/evidence-ledger.service';
+import { EmployeeService } from './employee/employee.service';
 import {
   isComplexGoal,
   matchPlanStepsByTool,
@@ -62,7 +63,11 @@ import { BillingService } from '../tenant/billing.service';
 import { AnswerSelfCheckService } from './answer-self-check.service';
 import { WRITE_TOKEN_TTL_MS } from './write-guard.service';
 import type { ChatMessage, ToolCall } from '../providers/provider.interface';
-import type { ToolContext, ToolResult } from '../tools/tool.interface';
+import type {
+  ToolCategory,
+  ToolContext,
+  ToolResult,
+} from '../tools/tool.interface';
 import { GraphExecutorService } from './graph/graph-executor.service';
 import {
   ChatResultWithFallback,
@@ -241,6 +246,10 @@ export interface OrchestratorParams {
   scope?: 'mgmt' | 'platform';
   /** 客户 ID（可选，运营客户端 customerScope 隔离：role=customer 时必填） */
   customerId?: string;
+  /** 数字员工 UID（可选：本次执行以某数字员工身份运行——人设/工具子集/记忆/审计按员工隔离） */
+  employeeUid?: string;
+  /** 派发深度（可选：数字员工链式派发的嵌套层数，0=用户直接发起） */
+  dispatchDepth?: number;
 }
 
 @Injectable()
@@ -267,6 +276,7 @@ export class Orchestrator {
     private readonly selfCheck: AnswerSelfCheckService,
     private readonly knowledgeRules: KnowledgeRulesService,
     private readonly evidence: EvidenceLedgerService,
+    private readonly employeeService: EmployeeService,
     private readonly planner: PlannerService,
     private readonly ltm: LongTermMemoryService,
   ) {}
@@ -372,6 +382,29 @@ export class Orchestrator {
         }
       }
 
+      // ── 3.8 数字员工维度（2026-09-05 MVP）：以员工身份运行时，
+      // 人设/工具子集/记忆/审计按员工隔离——岗位即预分诊，跳过 LLM 分诊 ──
+      let employee = null;
+      let employeePersona: string | null = null;
+      if (params.employeeUid) {
+        employee = await this.employeeService.getByUid(
+          params.employeeUid,
+          tenantId,
+        );
+        if (!employee || employee.status !== 1) {
+          yield {
+            type: 'error',
+            code: 'AI_001',
+            message: `数字员工不存在或已停用：${params.employeeUid}`,
+          };
+          return;
+        }
+        employeePersona = employee.personaPrompt;
+        this.logger.log(
+          `数字员工执行：${employee.name}（${employee.post}）tenant=${tenantId}`,
+        );
+      }
+
       // 多轮指代消解：检测"上一单/那个客户/它"并从历史提取上下文提示
       let userMessage = params.message;
       const reference = resolveReference(params.message, history);
@@ -385,25 +418,32 @@ export class Orchestrator {
       // ── 4. 意图分诊双通道（先于上下文构建：G1 业务规则注入依赖分诊结果）──
       // 关键词快车道 + LLM 分诊兜底，新话术不再回退全量慢车道；用指代消解后的消息。
       // 辅助调用 token 全部计入用量与计费（#3：此前三处 chatSync 的 token 少报）
+      // 数字员工运行：岗位工具子集即预分诊，跳过 LLM 分诊（省一次调用）
       let auxPromptTokens = 0;
       let auxCompletionTokens = 0;
-      const intent = await resolveIntentCategories(userMessage, async (msg) => {
-        const prompt = buildLlmClassifierPrompt(msg);
-        const res = await provider.chatSync(
-          [{ role: 'user', content: prompt }],
-          { temperature: 0, max_tokens: 100 },
-        );
-        auxPromptTokens += res.prompt_tokens ?? 0;
-        auxCompletionTokens += res.completion_tokens ?? 0;
-        const content = res.content?.trim() ?? '';
-        const match = content.match(/\[[\s\S]*\]/);
-        if (!match) return null;
-        try {
-          return JSON.parse(match[0]) as string[];
-        } catch {
-          return null;
-        }
-      });
+      const intent = employee
+        ? {
+            categories: (employee.toolCategories ?? undefined) as
+              ToolCategory[] | undefined,
+            lane: 'rules' as const,
+          }
+        : await resolveIntentCategories(userMessage, async (msg) => {
+            const prompt = buildLlmClassifierPrompt(msg);
+            const res = await provider.chatSync(
+              [{ role: 'user', content: prompt }],
+              { temperature: 0, max_tokens: 100 },
+            );
+            auxPromptTokens += res.prompt_tokens ?? 0;
+            auxCompletionTokens += res.completion_tokens ?? 0;
+            const content = res.content?.trim() ?? '';
+            const match = content.match(/\[[\s\S]*\]/);
+            if (!match) return null;
+            try {
+              return JSON.parse(match[0]) as string[];
+            } catch {
+              return null;
+            }
+          });
 
       // ── 4.1 O7 规划先行启动（与分诊并行，2026-09-05 性能优化）──
       // 复杂目标时 Planner LLM 调用与意图分诊并发执行，省一次串行等待（约 1-2s）。
@@ -461,7 +501,7 @@ export class Orchestrator {
       // O1 系统提示词工具清单瘦身：分诊命中域时只注入相关域工具描述；
       // O6 chat 车道（纯寒暄）注入空清单（零工具直答，省 2 万+ token/次）
       const allTools = this.registry.list();
-      const promptTools =
+      let promptTools =
         intent.lane === 'chat'
           ? []
           : intent.categories && intent.categories.length > 0
@@ -478,7 +518,18 @@ export class Orchestrator {
           customerId,
           userMessage,
           history,
-          systemPrompt: systemPrompt ?? undefined,
+          // 数字员工：岗位人设覆盖默认助手提示词，并附加员工身份
+          systemPrompt:
+            employeePersona ?? systemPrompt ?? undefined ?? undefined,
+          employeeIdentity: employee
+            ? {
+                name: employee.name,
+                post: employee.post,
+                department: employee.department,
+                replyStyle: employee.replyStyle ?? '',
+                dispatchable: (employee.dispatchUids?.length ?? 0) > 0,
+              }
+            : undefined,
           // S4 语气适配：按用户语气注入节奏指令（急迫先结论/轻松简短/正式敬语）
           toneDirective: toneDirective(detectTone(userMessage)),
           // G1 业务规则：相关域运营规则（默认 RAG 关闭时规则也能进上下文）
@@ -492,18 +543,44 @@ export class Orchestrator {
       );
 
       // O6 chat 车道：零工具定义（LLM 直接回答，不进 function calling）
-      const toolDefinitions =
+      let toolDefinitions =
         intent.lane === 'chat'
           ? []
           : this.registry.toToolDefinitionsForCategories(
               intent.categories,
               params.scope,
             );
+      // 数字员工且有派发权：追加派发工具定义（system 类工具不在岗位子集内，
+      // 但有下级的员工必须能看到自己的派发能力）
+      if (employee && (employee.dispatchUids?.length ?? 0) > 0) {
+        const dispatchMeta = this.registry
+          .list()
+          .find((t) => t.name === 'dispatchEmployeeTask');
+        if (
+          dispatchMeta &&
+          !toolDefinitions.some(
+            (d) => d.function.name === 'dispatchEmployeeTask',
+          )
+        ) {
+          toolDefinitions = [
+            ...toolDefinitions,
+            {
+              type: 'function' as const,
+              function: {
+                name: dispatchMeta.name,
+                description: dispatchMeta.description,
+                parameters: dispatchMeta.parameters,
+              },
+            },
+          ];
+          promptTools = [...promptTools, dispatchMeta];
+        }
+      }
       this.logger.debug(
         `意图分诊：lane=${intent.lane} 工具集=${toolDefinitions.length} 个 规则=${rulesContext ? '注入' : '无'}（消息「${params.message.slice(0, 20)}」）`,
       );
 
-      // 构造工具执行上下文
+      // 构造工具执行上下文（数字员工运行时携带员工身份与派发深度）
       const toolContext: ToolContext = {
         tenantId,
         userId,
@@ -511,6 +588,8 @@ export class Orchestrator {
         role,
         customerId,
         authToken,
+        employeeUid: params.employeeUid,
+        dispatchDepth: params.dispatchDepth ?? 0,
       };
 
       // ── 4.5 有状态图模式（P0-1）：按图执行工具/条件/Agent 节点，Checkpointer 持久化 ──
@@ -1126,6 +1205,7 @@ export class Orchestrator {
         tenantId,
         userId,
         sessionId: conversationId,
+        employeeUid: params.employeeUid,
         provider: providerName,
         model: modelName,
         intent: 'chat',
@@ -1158,6 +1238,7 @@ export class Orchestrator {
         tenantId,
         userId,
         sessionId: conversationId,
+        employeeUid: params.employeeUid,
         provider: providerName,
         model: modelName,
         intent: 'chat',

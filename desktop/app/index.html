@@ -200,6 +200,7 @@ body:not(.native) .mask,body:not(.native) .drawer{position:absolute}
   <aside class="side" id="side">
     <button class="newchat" id="newChat"><i data-ic="edit" data-sz="15"></i>新对话</button>
     <div class="sess-list" id="sessList"></div>
+    <div class="sess-list" id="empList" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px"></div>
     <div class="user-card" id="userCard"><div class="av">?</div><div><div class="n">未登录</div><div class="r">请在设置中登录</div></div></div>
   </aside>
 
@@ -365,7 +366,7 @@ async function login(){
     store.set('token',S.token);store.set('user',S.user);
     $('#cfgPass').value='';
     toast('登录成功，欢迎 '+((S.user&&(S.user.realName||S.user.username))||''));
-    greet();updateUserCard();loadModels();pullPending();
+    greet();updateUserCard();loadModels();pullPending();loadEmployees();
   }catch(e){toast('登录失败：'+e.message)}
   btn.textContent='登 录';btn.disabled=false;
 }
@@ -390,7 +391,7 @@ async function demoLogin(){
     toast('已进入演示模式（免密体验）');
     // 幂等初始化演示数据；失败不阻塞进入（与 admin-web 一致）
     fetch(S.auth+'/api/admin/demo/seed',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+S.token}}).catch(()=>{});
-    greet();updateUserCard();loadModels();pullPending();
+    greet();updateUserCard();loadModels();pullPending();loadEmployees();
   }catch(e){toast('演示登录失败：'+e.message)}
   btn.textContent='演示登录（免密）';btn.disabled=false;
 }
@@ -431,10 +432,57 @@ function curSession(){if(!S.cur)newSession();return S.cur}
 function selectSession(i){
   S.cur=S.sessions[i];saveS();renderSessions();renderMsgs();
 }
+/* 数字员工区块：员工即对话框（2026-09-05） */
+let EMPLOYEES=[];let curEmployee=null;
+async function loadEmployees(){
+  try{
+    const r=await fetch(S.server+'/api/ai/employees',{headers:{'Authorization':'Bearer '+S.token}});
+    if(!r.ok)return;
+    const j=await r.json();EMPLOYEES=Array.isArray(j)?j:(j.data||[]);
+    renderSessions();
+  }catch(e){/* 静默 */}
+}
+function openEmployeeDialog(emp){
+  curEmployee=emp;
+  const cid='emp_'+emp.employeeUid;
+  let sess=S.sessions.find(x=>x.employeeUid===emp.employeeUid);
+  if(!sess){sess={id:cid,employeeUid:emp.employeeUid,title:'👤 '+emp.name+'（'+emp.post+'）',ts:Date.now(),msgs:[]};S.sessions.unshift(sess);}
+  S.cur=sess;saveS();renderSessions();renderMsgs();
+  renderMsgs();loadEmployeeTasks(emp);
+}
+function renderEmployees(){
+  const list=document.querySelector('#empList');
+  if(!list)return;
+  list.innerHTML=EMPLOYEES.map(e=>
+    `<div class="sess ${curEmployee&&curEmployee.employeeUid===e.employeeUid?'on':''}" data-uid="${e.employeeUid}">`+
+    `<i></i><div><div style="font-size:12px;font-weight:600">👤 ${esc(e.name)}</div>`+
+    `<div style="font-size:10px;color:var(--sub)">${esc(e.post)} · ${esc(e.status)}${(e.dispatchUids&&e.dispatchUids.length)?' · 可调度 '+e.dispatchUids.length+' 人':''}</div></div></div>`
+  ).join('');
+  list.querySelectorAll('.sess').forEach(n=>{
+    n.onclick=()=>{const uid=n.dataset.uid;const emp=EMPLOYEES.find(x=>x.employeeUid===uid);if(emp)openEmployeeDialog(emp)};
+  });
+}
+async function loadEmployeeTasks(emp){
+  try{
+    const r=await fetch(S.server+'/api/ai/employees/'+emp.id+'/tasks',{headers:{'Authorization':'Bearer '+S.token}});
+    const tasks=await r.json();
+    const arr=Array.isArray(tasks)?tasks:[];
+    if(arr.length===0)return;
+    const col=document.querySelector('#chatCol');if(!col)return;
+    arr.slice(0,5).forEach(t=>{
+      const b=aiEl();b.textContent='【任务】'+t.task;
+      const bd=b.parentElement.querySelector('.bd');
+      const d=document.createElement('div');d.className='usage-line';d.style.cssText='font-size:11px;color:var(--sub);margin-top:4px';
+      d.textContent=(t.status==='completed'?'✅ ':'⏳ ')+(t.resultSummary||'执行中').slice(0,120);
+      bd.appendChild(d);col.appendChild(b.parentElement);end();
+    });
+  }catch(e){/* 静默 */}
+}
 function renderSessions(){
   const el=$('#sessList');
   el.innerHTML=S.sessions.map((s,i)=>`<div class="sess ${S.cur===s?'on':''}"><i></i>${esc(s.title||'新对话')}</div>`).join('');
   el.querySelectorAll('.sess').forEach((n,i)=>{n.querySelector('i').innerHTML=ic('msg',14);n.onclick=()=>selectSession(i)});
+  renderEmployees();
 }
 function renderMsgs(){
   const col=$('#chatCol');col.innerHTML='';
@@ -563,7 +611,7 @@ async function go(t){
     const r=await fetch(S.server+'/api/chat',{
       method:'POST',
       headers:{'Content-Type':'application/json','Accept':'text/event-stream','Authorization':'Bearer '+S.token},
-      body:JSON.stringify({message:t,conversationId:sess.id||undefined,model:S.model||undefined})
+      body:JSON.stringify({message:t,conversationId:sess.id||undefined,model:S.model||undefined,employeeUid:sess.employeeUid||undefined})
     });
     if(!r.ok){
       const j=await r.json().catch(()=>({}));

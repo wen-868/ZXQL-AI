@@ -52,6 +52,15 @@ export interface BuildContextParams {
   rulesContext?: string;
   /** G-A 执行计划（复杂目标经 PlannerService 拆解后的步骤块；无计划不传） */
   planContext?: string;
+  /** 数字员工身份（员工运行时由调用方传入；渲染为员工身份块） */
+  employeeIdentity?: {
+    name: string;
+    post: string;
+    department: string;
+    replyStyle: string;
+    /** 是否有下级可派发（true 时提示词告知派发能力与工具） */
+    dispatchable?: boolean;
+  };
   /** O1 系统提示词工具清单（意图分诊后的子集；不传注入全量——106 工具全量描述约 1 万字符） */
   toolListForPrompt?: Array<{
     name: string;
@@ -369,6 +378,20 @@ ${profiles.map((p) => `- ${p.k}：${JSON.stringify(p.v)}`).join('\n')}`,
 3. 工具未覆盖的信息，明确告知「当前未查询到 / 需要先查询 XX」；禁止用猜测顶替业务事实。
 4. 金额单位为元，数量单位跟随工具返回（瓶/箱），日期格式 YYYY-MM-DD。
 5. 查询类工具返回多行数据时，先核对每行的名称与用户所问是否一致；把无关行的数据当成用户所问对象的答案属于严重错误（如查「A」却报了「B」的库存，必须明确说明查到的行与所问不符）。`;
+
+    // 数字员工身份块（员工运行时注入，让模型知道自己的岗位与职责边界）
+    if (params.employeeIdentity) {
+      const ei = params.employeeIdentity;
+      prompt +=
+        `\n\n## 员工身份（最高优先级的自我认知）\n` +
+        `你是虚拟团队成员「${ei.name}」，岗位「${ei.post}」，隶属${ei.department}。\n` +
+        `- 只处理本岗位职责范围内的事务；超出范围时如实告知并建议找对应岗位。\n` +
+        `- ${ei.replyStyle}\n` +
+        `- 对话中出现的【任务派发】【任务回传】是你的正式工作往来。\n` +
+        (ei.dispatchable
+          ? `- 你有下级员工：需要他人执行的任务，立即调用 dispatchEmployeeTask 工具派发（不要自己代劳，也不要只口头转达）；派发后告知用户已完成派单。`
+          : `- 你没有下级可派发，所有事亲自完成。`);
+    }
 
     // S4 语气适配指令（调用方按用户语气生成；空串不追加）
     if (params.toneDirective && params.toneDirective.trim().length > 0) {

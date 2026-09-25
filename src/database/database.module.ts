@@ -29,6 +29,10 @@ import { AiEvolutionEntity } from './entities/ai-evolution.entity';
 import { McpTokenEntity } from './entities/mcp-token.entity';
 import { AiSessionArchiveEntity } from './entities/ai-session-archive.entity';
 import { AiExecutionPlanEntity } from './entities/ai-execution-plan.entity';
+import {
+  AiEmployeeEntity,
+  AiEmployeeTaskEntity,
+} from './entities/ai-employee.entity';
 
 /**
  * 所有 AI 底座 Entity 列表
@@ -51,6 +55,8 @@ export const AI_ENTITIES = [
   McpTokenEntity,
   AiSessionArchiveEntity,
   AiExecutionPlanEntity,
+  AiEmployeeEntity,
+  AiEmployeeTaskEntity,
 ];
 
 @Module({

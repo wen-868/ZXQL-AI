@@ -41,6 +41,8 @@ export interface AiCallAuditRecord {
   model?: string;
   /** 意图标签（如 'sales_order_create' / 'inventory_query'） */
   intent?: string;
+  /** 数字员工 UID（以数字员工身份运行时署名） */
+  employeeUid?: string;
   /** 用户消息原文 */
   userMessage?: string;
   /** 工具调用记录（JSON 数组，包含每次 tool_call 的 name/args/success/duration） */
@@ -168,6 +170,7 @@ export class AuditLogger {
         provider: record.provider ?? null,
         model: record.model ?? null,
         intent: record.intent ?? null,
+        employeeUid: record.employeeUid ?? null,
         userMessage,
         toolCalls: toolCalls.length > 0 ? toolCalls : null,
         promptTokens: record.promptTokens,

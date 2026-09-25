@@ -79,6 +79,10 @@ export interface ToolContext {
   customerId?: string;
   /** 用户 JWT token（可选，ServiceClient 透传给后端 API 做认证） */
   authToken?: string;
+  /** 数字员工 UID（可选：该次执行以某数字员工身份运行时携带，派发权限校验用） */
+  employeeUid?: string;
+  /** 当前派发深度（可选：数字员工链式派发的嵌套层数，0=用户直接发起） */
+  dispatchDepth?: number;
 }
 
 /**

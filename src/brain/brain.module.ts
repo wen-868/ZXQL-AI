@@ -54,6 +54,8 @@ import { PlatformAiConfigEntity } from '../database/entities/platform-ai-config.
 import { EvolutionAutonomyScheduler } from './evolution-autonomy.scheduler';
 import { AnswerSelfCheckService } from './answer-self-check.service';
 import { KnowledgeRulesService } from './knowledge-rules.service';
+import { EmployeeModule } from '../brain/employee/employee.module';
+import { EmployeeTaskBridge } from './employee/employee-task-bridge.service';
 import { PlannerService } from './agent/planner.service';
 import { SelfHealLoopService } from './agent/self-heal-loop.service';
 import { TaskRunnerService } from './agent/task-runner.service';
@@ -83,6 +85,7 @@ import { ReportService } from './v2/report.service';
     EvolutionModule,
     AiDbModule,
     CommonModule,
+    EmployeeModule,
   ],
   providers: [
     ContextBuilder,
@@ -110,6 +113,7 @@ import { ReportService } from './v2/report.service';
     ReportService,
     EvolutionAutonomyScheduler,
     AnswerSelfCheckService,
+    EmployeeTaskBridge,
     KnowledgeRulesService,
   ],
   exports: [

@@ -78,6 +78,16 @@ export class AiAuditLogEntity {
   })
   intent!: string | null;
 
+  /** 数字员工 UID（以数字员工身份运行时署名） */
+  @Column({
+    name: 'employee_uid',
+    type: 'varchar',
+    length: 40,
+    nullable: true,
+    comment: '数字员工UID',
+  })
+  employeeUid!: string | null;
+
   /** 用户消息原文 */
   @Column({
     name: 'user_message',

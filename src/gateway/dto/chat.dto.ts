@@ -86,6 +86,11 @@ export class ChatDto {
   @IsIn(['mgmt', 'platform'], { message: 'scope 仅支持 mgmt 或 platform' })
   scope?: 'mgmt' | 'platform';
 
+  /** 数字员工 UID（可选：本次对话以该数字员工身份执行——人设/工具/记忆按员工隔离） */
+  @IsOptional()
+  @IsString()
+  employeeUid?: string;
+
   /** 图片（可选，感知·看）：base64 或 data URL，最大约 15MB
    *
    * 传入时后端调用视觉模型（glm-4v-flash）生成内容描述并入对话上下文；

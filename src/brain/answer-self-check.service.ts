@@ -47,7 +47,8 @@ export class AnswerSelfCheckService {
   }
 
   /**
-   * 构建核对提示词（证据摘要逐工具 600 字符，回答 1200 字符）
+   * 构建核对提示词（证据摘要逐工具 4000 字符，回答 1200 字符；
+   * 口径换算不算失真；截断部分不得据以判定）
    */
   buildVerifyPrompt(
     toolResults: SelfCheckToolResult[],
@@ -59,7 +60,7 @@ export class AnswerSelfCheckService {
         (t) =>
           `${t.tool}（${t.success ? '成功' : '失败'}）：${JSON.stringify(
             t.data ?? t.error ?? {},
-          ).slice(0, 600)}`,
+          ).slice(0, 4000)}`,
       )
       .join('\n');
     return (
