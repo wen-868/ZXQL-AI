@@ -724,9 +724,9 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 |---|---|
 | 总台前端四页 | 跨仓 saas-admin + 页面交互规格需确认 |
 | agent 通道统一编排器重构 | 需立项规划（chat/agent/graph 三通道合一的大动作） |
-| 回滚映射其余 18 种写操作 | 需后端逐类型取消端点配合（跨仓） |
-| CSRF_SECRET 密钥复用 | 两仓（AI 底座+管理系统 backend）同步改 |
-| 写全审核 TTL 24h 调整 | 权威文档既定设计，需产品决策 |
+| 回滚映射其余 18 种写操作 | 需后端逐类型取消端点配合（跨仓）；**本仓侧已修掉撤销回滚的静默谎报**（失败不再报成功、保留重试入口），见 12.8.8 / 踩坑日志 [39] |
+| CSRF_SECRET 密钥复用 | 两仓同步改（策略仍需决策）；**本仓已消除静默失败**：缺失时启动告警 + 403 报错点名根因，见 12.8.8 / 踩坑日志 [41] |
+| ~~写全审核 TTL 24h 调整~~ | ✅ **代码阻塞已解除（2026-09-26）**：改为 `WRITE_TOKEN_TTL_HOURS` 环境变量可配，默认仍 24h；数值仍待产品拍板，但拍板后改 env 重启即可，无需改代码发版。见 12.8.8 / 踩坑日志 [40] |
 
 **✅ 本轮已完成的原遗留项（从清单移出）**：桌面端结构化卡持久化（cards 字段）、审计 PII 掩码开关（AUDIT_MASK_MESSAGE）、agent 通道规则注入同步、自检摘要截断误报修复（600→4000）、**orchestrator 数字员工人设 TS2871 修复**、**数字员工派发单测补齐（15 例）**。
 
@@ -825,5 +825,35 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 | `provider-router.service.spec.ts` | `AiConfigService` | `this.aiConfig.isFallbackEnabled()`（被 try/catch 吞掉后按默认开启处理，静默降级） |
 
 **验证**：`npx tsc --noEmit -p tsconfig.json` → EXIT=0（0 错误）；`npx jest` → 108 套件 / 1039 用例全过；行为未变（全部为类型层修复，未改断言语义）。
+
+### 12.8.8 遗留项再调查：三个真缺陷与一处阻塞解除（2026-09-26）
+
+对 12.8.3 的 🔴/🟡 遗留项逐条做代码级调查，结论是**其中三项并非"只能等外部决策"，而是本仓可独立完成的代码缺口**。三项均已修复并补单测。
+
+| # | 原分类 | 调查结论（真因） | 修复 | 验证 |
+|---|---|---|---|---|
+| 1 | 🔴 回滚映射其余 18 种（跨仓） | **跨仓部分仍需后端取消端点，但本仓侧另有一个更严重的缺陷**：`revokeOperation` 先 `markRevoked()`（**删除**记录）再执行自动回滚，且无论成败都返回 `success: true`。命中映射但回滚失败时 → 用户看到"撤销成功"、单据仍在执行态、记录已删除 → **3 分钟窗口内连重试入口都没有**（不可重试的静默数据不一致） | 顺序改为先回滚、按结果分流；新增 `markRevokeFailed()`（保留记录、累计 `revokeAttempts`/`lastRevokeError`，由 `cleanupExpired` 到期回收）；回滚失败返回 `success:false + error`；无映射的引导降级维持 `success:true` | 新增 `chat.controller.revoke.spec.ts` 6 例 + `confirmation.service.spec.ts` 3 例 |
+| 2 | 🔴 写全审核 TTL 24h（需产品决策） | 根因不是"没人拍板"，而是 **24h 硬编码把产品决策绑架成了代码改动**：调一个数值也要改代码发版 | 新增纯函数 `resolveWriteTokenTtlMs()` + `WRITE_TOKEN_TTL_HOURS` 环境变量（默认仍 24h，未配置时行为与改造前完全一致）；越界钳制 [1,720] 小时并告警；`WriteGuardService` 暴露 `getTokenTtlMs()` | `write-guard.service.spec.ts` 新增 6 例；`TaskRunnerService` 以 `@Optional() ConfigService` 跟随同一口径（漏改会导致前端显示 23h 可确认而令牌已过期） |
+| 3 | 🔴 CSRF_SECRET 密钥复用（两仓同步改） | 密钥策略仍需两仓决策，但**本仓的缺失处理是静默的**：无密钥时跳过 `x-csrf-token` 注入且不告警，所有写操作一律 403，与真实权限错误无法区分（踩坑日志 [34] 另一侧） | 构造期无密钥即 warn 明确指引；`toBridgeError` 在 403 且未注入令牌时追加"疑似 CSRF_SECRET 未配置"提示；已注入令牌时的 403 不再误报（否则会掩盖真权限不足） | 新增 `service-client.csrf.spec.ts` 7 例 |
+
+**门禁终局实测（本轮，2026-09-26）**
+
+| 门禁 | 命令 | 结果 |
+|---|---|---|
+| build 类型检查 | `npx tsc --noEmit -p tsconfig.build.json` | ✅ EXIT=0 |
+| 含 spec 全量类型检查 | `npx tsc --noEmit -p tsconfig.json` | ✅ EXIT=0（0 错误） |
+| test | `npx jest` | ✅ **110 套件 / 1061 用例全过** |
+| lint | `npx eslint "{src,apps,libs,test}/**/*.ts"` | ✅ 0 error / 0 warning |
+
+> 测试基线演变：104/1001 → 106/1016 → 108/1034 → 108/1039 → **110 套件 / 1061 用例**（本轮新增 2 套件 / 22 用例）。
+
+**仍待外部条件（不做无谓等待，均已记录触发条件）**
+
+| 项 | 触发条件 | 现状 |
+|---|---|---|
+| 总台前端四页 | 跨仓 saas-admin + 页面交互规格确认 | 待用户给规格 |
+| agent 通道统一编排器重构 | 需立项（chat/agent/graph 三通道合一） | 待立项 |
+| 回滚映射其余 18 种 | 后端逐类型取消端点 | 跨仓；本仓侧缺陷已修（见上 #1） |
+| E4 蒸馏 / MCP Client / 生产部署 / ima 密钥作废 / 生产观测 | 样本阈值 / 首个真实 MCP 需求 / 用户执行 / 平台侧操作 / 部署后 | 维持 🟡 |
 
 
