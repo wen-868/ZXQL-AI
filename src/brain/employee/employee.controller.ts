@@ -2,7 +2,7 @@
  * EmployeeController — 数字员工管理 API（2026-09-05 MVP）
  *
  * 端点：
- * - GET    /api/ai/employees            员工列表（=对话列表数据源；JWT 即可读）
+ * - GET    /api/ai/employees            员工列表（=联系人列表数据源；JWT 即可读）
  * - POST   /api/ai/employees            新建员工（管理角色）
  * - PUT    /api/ai/employees/:id        更新员工（管理角色）
  * - GET    /api/ai/employees/:id/tasks  该员工任务列表（对话框工作台内容）
@@ -97,13 +97,13 @@ export class EmployeeController {
     private readonly tenantContext: TenantContext,
   ) {}
 
-  /** 员工列表（=对话列表数据源） */
+  /** 员工列表（=联系人列表数据源） */
   @Get()
   list() {
     return this.employeeService.list(this.tenantContext.require().tenantId);
   }
 
-  /** 新建员工（自动生成对话列表项；管理角色） */
+  /** 新建员工（自动生成联系人列表项；管理角色） */
   @UseGuards(AdminGuard)
   @Post()
   create(@Body() dto: CreateEmployeeDto) {

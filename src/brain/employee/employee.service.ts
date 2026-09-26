@@ -1,7 +1,7 @@
 /**
  * EmployeeService — 数字员工管理（2026-09-05 MVP）
  *
- * 设计定案：每个员工就是一个对话框（新建员工自动进入对话列表），
+ * 设计定案：每个员工就是一个对话框（新建员工自动进入联系人列表），
  * 对话框内容即工作台；指挥关系 = 员工档案上的"可调用员工列表"（边表），
  * 上级员工经 dispatchEmployeeTask 工具派发任务（异步交接+回传验收）。
  *
@@ -16,7 +16,7 @@ import {
   AiEmployeeTaskEntity,
 } from '../../database/entities/ai-employee.entity';
 
-/** 员工对话列表项（前端对话列表直接渲染） */
+/** 员工联系人列表项（前端联系人列表直接渲染） */
 export interface EmployeeDialogItem {
   id: number;
   employeeUid: string;
@@ -70,7 +70,7 @@ export class EmployeeService {
     private readonly taskRepo: Repository<AiEmployeeTaskEntity>,
   ) {}
 
-  /** 新建员工（自动生成 employeeUid，前端据此外发对话列表项） */
+  /** 新建员工（自动生成 employeeUid，前端据此外发联系人列表项） */
   async create(input: {
     tenantId: string;
     name: string;
@@ -97,7 +97,7 @@ export class EmployeeService {
     );
   }
 
-  /** 员工列表（即对话列表数据源，按创建倒序） */
+  /** 员工列表（即联系人列表数据源，按创建倒序） */
   async list(tenantId: string): Promise<EmployeeDialogItem[]> {
     const items = await this.employeeRepo.find({
       where: { tenantId, status: 1 },

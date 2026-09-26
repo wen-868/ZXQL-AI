@@ -2,7 +2,7 @@
  * 数字员工 Entity（2026-09-05 数字员工 MVP）
  *
  * 设计定案（用户确认）：
- * - 每个员工就是一个对话框（新建员工自动进入对话列表），对话框内容即工作台
+ * - 每个员工就是一个对话框（新建员工自动进入联系人列表），对话框内容即工作台
  * - 上级数字员工可经 dispatchEmployeeTask 工具调度下级（子代理语义，
  *   任务在下级自己的会话中执行并留痕），层级最多两级
  *
@@ -38,7 +38,7 @@ export class AiEmployeeEntity {
   })
   employeeUid!: string;
 
-  /** 员工名称（如"张选选"，展示在对话列表） */
+  /** 员工名称（如"张选选"，展示在联系人列表） */
   @Column({ name: 'name', type: 'varchar', length: 64, comment: '员工名称' })
   name!: string;
 

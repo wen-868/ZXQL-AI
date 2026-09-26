@@ -7,7 +7,7 @@
  *  - 深度上限（MAX_DISPATCH_DEPTH，默认 2）
  *  - 用户直接交办（无 callerUid → dispatchedBy=user，不受边表限制）
  *  - 执行异常 → 任务落 failed
- *  - 对话列表项（dispatchUids 边表回显 + 管理岗标记）
+ *  - 联系人列表项（dispatchUids 边表回显 + 管理岗标记）
  *  - 结果摘要截断（4000）
  *
  * 负责人: 苏然（测试） | 创建日期: 2026-09-26
