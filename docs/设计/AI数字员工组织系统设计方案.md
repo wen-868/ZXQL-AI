@@ -702,9 +702,9 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 |---|---|
 | ~~审计取证埋点~~ | ✅ **已完成（2026-09-26）**：`t_ai_audit_log` 补 `lane`/`categories` 两列（迁移 `009_audit_lane_categories.sql`）。`lane` 六值（chat/agent/graph/proactive/evidence/tool），各调用点已标注；`categories` 由 Orchestrator 经 `registry.get(toolName)?.category` 归并去重后传入 AuditLogger（**不注入 ToolRegistry，避免 bridge ↔ tools 模块循环依赖**）。新增 `src/bridge/audit-logger.spec.ts` 8 例——该服务此前零单测。详见 12.8.5 |
 | ~~plan_step 匹配兜底~~ | ✅ **已完成（2026-09-26）**：`matchPlanStepsByTool` 改两级匹配——① 精确工具命中；② 计划外工具 → 顺序推进最早未完成步骤。另加守卫：**计划内已声明过该工具 → 判为重复调用，不算推进**（否则"查 A 再查 B"会误标后续步骤完成）。chat-planning 用例 7 → 12。详见 12.8.5 |
-| ~~澄清事件统一~~ | 🟡 **部分完成（2026-09-26）**：**澄清卡渲染空白是真缺陷**——桌面端读 `ev.questions`，而后端只发 `issues`+`message`，前端拿到 undefined 渲染出空卡。已统一契约：新增 `src/brain/clarify-event.ts`（`questions`/`issues`/`message` 同源下发）+ 桌面端任一字段有值均可渲染。**「无参数写意图 → clarify 事件」的升级部分未做，需产品决策**，理由见 12.8.5 |
+| ~~澄清事件统一~~ | ✅ **已完成（2026-09-26）**：查出**两个真缺陷**。① 契约漂移：桌面端读 `ev.questions`，后端只发 `issues`+`message` → 澄清卡**渲染为空白**；已新增 `src/brain/clarify-event.ts`（`questions`/`issues`/`message` 同源下发）+ 桌面端任一字段有值均可渲染。② **「无参数写意图」澄清不可达（真根因）**：写工具必填缺失时返回 `success:false` 且**不带 preview**（如 `createSalesOrder` 缺 items → parseArgs 直接失败），而 Orchestrator 的 `tryEnhance` 澄清分支被 `if (toolResult.preview)` 挡住 → 澄清**永远触发不了**；已对失败写工具补一次澄清判定（纯函数 `needsWriteFailureClarifyCheck`，5 例单测）。详见 12.8.5 |
 | ~~孤儿任务记录~~ | ✅ **已完成（2026-09-26）**：`dispatchTask` 把执行器预检前置到 `recordTask` 之前，未装配时直接拒绝、不再留下 running 孤儿记录；原用例已升级为断言"不落库"（此前只断言返回值） |
-| spec 历史 TS 错误 27 处 | 全量 `tsc -p tsconfig.json` 由 **28 → 27**（本轮修掉 `weekly-plan.service.spec.ts` 的失效 import `TS2307`）。剩余 27 处全部在既有 `*.spec.ts`，历史遗留，按错误责任制需分批清零 |
+| ~~spec 历史 TS 错误 27 处~~ | ✅ **已清零（2026-09-26）**：全量 `tsc -p tsconfig.json` **28 → 27 → **0**，EXIT=0**。27 处归为 5 族批量修（见 12.8.5）；修完 `npx jest` 108 套件 / 1039 用例全过，行为未变（纯类型修复）。**顺带修掉 4 处潜伏崩溃**：`task-runner.service.spec`（缺传 `knowledgeRules`，走到步骤执行分支即 undefined 崩）、`experience-extractor.service.spec`（`EvolutionVersionService` 只传 1/3 个仓储）、`proactive.controller.spec`（缺传 `WeeklyPlanService`）、`provider-router.service.spec`（缺传 `AiConfigService`，错误被 try/catch 吞掉） |
 | ~~lint 门禁红（10 error / 1 warning）~~ | ✅ **已清零（2026-09-26）**：10 error 全部修复（unbound-method ×4、no-unsafe-member-access ×2、no-base-to-string ×1、no-unsafe-return ×1、no-unsafe-assignment ×2）+ 1 warning 为失效的 eslint-disable 指令（已移除）。详见 12.8.5 |
 
 **🟡 有前置条件（条件成熟即启动）**
@@ -781,13 +781,49 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 | `weekly-plan.service.spec.ts` | no-unsafe-assignment + 1 warning | **真 bug**：import 路径 `'../tenant/ai-config.service'` 不存在（实际在 `src/tenant/`），修正为 `'../../tenant/'`。该 import 仅作类型使用，运行时被 TS 抹除，故测试照常通过，但 tsc 报 TS2307、类型退化为 error type |
 | `e4-distillation.service.spec.ts` | no-unsafe-assignment | `JSON.parse` 结果显式定型；顺带移除已失效的 eslint-disable 指令（即那条 warning 的来源） |
 
-**澄清事件：为何「无参数写意图 → clarify」的升级部分未做（需产品决策）**
+### 12.8.6 澄清事件「无参数写意图」真根因（2026-09-26 追加调查）
 
-1. `write-schema-registry.ts` 明确规定「**写入字段抽取禁用正则**」——意图识别必须由 LLM 产出，不能由我自造关键词启发式；
-2. 参照 v2 通道做法需**额外一次 LLM 强制选工具**（function calling），会给每个"未调工具且以问句结尾"的轮次增加一轮往返与延迟，需权衡；
-3. 桌面端 `showClarify` 会把每条 question 渲染成可点击按钮，点击即以该文本发起新一轮对话（`go(o.textContent)`）。若把助理的任意纯文本提问包成 clarify，会产生「把助理的问题再发一遍」的错误交互；
-4. 当 LLM 确实调用了写工具时（如"开单"→`createSalesOrder` 空参→preview→`tryEnhance`→澄清），现有链路**已经能正常下发 clarify**。未覆盖的只是「LLM 选择先反问而不调工具」这一 LLM 行为分支，属提示词/策略范畴，不是代码缺口。
+**上一轮结论是错的，此处更正。** 上一轮判断"未覆盖的只是 LLM 选择先反问而不调工具的行为分支，属提示词策略范畴，不是代码缺口"——**调查后证实是确定性代码缺口**。
 
-建议方向（供决策）：① 在写意图提示词里强化"先调工具再澄清"（零额外开销，改提示词）；② 零工具调用且判定为写意图时补一次强制选工具调用（有延迟成本，行为确定）。
+**证据链**：
+
+1. `createSalesOrder` 的 `parameters.required = ['items']`（`create-sales-order.tool.ts:179`）；
+2. 缺 items 时 `parseArgs` 直接失败 → 返回 `{ success:false, error, suggestion }`，**不带 preview**（同文件 L194-199）；
+3. 而 Orchestrator 的澄清分支写作 `if (toolResult.preview) { ...tryEnhance... }`（`orchestrator.service.ts` 原 L805）——**preview 为假，tryEnhance 根本不会执行**；
+4. 结论：用户说"开单"但不给参数时，澄清事件**永远触发不了**，只剩一句自然语言反问。
+
+**修复**：对"失败且是写操作"的调用补一次澄清判定——`needsWriteFailureClarifyCheck()`（纯函数，5 例单测）：
+- 无 preview（有 preview 的由主流程处理，不重复）
+- 且调用失败
+- 且该工具是写操作
+
+只产出 clarify，**不改 `execArgs`**（本次调用已失败，没有后续确认执行可供增强）。`tryEnhance` 内部先查 `docTypeForTool`，未映射的写工具立即返回、不产生 LLM 调用；非参数类失败（如后端不可用）通常不构成澄清条件，会自然落回原错误流程。
+
+**为何优于上一轮提的两个备选**（提示词强化 / 强制选工具调用）：确定性（不依赖 LLM 遵从）、零新增业务规则（无需自造关键词 → docType 映射）、产出真实**字段级 issue**（`sales_order` schema 的必填 `customerName`、`items[].skuName` 由 `tryEnhance` 生成）。
+
+**附带更正**：上一轮所列第 1 条理由（"写入字段抽取禁用正则，故不能做意图识别"）**表述不准**——`write-schema-registry` 禁正则的范围是**字段值抽取**，而**意图域判定**在本仓已有先例：`intent-detector.ts` 就是用关键词规则做业务域分诊（"规则快车道"）。只是本例并不需要走关键词路线，因为已有更确定的代码级缺口。
+
+**遗留（非阻塞）**：「LLM 完全不调用工具、直接以自然语言反问」这一分支仍未覆盖，属提示词/策略范畴。若后续要收敛，建议优先改提示词（零开销）；不建议为它增加一次强制选工具的 LLM 往返。
+
+### 12.8.7 spec 历史 TS 错误清零（27 处归 5 族，2026-09-26）
+
+| 族 | 数量 | 根因 | 处置 |
+|---|---|---|---|
+| A 构造函数签名演进 | 4 | 服务新增依赖后 spec 未同步 | 补传缺失依赖（见下"潜伏崩溃"） |
+| B `Repository<T>` 泛型约束 | 2 | `makeRepo<T>()` 缺 `T extends ObjectLiteral` | 给泛型加同约束 |
+| C 实体新增必填字段 | 3 | 工厂函数展开 `Partial<Entity>` 后必填字段变可选 | 在字面量里显式补齐（缺省值取 `@Column` 默认） |
+| D 类型断言/索引过窄 | 6 | `as` 断言与源类型不重叠、元组索引、可空 | 改 `as unknown as X` / 显式定型 / 加显式守卫抛错 |
+| E 接口形状演进 | 12 | `PlanStep` 必填字段、`ToolDefinition` 改为 function 形态、`PlanStepType` 无 `synthesis` 等 | 加工厂函数或按新形状改写 |
+
+**顺带修掉的 4 处潜伏崩溃**（这些 spec 传入的依赖是 `undefined`，一旦走到对应分支就会 TypeError，只是现有用例恰好没覆盖到）：
+
+| spec | 缺失依赖 | 崩溃点 |
+|---|---|---|
+| `task-runner.service.spec.ts` | `knowledgeRules`（第 12 个构造参数） | `this.knowledgeRules.getRulesContext(...)`（task-runner L652） |
+| `experience-extractor.service.spec.ts` | `EvolutionVersionService` 只传 1/3 个仓储 | `this.sampleRepo.find` / `this.platformRepo.findOne` |
+| `proactive.controller.spec.ts` | `WeeklyPlanService` | `this.weeklyPlanService.buildWeeklyPlan(...)` |
+| `provider-router.service.spec.ts` | `AiConfigService` | `this.aiConfig.isFallbackEnabled()`（被 try/catch 吞掉后按默认开启处理，静默降级） |
+
+**验证**：`npx tsc --noEmit -p tsconfig.json` → EXIT=0（0 错误）；`npx jest` → 108 套件 / 1039 用例全过；行为未变（全部为类型层修复，未改断言语义）。
 
 
