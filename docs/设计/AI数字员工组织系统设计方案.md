@@ -700,12 +700,12 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 
 | 项 | 说明 |
 |---|---|
-| 审计取证埋点 | ai_audit_log 补 lane/categories 字段（跨域占比统计与岗位化 ROI 的前置，30 分钟） |
-| plan_step 匹配兜底 | LLM 用计划外工具时步骤进度不更新的显示层补丁 |
-| 澄清事件统一 | 无参数写意图从纯文本提问升级为 clarify 事件（需前端同步渲染） |
-| 孤儿任务记录 | dispatchTask 先建任务记录再校验 taskRunner，未装配时留下 running 孤儿记录（建议改为先校验 runner 再落库；单测已固化当前行为） |
-| spec 历史 TS 错误 28 处 | 全量 `tsc -p tsconfig.json` 仍有 28 处错误，全部在既有 *.spec.ts（历史遗留，非本轮引入）；按错误责任制需分批清零 |
-| lint 门禁红（10 error / 1 warning） | 2026-09-26 Jest 门禁修复后首次全量 `eslint` 取证：**10 error + 1 warning**，分布于 6 个文件（`answer-self-check.service.spec.ts` 4×unbound-method、`structured-extractor.spec.ts` 2×no-unsafe-member-access、`structured-extractor.ts` 1×no-base-to-string、`orchestrator.service.ts:950` 1×no-unsafe-return、`weekly-plan.service.spec.ts` 1×no-unsafe-assignment+1 warning、`e4-distillation.service.spec.ts` 1×no-unsafe-assignment）。**全部历史遗留**：eslint.config.mjs 自 init 未变，报错文件最后改动为 `ac9a70c`/`ef790e8`（早于本轮），且**仓库无 CI**，故第三条门禁从未真正执行过 |
+| ~~审计取证埋点~~ | ✅ **已完成（2026-09-26）**：`t_ai_audit_log` 补 `lane`/`categories` 两列（迁移 `009_audit_lane_categories.sql`）。`lane` 六值（chat/agent/graph/proactive/evidence/tool），各调用点已标注；`categories` 由 Orchestrator 经 `registry.get(toolName)?.category` 归并去重后传入 AuditLogger（**不注入 ToolRegistry，避免 bridge ↔ tools 模块循环依赖**）。新增 `src/bridge/audit-logger.spec.ts` 8 例——该服务此前零单测。详见 12.8.5 |
+| ~~plan_step 匹配兜底~~ | ✅ **已完成（2026-09-26）**：`matchPlanStepsByTool` 改两级匹配——① 精确工具命中；② 计划外工具 → 顺序推进最早未完成步骤。另加守卫：**计划内已声明过该工具 → 判为重复调用，不算推进**（否则"查 A 再查 B"会误标后续步骤完成）。chat-planning 用例 7 → 12。详见 12.8.5 |
+| ~~澄清事件统一~~ | 🟡 **部分完成（2026-09-26）**：**澄清卡渲染空白是真缺陷**——桌面端读 `ev.questions`，而后端只发 `issues`+`message`，前端拿到 undefined 渲染出空卡。已统一契约：新增 `src/brain/clarify-event.ts`（`questions`/`issues`/`message` 同源下发）+ 桌面端任一字段有值均可渲染。**「无参数写意图 → clarify 事件」的升级部分未做，需产品决策**，理由见 12.8.5 |
+| ~~孤儿任务记录~~ | ✅ **已完成（2026-09-26）**：`dispatchTask` 把执行器预检前置到 `recordTask` 之前，未装配时直接拒绝、不再留下 running 孤儿记录；原用例已升级为断言"不落库"（此前只断言返回值） |
+| spec 历史 TS 错误 27 处 | 全量 `tsc -p tsconfig.json` 由 **28 → 27**（本轮修掉 `weekly-plan.service.spec.ts` 的失效 import `TS2307`）。剩余 27 处全部在既有 `*.spec.ts`，历史遗留，按错误责任制需分批清零 |
+| ~~lint 门禁红（10 error / 1 warning）~~ | ✅ **已清零（2026-09-26）**：10 error 全部修复（unbound-method ×4、no-unsafe-member-access ×2、no-base-to-string ×1、no-unsafe-return ×1、no-unsafe-assignment ×2）+ 1 warning 为失效的 eslint-disable 指令（已移除）。详见 12.8.5 |
 
 **🟡 有前置条件（条件成熟即启动）**
 
@@ -746,14 +746,48 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 
 **测试基线更新**：104 套件 / 1001 用例（旧基线，未含 MVP 与 P0-2 新增）→ **106 套件 / 1016 用例**（2026-09-26 实测）。
 
-**门禁现状（2026-09-26 三条实测，结论先行：2 绿 1 红）**
+**门禁现状（2026-09-26 终局实测：三条全绿）**
 
 | 门禁 | 命令 | 结果 |
 |---|---|---|
 | build 类型检查 | `npx tsc --noEmit -p tsconfig.build.json` | ✅ EXIT=0 |
-| test | `npx jest` | ✅ 106 套件 / 1016 用例全过 |
-| lint | `npx eslint "{src,apps,libs,test}/**/*.ts"` | ❌ 10 error / 1 warning（全部历史遗留，已入 12.8.3 🟢 清单） |
+| test | `npx jest` | ✅ **108 套件 / 1034 用例全过** |
+| lint | `npx eslint "{src,apps,libs,test}/**/*.ts"` | ✅ **0 error / 0 warning** |
 
-> 备注：三项此前**均无法取证**——Jest 因 pnpm 布局跑不起来，lint 因无 CI 且从未全量执行。故历史上"三条全绿"的说法均无证据支撑。
+> 演变：本轮开工时三条里**两条无执行记录**（Jest 因 pnpm 布局跑不起来、lint 因无 CI 从未全量执行），故历史上"三条全绿"的说法均无证据支撑。
+> 修复顺序：P0-3 先让 Jest 可执行（106/1016）→ 随即暴露 lint 红（10/1）→ 清零 lint + 补 🟢 遗留项 → 终局 108/1034、lint 0/0。
+> 含 spec 的全量 `tsc -p tsconfig.json`：**28 → 27**（本轮修掉 1 处失效 import），剩余 27 处全在既有 spec，历史遗留。
+> **测试基线更新**：104/1001 → 106/1016 → **108 套件 / 1034 用例**。
+> 反测提示：本仓无 CI，三条门禁均需人工执行；任何"全绿"结论必须附当次命令输出。
+
+### 12.8.5 🟢 遗留项清理（2026-09-26，苏然）
+
+| 项 | 改动 | 验证 |
+|---|---|---|
+| 审计取证埋点 | 实体加 `lane`(varchar16)/`categories`(json) + 迁移 `009_audit_lane_categories.sql`；`AiCallAuditRecord` 加 `lane?`/`categories?`；`ToolExecutionRecord` 加 `category?`；Orchestrator 新增 `collectToolCategories()` 按 `registry.get(toolName)?.category` 归并去重；task-runner/proactive/evidence 分别标 `lane`；`logToolExecution` 固定 `lane='tool'` | 新增 `src/bridge/audit-logger.spec.ts` **8 例全过**（该服务此前零单测）；全量 jest 108 套件 / 1034 用例 |
+| plan_step 兜底 | `chat-planning.ts` 的 `matchPlanStepsByTool` 改两级匹配 + 重复调用守卫 | chat-planning 用例 **7 → 12** 全过 |
+| 澄清事件统一（契约部分） | 新增 `src/brain/clarify-event.ts`（纯函数 `buildClarifyPayload`）；Orchestrator 的 clarify 事件改为下发 `questions`+`issues`+`message` 同源三字段；桌面端改为 `ev.questions \|\| ev.issues \|\| [{message: ev.message}]` | 新增 `clarify-event.spec.ts` **6 例全过** |
+| 孤儿任务记录 | `employee.service.ts` 执行器预检前置到 `recordTask` 之前；原用例升级为断言"不落库"（此前只断言返回值，锁不住该缺陷） | employee 用例 9 例全过 |
+| lint 清零 | 见下表 6 条逐条处置 | 全量 `eslint` 目标 0 error / 0 warning |
+
+**lint 10 error + 1 warning 逐条处置**（行为不改，仅消除类型不安全）：
+
+| 文件 | 规则 | 处置 |
+|---|---|---|
+| `answer-self-check.service.spec.ts` ×4 | unbound-method | `createService()` 改为单独返回 `jest.fn` 引用，断言该引用而非 `metrics.xxx`（`MetricsService` 上是方法，脱离实例引用不安全） |
+| `structured-extractor.spec.ts` ×2 | no-unsafe-member-access | `chatSync` 由裸 `jest.Mock` 改为按 `chatSync(messages, options?)` 真实签名定型的 `ChatSyncMock`，`.mock.calls` 不再退化成 any |
+| `structured-extractor.ts` L368 | no-base-to-string | `detectFabricatedNumbers` 只对 number/string 做 `String()`；非标量一律判为编造拦截。**严格度只增不减**：旧实现对对象走 `[object Object]` 串化，结论同样是拦截；数组由"可能放行"改为"一律拦截"（价格本不该是数组） |
+| `orchestrator.service.ts` L950 | no-unsafe-return | `JSON.stringify` replacer 的 `v` 显式标注 `unknown` |
+| `weekly-plan.service.spec.ts` | no-unsafe-assignment + 1 warning | **真 bug**：import 路径 `'../tenant/ai-config.service'` 不存在（实际在 `src/tenant/`），修正为 `'../../tenant/'`。该 import 仅作类型使用，运行时被 TS 抹除，故测试照常通过，但 tsc 报 TS2307、类型退化为 error type |
+| `e4-distillation.service.spec.ts` | no-unsafe-assignment | `JSON.parse` 结果显式定型；顺带移除已失效的 eslint-disable 指令（即那条 warning 的来源） |
+
+**澄清事件：为何「无参数写意图 → clarify」的升级部分未做（需产品决策）**
+
+1. `write-schema-registry.ts` 明确规定「**写入字段抽取禁用正则**」——意图识别必须由 LLM 产出，不能由我自造关键词启发式；
+2. 参照 v2 通道做法需**额外一次 LLM 强制选工具**（function calling），会给每个"未调工具且以问句结尾"的轮次增加一轮往返与延迟，需权衡；
+3. 桌面端 `showClarify` 会把每条 question 渲染成可点击按钮，点击即以该文本发起新一轮对话（`go(o.textContent)`）。若把助理的任意纯文本提问包成 clarify，会产生「把助理的问题再发一遍」的错误交互；
+4. 当 LLM 确实调用了写工具时（如"开单"→`createSalesOrder` 空参→preview→`tryEnhance`→澄清），现有链路**已经能正常下发 clarify**。未覆盖的只是「LLM 选择先反问而不调工具」这一 LLM 行为分支，属提示词/策略范畴，不是代码缺口。
+
+建议方向（供决策）：① 在写意图提示词里强化"先调工具再澄清"（零额外开销，改提示词）；② 零工具调用且判定为写意图时补一次强制选工具调用（有延迟成本，行为确定）。
 
 
