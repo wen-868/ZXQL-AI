@@ -83,6 +83,7 @@ import {
   resolveIntentCategories,
 } from './intent-detector';
 import { resolveReference } from '../nlp/reference-resolver';
+import { buildClarifyPayload } from './clarify-event';
 
 /**
  * Agent Loop 最大迭代次数（防止死循环）
@@ -140,6 +141,18 @@ export type OrchestratorBaseEvent =
        */
       type: 'clarify';
       message: string;
+      /**
+       * 澄清问题明细（桌面端按 questions 渲染澄清卡，每项读 question ?? message）
+       *
+       * 与 issues 同源（均为 ExtractionIssue[]），两个字段并存是契约兼容：
+       * issues 供后端/测试消费，questions 供前端渲染。
+       */
+      questions?: Array<{
+        field: string;
+        reason: 'required' | 'type' | 'enum' | 'items';
+        message: string;
+        question: string;
+      }>;
       issues?: Array<{
         field: string;
         reason: 'required' | 'type' | 'enum' | 'items';
@@ -799,9 +812,7 @@ export class Orchestrator {
             if (enhance.needsClarification) {
               yield {
                 type: 'clarify',
-                message:
-                  enhance.questions?.join('；') ?? '请补充必要信息后再试',
-                issues: enhance.issues,
+                ...buildClarifyPayload(enhance),
               };
               continue;
             }
@@ -946,7 +957,7 @@ export class Orchestrator {
             role: 'tool',
             tool_call_id: tc.id,
             name: tc.function.name,
-            content: JSON.stringify(toolResult, (_k, v) =>
+            content: JSON.stringify(toolResult, (_k: string, v: unknown) =>
               v === null || v === undefined ? undefined : v,
             ),
           };
@@ -1209,6 +1220,8 @@ export class Orchestrator {
         provider: providerName,
         model: modelName,
         intent: 'chat',
+        lane: 'chat',
+        categories: this.collectToolCategories(allToolCalls),
         userMessage: params.message,
         toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
         promptTokens: totalPromptTokens,
@@ -1242,6 +1255,7 @@ export class Orchestrator {
         provider: providerName,
         model: modelName,
         intent: 'chat',
+        lane: 'chat',
         userMessage: params.message,
         promptTokens: 0,
         completionTokens: 0,
@@ -1250,6 +1264,25 @@ export class Orchestrator {
         errorMessage: errorMsg,
       });
     }
+  }
+
+  /**
+   * 取证埋点（方案 12.4）：把本轮工具调用归并成本次触及的业务域集合。
+   *
+   * 用于统计「跨域占比 = 涉及 ≥2 业务域的任务占比」，是"是否从 MVP 扩展
+   * 流水线编排"的判据。查不到定义或缺失工具名的条目直接跳过（best-effort）。
+   */
+  private collectToolCategories(
+    toolCalls: Record<string, unknown>[],
+  ): ToolCategory[] {
+    const domains = new Set<ToolCategory>();
+    for (const call of toolCalls) {
+      const toolName = call.tool_name;
+      if (typeof toolName !== 'string') continue;
+      const category = this.registry.get(toolName)?.category;
+      if (category) domains.add(category);
+    }
+    return [...domains];
   }
 
   /**

@@ -39,6 +39,7 @@ export class EvidenceLedgerService {
       userId: context.userId,
       sessionId: context.sessionId,
       intent: 'evidence_write_ledger',
+      lane: 'evidence',
       userMessage: tool,
       toolCalls: [
         {

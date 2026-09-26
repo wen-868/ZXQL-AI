@@ -219,6 +219,12 @@ export interface ToolMeta {
 export interface ToolExecutionRecord {
   /** 工具名称 */
   toolName: string;
+  /**
+   * 业务域分类（取证埋点，方案 12.4）
+   *
+   * 由 ToolExecutor 从工具定义带入，供审计按业务域统计跨域占比。
+   */
+  category?: ToolCategory;
   /** 是否为写操作 */
   isWriteOperation: boolean;
   /** 执行是否成功 */

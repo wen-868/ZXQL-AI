@@ -161,6 +161,7 @@ export class ToolExecutor {
       // 记录审计信息（当前打日志，R70-05 接入 AuditLogger 后改为异步写库）
       this.logExecution({
         toolName,
+        category: tool.category,
         isWriteOperation: tool.isWriteOperation,
         success: result.success,
         durationMs,
@@ -191,6 +192,7 @@ export class ToolExecutor {
 
       this.logExecution({
         toolName,
+        category: tool.category,
         isWriteOperation: tool.isWriteOperation,
         success: false,
         durationMs,

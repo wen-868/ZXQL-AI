@@ -23,7 +23,24 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { AiAuditLogEntity } from '../database/entities/ai-audit-log.entity';
-import { ToolExecutionRecord, ToolRisk } from '../tools/tool.interface';
+import {
+  ToolCategory,
+  ToolExecutionRecord,
+  ToolRisk,
+} from '../tools/tool.interface';
+
+/**
+ * 执行车道（取证埋点，方案 12.4）
+ *
+ * 此前审计表没有车道维度，只能靠 intent 反推，无法回答"哪条通道在干活"。
+ */
+export type AuditLane =
+  | 'chat' // 主对话（Orchestrator Agent Loop）
+  | 'agent' // 计划编排（planner + task-runner）
+  | 'graph' // 图执行
+  | 'proactive' // 主动推送（定时任务/信号驱动）
+  | 'evidence' // 取证台账
+  | 'tool'; // 单次工具执行（ToolExecutor 直记）
 
 /**
  * AI 调用审计记录（由 Brain Engine / Gateway 在 LLM 调用后组装）
@@ -43,6 +60,15 @@ export interface AiCallAuditRecord {
   intent?: string;
   /** 数字员工 UID（以数字员工身份运行时署名） */
   employeeUid?: string;
+  /** 执行车道（取证埋点，方案 12.4） */
+  lane?: AuditLane;
+  /**
+   * 本次调用触及的业务域（取证埋点，方案 12.4）
+   *
+   * 由调用方按工具 → ToolCategory 归并去重后传入（AuditLogger 不持有工具注册表，
+   * 避免 bridge ↔ tools 双向依赖）。跨域占比统计以此为据。
+   */
+  categories?: ToolCategory[];
   /** 用户消息原文 */
   userMessage?: string;
   /** 工具调用记录（JSON 数组，包含每次 tool_call 的 name/args/success/duration） */
@@ -171,6 +197,8 @@ export class AuditLogger {
         model: record.model ?? null,
         intent: record.intent ?? null,
         employeeUid: record.employeeUid ?? null,
+        lane: record.lane ?? null,
+        categories: record.categories?.length ? record.categories : null,
         userMessage,
         toolCalls: toolCalls.length > 0 ? toolCalls : null,
         promptTokens: record.promptTokens,
@@ -225,6 +253,8 @@ export class AuditLogger {
         provider: null,
         model: null,
         intent: 'tool_execution',
+        lane: 'tool',
+        categories: record.category ? [record.category] : null,
         userMessage: null,
         toolCalls: [toolCallEntry as unknown as Record<string, unknown>],
         promptTokens: 0,

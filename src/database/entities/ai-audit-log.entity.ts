@@ -78,6 +78,35 @@ export class AiAuditLogEntity {
   })
   intent!: string | null;
 
+  /**
+   * 执行车道（取证埋点，方案 12.4）
+   *
+   * chat=主对话 Agent Loop / agent=计划编排 / graph=图执行 /
+   * proactive=主动推送 / evidence=取证台账 / tool=单次工具执行直记
+   */
+  @Column({
+    name: 'lane',
+    type: 'varchar',
+    length: 16,
+    nullable: true,
+    comment: '执行车道：chat/agent/graph/proactive/evidence/tool',
+  })
+  lane!: string | null;
+
+  /**
+   * 本次调用触及的业务域（取证埋点，方案 12.4）
+   *
+   * 由工具调用记录按 ToolCategory 归并去重而来，用于统计
+   * 「跨域占比 = 涉及 ≥2 业务域的任务占比」。
+   */
+  @Column({
+    name: 'categories',
+    type: 'json',
+    nullable: true,
+    comment: '触及的业务域（ToolCategory 数组，去重）',
+  })
+  categories!: string[] | null;
+
   /** 数字员工 UID（以数字员工身份运行时署名） */
   @Column({
     name: 'employee_uid',

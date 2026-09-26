@@ -71,6 +71,7 @@ export class ProactivePushService {
     this.auditLogger.logAiCall({
       tenantId,
       intent: `proactive_${taskName}`,
+      lane: 'proactive',
       userMessage: push.title,
       toolCalls: [
         {

@@ -927,6 +927,7 @@ export class TaskRunnerService {
       provider: 'agent',
       model: 'planner+runner',
       intent: 'agent_plan',
+      lane: 'agent',
       userMessage: plan.goal,
       toolCalls: [],
       promptTokens,
