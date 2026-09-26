@@ -678,7 +678,7 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 |---|---|---|
 | 1 | ai-employee.entity.ts 两表实体（dispatch_uids 边表 + tenantId） | ✅ 已完成（9a72cf7） |
 | 2 | EmployeeModule CRUD API（JwtGuard 读 / AdminGuard 写 / tenant 过滤） | ✅ 已完成（9a72cf7） |
-| 3 | Orchestrator employeeId 维度（人设覆盖/工具域子集/审计署名/记忆前缀 emp_{uid}/岗位即预分诊） | ✅ 已完成（9a72cf7） |
+| 3 | Orchestrator employeeId 维度（人设覆盖/工具域子集/审计署名/记忆前缀 emp_{uid}/岗位即预分诊） | ✅ 已完成（9a72cf7）；**记忆前缀后端兜底 2026-09-27 补齐**：核查发现 `emp_` 原先只存在于桌面端约定（`desktop/app/index.html:447`），后端无强制；已新增 `employee-conversation.ts` 的 `resolveEmployeeConversationId`（未传会话 ID 时后端生成 `emp_{uid}`；已传 `emp_` 前缀则幂等不重复套；显式传非前缀 ID 保留原值但告警）。见 12.8.9 |
 | 4 | dispatchEmployeeTask 工具（边表校验+建任务+异步触发+回传+深度上限 MAX_DISPATCH_DEPTH=2）+ EmployeeTaskBridge 回调注册 | ✅ 已完成（9a72cf7） |
 | 5 | 桌面端员工对话项（指挥链展示）+ 任务记录渲染 + 派发即返回 | ✅ 已完成（1aa16f3/9a72cf7） |
 | 6 | 迁移 008_digital_employee.sql + schema push + t_push_log 补建 | ✅ 已完成 |
@@ -713,9 +713,9 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 |---|---|
 | E4 蒸馏本体 | 样本阈值：每类 quality≥4 样本 ≥50 条（readiness 端点可查进度）+ Ollama/训练设施 |
 | MCP Client | 出现第一个真实 MCP 协议外部系统需求 |
-| 生产部署 | **需用户执行**（P0 confirm 穿透修复等全部能力待上线，无迁移、零配置） |
-| ima 密钥作废 | 需用户在平台侧操作 |
-| 生产性能/能力观测 | 依赖生产部署完成后跑 perf-bench/tool-bench |
+| ~~生产部署~~ | ✅ **已完成（2026-09-27 确认）**：由管理系统部署流水线自动触发（`auto-deploy.sh` → `deploy/ai-base-deploy.sh`），pm2 进程 `zhixiang-ai-base`、端口 3016、nginx 反代 `/ai-api/*`。**非人工操作项，此前误列为"需用户执行"** |
+| ~~ima 密钥作废~~ | ❌ **条目作废（2026-09-27）**：全仓核查（代码/配置/迁移/依赖/文档）**无任何 IMA 接入实现**，该条目为 12.8 初版（`6505487`）凭空写入的幽灵条目，已从清单移除 |
+| 生产性能/能力观测 | 前置（生产部署）已满足 → **可执行**；需生产可达地址与有效 JWT：跑 `scripts/perf-bench.js` / `scripts/tool-bench.js`（本仓脚本已存在） |
 | ~~Jest 门禁本机不可用~~ | ✅ **已修复（2026-09-26）**：根因是 pnpm isolated 布局导致 jest 无法解析 transform 包，与 jest/ts-jest 版本无关。处置＝新增 `.npmrc`（`node-linker=hoisted`）+ 重建 node_modules + `test/setup-dom-matrix.js`（pdfjs-dist 需要 DOMMatrix）。结果：`npx jest` 106 套件 / 1016 用例全过。详见踩坑日志 [36] |
 
 **🔴 需决策/跨仓协作**
@@ -854,6 +854,37 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 | 总台前端四页 | 跨仓 saas-admin + 页面交互规格确认 | 待用户给规格 |
 | agent 通道统一编排器重构 | 需立项（chat/agent/graph 三通道合一） | 待立项 |
 | 回滚映射其余 18 种 | 后端逐类型取消端点 | 跨仓；本仓侧缺陷已修（见上 #1） |
-| E4 蒸馏 / MCP Client / 生产部署 / ima 密钥作废 / 生产观测 | 样本阈值 / 首个真实 MCP 需求 / 用户执行 / 平台侧操作 / 部署后 | 维持 🟡 |
+| E4 蒸馏 / MCP Client | 样本阈值 / 首个真实 MCP 需求 | 维持 🟡 |
+| 生产性能观测 | 生产可达地址 + 有效 JWT | 🟡 → **可执行**（部署已确认完成） |
+
+> **2026-09-27 更正**：上表中的"生产部署"与"ima 密钥作废"两项经用户指出后复核——前者**实际早已由流水线自动完成**（误标为需人工），后者**在本系统中根本不存在**（幽灵条目）。已分别从清单移出。详见 12.8.9。
+
+### 12.8.9 全量清单复核：一处真偏差修复 + 两处条目更正（2026-09-27）
+
+对用户提出的三点质疑逐条做代码级复核（不采信文档自述），结论如下。
+
+| # | 质疑 | 复核方式 | 结论 |
+|---|---|---|---|
+| 1 | "系统根本没有 IMA 接入，怎么会出现在系统里" | 全仓检索 `ima`（代码/配置/迁移/依赖/文档）+ `git log -S` 溯源 | **确认是幽灵条目**。全仓仅设计文档 2 处提到，代码零命中；溯源到 `6505487`（12.8 节初版）一次性写入，**从未有任何实现对应**。已删除该条目并标注作废 |
+| 2 | "生产已自动部署" | 读 README 第 6 节 + 查部署链路 | **确认属实，文档标错**。部署由管理系统流水线自动触发（`auto-deploy.sh` → `deploy/ai-base-deploy.sh`），pm2 `zhixiang-ai-base` / 端口 3016 / nginx 反代 `/ai-api/*`。原标注"需用户执行"错误，已改为 ✅ 完成；连带"生产性能观测"的前置条件解除，转为可执行（脚本 `scripts/perf-bench.js`、`tool-bench.js` 已在仓内） |
+| 3 | 上一轮核查发现的"记忆前缀 emp_{uid}"偏差 | 全仓检索 `emp_` | **确认为真偏差并已修复**：`emp_` 仅存在于桌面端约定（`desktop/app/index.html:447`），后端零强制。新增 `src/brain/employee/employee-conversation.ts` 把约定下沉到后端 |
+
+**记忆前缀兜底的三条设计约束**（缺一不可，均已单测锁死）：
+
+| 场景 | 行为 | 理由 |
+|---|---|---|
+| 员工会话且未指定 conversationId | 后端生成 `emp_{uid}` | 补上后端强制，非桌面端调用方不会再串记忆 |
+| 调用方已传 `emp_xxx` | **幂等**，不再套前缀 | 桌面端现状就是传 `emp_xxx`，套两层会变成 `emp_emp_xxx` 并切断既有会话 |
+| 调用方显式传非前缀 ID | 保留原值 + 告警 | 强行改写会让调用方既有历史会话"断线"，只做可观测标记不改数据 |
+
+**验证**：新增 `employee-conversation.spec.ts` 7 例全过。
+
+**附：顺带收敛「LLM 只反问、不调工具」技术债**（12.8.6 记录的遗留分支）
+
+该分支此前判定为"提示词策略范畴，不建议加 LLM 往返"。本轮按该结论落地：在 `context-builder.service.ts` 提示词中新增《缺参数写意图处理》强制条款——写意图明确但缺必填参数时**必须先调用对应工具**，由工具的预览/澄清机制列出缺失项，禁止只用自然语言反问。
+
+与 12.8.6 修的 `needsWriteFailureClarifyCheck` 正好配成闭环：那一支解决"调了工具但澄清不可达"，这一支解决"压根没调工具"。两者都覆盖后，"说开单但不给参数"才真正能拿到结构化澄清卡片。
+
+> 说明：提示词属 LLM 行为约束，无法用单测断言；验证方式为真机回归（对 AI 说"开单"不带参数，应出现澄清卡片而非纯文本反问）。
 
 
