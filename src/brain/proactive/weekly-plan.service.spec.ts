@@ -8,7 +8,7 @@
 /* eslint-disable @typescript-eslint/unbound-method -- 测试断言直接引用 jest mock 方法及其调用参数；mock 无需真实异步 */
 import { DataSource } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import { AiConfigService } from '../tenant/ai-config.service';
+import { AiConfigService } from '../../tenant/ai-config.service';
 import { ProviderRouterService } from '../router/provider-router.service';
 import { ProactivePushService } from './proactive-push.service';
 import { WeeklyPlanService } from './weekly-plan.service';

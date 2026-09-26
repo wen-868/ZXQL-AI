@@ -365,8 +365,14 @@ export class StructuredExtractor {
     for (const [f, label] of FIELDS) {
       const v = args[f];
       if (v === undefined || v === null) continue;
-      const digits = String(v).replace(/\.0+$/, '');
-      if (digits && !utterance.includes(digits)) {
+      // 反编造核对的前提是"这串数字能在用户话语里找到"，因此只有数字/字符串可参与比对；
+      // 其他类型（对象/数组等）无从印证，一律判为编造并拦截。
+      // 与旧实现的差异：旧实现用 String(v) 默认串化非标量（对象得 "[object Object]"），
+      // 对对象同样命中"话语中找不到"→结论一致；数组改为一律拦截（价格本不该是数组，更严）。
+      const text =
+        typeof v === 'number' || typeof v === 'string' ? String(v) : null;
+      const digits = text?.replace(/\.0+$/, '');
+      if (digits === undefined || (digits && !utterance.includes(digits))) {
         fabricated.push(label);
       }
     }

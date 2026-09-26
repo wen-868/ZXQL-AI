@@ -15,22 +15,35 @@
  */
 import { StructuredExtractor } from './structured-extractor';
 import type {
+  ChatMessage,
+  ChatOptions,
   ChatResult,
   IModelProvider,
 } from '../../providers/provider.interface';
 
+/**
+ * 按 IModelProvider.chatSync 的真实签名给 mock 定型，避免裸 jest.Mock 让
+ * `.mock.calls` 退化成 any（进而触发 no-unsafe-member-access）。
+ */
+type ChatSyncMock = jest.Mock<
+  Promise<ChatResult>,
+  [ChatMessage[], ChatOptions?]
+>;
+
 interface ProviderHarness {
   provider: IModelProvider;
-  chatSync: jest.Mock;
+  chatSync: ChatSyncMock;
 }
 
 function createProvider(result?: Partial<ChatResult>): ProviderHarness {
-  const chatSync = jest.fn().mockResolvedValue({
-    content: '',
-    prompt_tokens: 10,
-    completion_tokens: 20,
-    ...result,
-  });
+  const chatSync: ChatSyncMock = jest
+    .fn<Promise<ChatResult>, [ChatMessage[], ChatOptions?]>()
+    .mockResolvedValue({
+      content: '',
+      prompt_tokens: 10,
+      completion_tokens: 20,
+      ...result,
+    });
   const provider = {
     name: 'glm',
     chatSync,
@@ -47,7 +60,7 @@ function createExtractor(
   sampleRepo?: { find: jest.Mock },
 ): {
   extractor: StructuredExtractor;
-  chatSync: jest.Mock;
+  chatSync: ChatSyncMock;
 } {
   const extractor = new StructuredExtractor(
     {

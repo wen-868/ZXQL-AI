@@ -13,10 +13,14 @@ import {
 } from './answer-self-check.service';
 
 function createService() {
-  const metrics = {
-    recordAnswerSelfCheck: jest.fn(),
-  } as never as MetricsService;
-  return { service: new AnswerSelfCheckService(metrics), metrics };
+  // 单独持有 jest.fn 引用再断言：直接断言 metrics.recordAnswerSelfCheck 会命中
+  // @typescript-eslint/unbound-method（MetricsService 上它是方法，脱离实例引用不安全）
+  const recordAnswerSelfCheck = jest.fn();
+  const metrics = { recordAnswerSelfCheck } as never as MetricsService;
+  return {
+    service: new AnswerSelfCheckService(metrics),
+    recordAnswerSelfCheck,
+  };
 }
 
 const TOOLS: SelfCheckToolResult[] = [
@@ -55,18 +59,18 @@ describe('S2 AnswerSelfCheckService', () => {
   });
 
   it('verify：判决通过 → 记 pass 返回 ok', async () => {
-    const { service, metrics } = createService();
+    const { service, recordAnswerSelfCheck } = createService();
     const verdict = await service.verify(
       () => Promise.resolve('{"ok":true}'),
       TOOLS,
       '五粮液还有 12 瓶',
     );
     expect(verdict?.ok).toBe(true);
-    expect(metrics.recordAnswerSelfCheck).toHaveBeenCalledWith('pass');
+    expect(recordAnswerSelfCheck).toHaveBeenCalledWith('pass');
   });
 
   it('verify：判决失真 → 记 corrected 返回更正', async () => {
-    const { service, metrics } = createService();
+    const { service, recordAnswerSelfCheck } = createService();
     const verdict = await service.verify(
       () =>
         Promise.resolve(
@@ -77,26 +81,26 @@ describe('S2 AnswerSelfCheckService', () => {
     );
     expect(verdict?.ok).toBe(false);
     expect(verdict?.correction).toContain('12 瓶');
-    expect(metrics.recordAnswerSelfCheck).toHaveBeenCalledWith('corrected');
+    expect(recordAnswerSelfCheck).toHaveBeenCalledWith('corrected');
   });
 
   it('verify：未触发 → 记 skip 且不调 LLM', async () => {
-    const { service, metrics } = createService();
+    const { service, recordAnswerSelfCheck } = createService();
     const chat = jest.fn();
     const verdict = await service.verify(chat, [], '寒暄一下');
     expect(verdict).toBeNull();
     expect(chat).not.toHaveBeenCalled();
-    expect(metrics.recordAnswerSelfCheck).toHaveBeenCalledWith('skip');
+    expect(recordAnswerSelfCheck).toHaveBeenCalledWith('skip');
   });
 
   it('verify：LLM 异常 → 记 error 且不抛出', async () => {
-    const { service, metrics } = createService();
+    const { service, recordAnswerSelfCheck } = createService();
     const verdict = await service.verify(
       () => Promise.reject(new Error('llm down')),
       TOOLS,
       '共 12 瓶',
     );
     expect(verdict).toBeNull();
-    expect(metrics.recordAnswerSelfCheck).toHaveBeenCalledWith('error');
+    expect(recordAnswerSelfCheck).toHaveBeenCalledWith('error');
   });
 });

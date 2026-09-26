@@ -6,7 +6,7 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-09-05
  */
-/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-member-access -- 测试断言直接引用 jest mock 方法及其调用参数 */
+/* eslint-disable @typescript-eslint/unbound-method -- 测试断言直接引用 jest mock 方法；JSON.parse 结果已显式定型，无需再豁免 unsafe-member-access */
 import { Repository } from 'typeorm';
 import { AiSampleEntity } from '../database/entities/ai-sample.entity';
 import {
@@ -91,7 +91,9 @@ describe('E4DistillationService', () => {
     const out = await service.exportDataset('customer_create', 500);
 
     expect(out.count).toBe(1);
-    const parsed = JSON.parse(out.jsonl);
+    const parsed = JSON.parse(out.jsonl) as {
+      messages: Array<{ role: string; content: string }>;
+    };
     expect(parsed.messages).toEqual([
       { role: 'user', content: '新建客户李四' },
       { role: 'assistant', content: '{"customerName":"李四"}' },
