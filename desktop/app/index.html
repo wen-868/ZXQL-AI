@@ -649,7 +649,9 @@ async function go(t){
               showConfirm(bd,ev.token,ev.preview,ev.expireAt);break;
             case 'await_confirm':break;
             case 'clarify':
-              b.classList.remove('typing');showClarify(bd,ev.questions);break;
+              /* 契约兼容：后端可能只发 questions / issues / message 之一，
+                 任一有值都要渲染出澄清卡，避免空白卡（此前只读 questions 导致空白） */
+              b.classList.remove('typing');showClarify(bd,ev.questions||ev.issues||(ev.message?[{message:ev.message}]:[]));break;
             case 'agent_step':
             case 'review_required':{
               const s=ev.stage||ev.label||ev.message||ev.type;

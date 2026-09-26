@@ -165,7 +165,11 @@ export class EmployeeService {
   /**
    * 派发任务给员工（异步任务交接：派发即返回，执行与回传异步进行）
    *
-   * 校验链：目标解析 → 调用者边表校验（用户直接交办跳过）→ 深度上限 → 建任务记录 → 触发执行
+   * 校验链：目标解析 → 调用者边表校验（用户直接交办跳过）→ 深度上限
+   * → 执行器预检 → 建任务记录 → 触发执行
+   *
+   * 执行器预检前置（2026-09-26）：未装配时直接拒绝，不再先落库，
+   * 避免产生永远停留在 running 的孤儿任务记录。
    */
   async dispatchTask(input: {
     callerUid?: string;
@@ -217,15 +221,18 @@ export class EmployeeService {
       };
     }
 
-    // 4. 建任务记录 + 异步触发执行（派发即返回；异常由 catch 落 failed）
+    // 4. 执行器预检：先校验再落库
+    // （旧实现先 recordTask 后校验，未装配时会留下一条永远 running 的孤儿任务记录）
+    if (!this.taskRunner) {
+      return { accepted: false, message: '任务执行器未装配' };
+    }
+
+    // 5. 建任务记录 + 异步触发执行（派发即返回；异常由 catch 落 failed）
     const record = await this.recordTask({
       employeeId: target.id,
       task: input.task,
       dispatchedBy,
     });
-    if (!this.taskRunner) {
-      return { accepted: false, message: '任务执行器未装配' };
-    }
     void this.taskRunner({
       taskId: record.id,
       employee: target,

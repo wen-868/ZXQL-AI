@@ -64,8 +64,37 @@ describe('G-A matchPlanStepsByTool（步骤进度）', () => {
     ]);
   });
 
-  it('无工具步骤（synthesis）不因工具命中', () => {
+  it('计划内工具重复调用 → 不算推进（返回空）', () => {
     const done = new Set<string>();
+    expect(matchPlanStepsByTool(STEPS, 'queryInventory', done)).toEqual([0]);
+    // 同一工具再查一次（如查第二个商品），不应把第 2 步误标完成
+    expect(matchPlanStepsByTool(STEPS, 'queryInventory', done)).toEqual([]);
+    expect(done.has('s2')).toBe(false);
+  });
+
+  it('计划外工具 → 兜底推进最早未完成步骤（进度条不卡死）', () => {
+    const done = new Set<string>();
+    // unknownTool 不在计划内，按"严格按序推进"语义补一步
+    expect(matchPlanStepsByTool(STEPS, 'unknownTool', done)).toEqual([0]);
+    expect(done.has('s1')).toBe(true);
+  });
+
+  it('未声明工具的 synthesis 步骤，最终能被兜底推进', () => {
+    const done = new Set<string>(['s1', 's2']);
+    // s3 是 synthesis，无 tool 字段，精确匹配永远命中不了；靠兜底完成
+    expect(matchPlanStepsByTool(STEPS, 'unknownTool', done)).toEqual([2]);
+    expect(done.has('s3')).toBe(true);
+  });
+
+  it('全部步骤完成后，兜底不再前进', () => {
+    const done = new Set<string>(['s1', 's2', 's3']);
     expect(matchPlanStepsByTool(STEPS, 'unknownTool', done)).toEqual([]);
+  });
+
+  it('兜底不重复标记：连续两次计划外工具依次推进两步', () => {
+    const done = new Set<string>();
+    expect(matchPlanStepsByTool(STEPS, 'toolA', done)).toEqual([0]);
+    expect(matchPlanStepsByTool(STEPS, 'toolB', done)).toEqual([1]);
+    expect(matchPlanStepsByTool(STEPS, 'toolC', done)).toEqual([2]);
   });
 });

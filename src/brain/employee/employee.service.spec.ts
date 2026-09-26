@@ -272,8 +272,10 @@ describe('EmployeeService', () => {
     expect(savedTasks.length).toBe(0);
   });
 
-  it('任务执行器未装配 → 拒绝派发', async () => {
+  it('任务执行器未装配 → 拒绝派发，且不落孤儿任务记录', async () => {
     // 只装配查询所需能力，不 setTaskRunner → 应返回"任务执行器未装配"
+    // 关键回归点：执行器预检已前置到落库之前，不能再留下永远 running 的孤儿记录
+    const orphanTasks: Array<Partial<AiEmployeeTaskEntity>> = [];
     const employeeRepoNoRunner = {
       createQueryBuilder: () => makeQb(makeEmployee({ id: 2 })),
       create: (e: Partial<AiEmployeeEntity>) => e as AiEmployeeEntity,
@@ -282,8 +284,10 @@ describe('EmployeeService', () => {
     } as unknown as Repository<AiEmployeeEntity>;
     const taskRepoNoRunner = {
       create: (e: Partial<AiEmployeeTaskEntity>) => e as AiEmployeeTaskEntity,
-      save: (e: Partial<AiEmployeeTaskEntity>) =>
-        Promise.resolve({ ...e, id: 99 } as AiEmployeeTaskEntity),
+      save: (e: Partial<AiEmployeeTaskEntity>) => {
+        orphanTasks.push(e);
+        return Promise.resolve({ ...e, id: 99 } as AiEmployeeTaskEntity);
+      },
     } as unknown as Repository<AiEmployeeTaskEntity>;
     const svcNoRunner = new EmployeeService(
       employeeRepoNoRunner,
