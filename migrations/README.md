@@ -12,7 +12,10 @@
 
 1. **命名**：`NNN_描述.sql`，`NNN` 为 3 位递增序号（001、002…），描述用中文短语，如 `002_ai_db_evolution_tables.sql`。
 2. **文件头无注释**：自动迁移器按 `;` 分号拆分逐条执行，文件头若带说明性注释会被当作语句拆分，因此**禁止在 SQL 文件首行写注释**；说明统一写本 README 或独立 `*.md`。
-3. **幂等**：每段建表前判断表是否存在（`CREATE TABLE IF NOT EXISTS`），加列用 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`（MySQL 8.0 支持）或先查 `information_schema`。
+3. **幂等（2026-09-27 更正）**：建表用 `CREATE TABLE IF NOT EXISTS`（MySQL ✅ 支持）。
+   **加列/加索引不能用 `ADD COLUMN IF NOT EXISTS` / `ADD INDEX IF NOT EXISTS`——那是 MariaDB 语法，MySQL 8.0 不支持**（此前本 README 误标为"MySQL 8.0 支持"，据此写出的 008/009 在生产执行会直接语法报错）。
+   正确写法：`information_schema` 判定 + `PREPARE` 动态 SQL（见 007 / 008 末段 / 009 现行版本）。
+   ⚠️ 该写法依赖 **MySQL 会话变量**，因此迁移文件必须**整文件执行**（`mysql -u<user> -p <db> < migrations/NNN_x.sql`），不可按分号拆分到多条独立连接逐条执行，否则变量丢失。
 4. **对齐实体**：SQL 与 `src/database/entities/*.entity.ts` 保持一一对应，字段名/类型/索引一致。
 5. **迁移文件不做版本回滚**：回滚走反向迁移文件（如 `002_revert`），不做 `DROP` 误删。
 
@@ -34,3 +37,41 @@
 | 006 | ai_execution_plan（Agent 自主执行计划，第22章） | 业务库 | ✅ 已建（006_ai_execution_plan.sql） |
 | 007 | t_platform_ai_config 补 evolution_auto_activate（E5 自治开关）+ ai_evolution_version 补 regression_accuracy/regression_evaluated_at（回归评测落库） | 业务库 + ai_db | ✅ 已建（007_e5_auto_close.sql） |
 | 008 | t_ai_employee（岗位档案，含 dispatch_uids 边表）+ t_ai_employee_task（任务留痕）+ t_ai_audit_log 补 employee_uid（审计署名） | 业务库 | ✅ 已建（008_digital_employee.sql） |
+| 009 | t_ai_audit_log 补 lane / categories（取证埋点）+ idx_lane 索引 | 业务库 | ✅ 已建（009_audit_lane_categories.sql） |
+
+## 五、生产补齐（2026-09-27 紧急）
+
+**探测结论（对生产实测，非推断）**：生产 AI 底座进程健康，但**迁移只执行到 006**，007/008/009 全部未应用 —— 导致的后果：
+
+| 端点 | 生产实测 | 根因 |
+|---|---|---|
+| `GET /ai-api/api/health` | ✅ 200 `{"status":"ok","service":"zhixiang-ai-base"}` | 进程正常 |
+| `POST /api/chat`（任意对话） | ❌ 500 `Unknown column 'PlatformAiConfigEntity.evolution_auto_activate' in 'field list'` | **007 未执行**，走 AiConfigService 即崩，**所有对话全挂** |
+| `GET /api/ai/employees` | ❌ 500 `Table 'liquor_inventory.t_ai_employee' doesn't exist` | **008 未执行**，数字员工功能生产完全不可用 |
+| `GET /api/chat/models`、`/api/chat/confirmations`、`/api/ai/agent/plans` | ✅ 200 | 依赖 001–006，已应用 |
+
+即：**部署（代码）已完成，但数据库结构没跟上，服务实际不可用**。
+
+**补齐命令**（在数据库所在机器执行，业务库为 `liquor_inventory`，AI 私有库为 `ai_db`）：
+
+```bash
+# 业务库：007 的 t_platform_ai_config 段 + 008 + 009
+mysql -u<user> -p liquor_inventory < migrations/007_e5_auto_close.sql
+mysql -u<user> -p liquor_inventory < migrations/008_digital_employee.sql
+mysql -u<user> -p liquor_inventory < migrations/009_audit_lane_categories.sql
+```
+
+> 007 分两段：`t_platform_ai_config` 在业务库，另一段脚本内已显式写成 `ai_db.ai_evolution_version`，
+> 因此对业务库执行一次即可（前提是 MySQL 账号对 `ai_db` 也有权限；如无权限则单独对 ai_db 执行该段）。
+> 三个脚本均已改为幂等（information_schema 判定），**可安全重复执行**，重复跑只会输出"已存在，跳过"。
+
+**验证**：
+
+```bash
+curl https://saas.onepan.cn/ai-api/api/health                 # 应 200
+# 对话不再报 Unknown column
+# GET /api/ai/employees 不再报 Table doesn't exist
+```
+
+补齐后再跑性能/能力基准（`scripts/perf-bench.js`、`tool-bench.js`）才有意义 —— 未补齐时 bench 拿到的全是错误响应
+（TTFB 看着很快、但 tokens/迭代/工具调用全为 0，是假数据）。

@@ -31,5 +31,16 @@ CREATE TABLE IF NOT EXISTS t_ai_employee_task (
   KEY idx_emp_task_emp (employee_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='数字员工任务留痕';
 
-ALTER TABLE t_ai_audit_log
-  ADD COLUMN IF NOT EXISTS employee_uid VARCHAR(40) NULL COMMENT '数字员工UID';
+-- 审计署名：补 employee_uid
+-- ⚠️ 幂等改写（2026-09-27）：MySQL 8.0 不支持 `ADD COLUMN IF NOT EXISTS`（MariaDB 语法），
+-- 原写法在生产执行会语法报错。改为 information_schema 判定 + PREPARE 动态 SQL。
+SET @ai_db := DATABASE();
+SET @ddl := IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = @ai_db
+      AND TABLE_NAME = 't_ai_audit_log'
+      AND COLUMN_NAME = 'employee_uid') = 0,
+  'ALTER TABLE t_ai_audit_log ADD COLUMN employee_uid VARCHAR(40) NULL COMMENT ''数字员工UID''',
+  'SELECT ''employee_uid 已存在，跳过'' AS skip_reason'
+);
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
