@@ -7,7 +7,11 @@
  *
  * 负责人: 苏然 | 创建日期: 2026-09-26
  */
-import { CLARIFY_FALLBACK_MESSAGE, buildClarifyPayload } from './clarify-event';
+import {
+  CLARIFY_FALLBACK_MESSAGE,
+  buildClarifyPayload,
+  needsWriteFailureClarifyCheck,
+} from './clarify-event';
 import type { ExtractionIssue } from './extraction/structured-extractor';
 
 const ISSUES: ExtractionIssue[] = [
@@ -76,5 +80,40 @@ describe('buildClarifyPayload（澄清事件载荷）', () => {
     ];
     const p = buildClarifyPayload({ issues: onlyMessage });
     expect(p.message).toBe('数量需为数字');
+  });
+});
+
+describe('needsWriteFailureClarifyCheck（无参数写意图的澄清兜底判定）', () => {
+  // 真实场景：createSalesOrder 的 required=['items']，用户只说"开单" →
+  // parseArgs 失败 → success:false 且**无 preview**。修复前此路径澄清不可达。
+  it('写工具失败且无 preview → 需要补判澄清（核心回归点）', () => {
+    // 先落变量再传入：对象字面量直接传参会触发多余属性检查
+    const failedWrite = { success: false, error: '缺少必填参数 items' };
+    expect(needsWriteFailureClarifyCheck(failedWrite, true)).toBe(true);
+  });
+
+  it('有 preview（正常预览）→ 交给主流程，不重复补判', () => {
+    expect(
+      needsWriteFailureClarifyCheck(
+        { success: true, preview: { orderNo: 'XS20260926001' } },
+        true,
+      ),
+    ).toBe(false);
+  });
+
+  it('读工具失败 → 不补判（不反问写参数）', () => {
+    expect(needsWriteFailureClarifyCheck({ success: false }, false)).toBe(
+      false,
+    );
+  });
+
+  it('写工具成功但无 preview → 不补判', () => {
+    expect(needsWriteFailureClarifyCheck({ success: true }, true)).toBe(false);
+  });
+
+  it('未能识别是否写操作（注册表缺失）→ 保守不补判', () => {
+    expect(needsWriteFailureClarifyCheck({ success: false }, false)).toBe(
+      false,
+    );
   });
 });

@@ -83,7 +83,10 @@ import {
   resolveIntentCategories,
 } from './intent-detector';
 import { resolveReference } from '../nlp/reference-resolver';
-import { buildClarifyPayload } from './clarify-event';
+import {
+  buildClarifyPayload,
+  needsWriteFailureClarifyCheck,
+} from './clarify-event';
 
 /**
  * Agent Loop 最大迭代次数（防止死循环）
@@ -818,6 +821,35 @@ export class Orchestrator {
             }
             if (enhance.args) {
               execArgs = enhance.args;
+            }
+          } else if (
+            needsWriteFailureClarifyCheck(
+              toolResult,
+              this.registry.get(tc.function.name)?.isWriteOperation ?? false,
+            )
+          ) {
+            // ── 无参数写意图的澄清兜底（2026-09-26）──
+            // 写工具**必填缺失**时返回的是 success:false 且**不带 preview**
+            // （如 createSalesOrder 缺 items → parseArgs 直接失败），
+            // 上面的 preview 分支进不来，澄清事件因此不可达：用户只看到一句
+            // 自然语言反问，前端拿不到结构化澄清卡。
+            // 此处对失败的写工具补一次澄清判定——**仅用于产出 clarify，不改
+            // execArgs**（本次调用已失败，没有后续确认执行可供增强）。
+            // tryEnhance 内部先查 docTypeForTool，未映射的写工具立即返回、
+            // 不产生 LLM 调用；非参数类失败（如后端不可用）通常不构成澄清条件，
+            // 会自然落回原有错误流程。
+            const enhance = await this.extractor.tryEnhance({
+              toolName: tc.function.name,
+              utterance: params.message,
+              args: rawArgs,
+              model: params.model,
+            });
+            if (enhance.needsClarification) {
+              yield {
+                type: 'clarify',
+                ...buildClarifyPayload(enhance),
+              };
+              continue;
             }
           }
 

@@ -28,6 +28,29 @@ export interface ClarifyPayload {
 }
 
 /**
+ * 是否需要对本次工具调用补一次「写参数澄清判定」
+ *
+ * 背景：写工具**必填缺失**时返回 `success:false` 且**不带 preview**（如
+ * createSalesOrder 缺 items → parseArgs 直接失败）。Orchestrator 原先只在
+ * `toolResult.preview` 为真时才跑 tryEnhance，于是这条路径的澄清**永远不可达**——
+ * 用户只收到一句自然语言反问，前端渲染不出结构化澄清卡。
+ *
+ * 判定（三条全满足才补判）：
+ * 1. 没有 preview（有 preview 的由主流程处理，不重复）；
+ * 2. 调用失败；
+ * 3. 该工具是写操作（读工具失败不该反问写参数）。
+ *
+ * 纯函数，便于单测——Orchestrator 有 23 个依赖，整体单测成本过高。
+ */
+export function needsWriteFailureClarifyCheck(
+  result: { success: boolean; preview?: unknown },
+  isWriteOperation: boolean,
+): boolean {
+  if (result.preview) return false;
+  return !result.success && isWriteOperation;
+}
+
+/**
  * 由 StructuredExtractor 的增强结果构造澄清事件载荷
  *
  * @param enhance.questions 面向用户的澄清问句（string[]，用于拼 message）
