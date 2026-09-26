@@ -13,7 +13,8 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AiExecutionPlanEntity } from '../../database/entities/ai-execution-plan.entity';
@@ -29,7 +30,10 @@ import { detectIntentCategories } from '../intent-detector';
 import { KnowledgeRulesService } from '../knowledge-rules.service';
 import { AiConfigService } from '../../tenant/ai-config.service';
 import { ProviderRouterService } from '../router/provider-router.service';
-import { WRITE_TOKEN_TTL_MS } from '../write-guard.service';
+import {
+  resolveWriteTokenTtlMs,
+  WRITE_TOKEN_TTL_HOURS_KEY,
+} from '../write-guard.service';
 import type { ToolContext, ToolResult } from '../../tools/tool.interface';
 import type { ChatMessage, ToolCall } from '../../providers/provider.interface';
 import {
@@ -77,7 +81,21 @@ export class TaskRunnerService {
     private readonly router: ProviderRouterService,
     private readonly aiConfigService: AiConfigService,
     private readonly knowledgeRules: KnowledgeRulesService,
+    @Optional() private readonly configService?: ConfigService,
   ) {}
+
+  /**
+   * 写审核令牌 TTL（毫秒）——与 WriteGuardService 同一口径
+   *
+   * 这里必须跟随 `WRITE_TOKEN_TTL_HOURS`：本服务的 expireAt 会随 await_confirm
+   * 事件下发给前端展示"令牌何时过期"。若仍用硬编码 24h，配短 TTL 后
+   * 前端显示"还有 23 小时"而令牌实际已过期，用户点了确认却被判失效。
+   */
+  private get writeTokenTtlMs(): number {
+    return resolveWriteTokenTtlMs(
+      this.configService?.get<string>(WRITE_TOKEN_TTL_HOURS_KEY),
+    );
+  }
 
   // ──────────────────────────────────────────────────────────
   // 计划 CRUD（持久化 ai_execution_plan）
@@ -354,7 +372,7 @@ export class TaskRunnerService {
           detail: step.error ?? '等待人工确认',
         };
         if (step.pendingToken) {
-          const expireAt = Date.now() + WRITE_TOKEN_TTL_MS;
+          const expireAt = Date.now() + this.writeTokenTtlMs;
           yield {
             type: 'await_confirm',
             token: step.pendingToken,
@@ -820,7 +838,7 @@ export class TaskRunnerService {
       plan.state = 'suspended';
       await this.savePlan(plan);
 
-      const expireAt = Date.now() + WRITE_TOKEN_TTL_MS;
+      const expireAt = Date.now() + this.writeTokenTtlMs;
       const events: AgentRunEvent[] = [
         {
           type: 'tool_result',

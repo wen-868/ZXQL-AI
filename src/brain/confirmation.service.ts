@@ -106,6 +106,15 @@ export interface ExecutedOperation {
   revokeExpiresAt: number;
   /** 状态 */
   status: ExecutedStatus;
+  /**
+   * 最近一次自动回滚失败原因（仅回滚失败时写入）
+   *
+   * 场景：自动回滚失败时不能删除本记录——否则撤销窗口内失去重试入口，
+   * 业务单据仍在执行态但用户已无撤销手段（静默数据不一致）。
+   */
+  lastRevokeError?: string;
+  /** 自动回滚尝试次数（用于提示与观测） */
+  revokeAttempts?: number;
 }
 
 /** 创建待确认记录的输入 */
@@ -577,6 +586,43 @@ export class ConfirmationService {
     this.executedMap.delete(operationId);
     this.logger.log(
       `操作已撤销：id=${operationId} tool=${operation.toolName}（${operation.operationLabel}）`,
+    );
+
+    return true;
+  }
+
+  /**
+   * 标记"撤销已登记但自动回滚失败"（保留记录，撤销窗口内可重试）
+   *
+   * 与 {@link markRevoked} 的区别：本方法**不删除**记录、status 保持 executed，
+   * 仅累计尝试次数与失败原因。原因是删除记录会让用户在 3 分钟窗口内
+   * 失去重试入口——单据仍在执行态却无法撤销，属静默数据不一致。
+   *
+   * 记录最终仍由 cleanupExpired() 在窗口到期后清理，不会泄漏。
+   *
+   * @param operationId 操作 ID
+   * @param tenantId    租户 ID
+   * @param error       回滚失败原因
+   * @returns 是否登记成功（窗口/租户校验不通过则 false）
+   */
+  markRevokeFailed(
+    operationId: string,
+    tenantId: string,
+    error: string,
+  ): boolean {
+    const check = this.canRevoke(operationId, tenantId);
+    if (!check.ok) {
+      this.logger.warn(
+        `回滚失败登记被拒绝：id=${operationId} tenant=${tenantId} reason=${check.reason ?? '未知'}`,
+      );
+      return false;
+    }
+
+    const operation = this.executedMap.get(operationId)!;
+    operation.lastRevokeError = error;
+    operation.revokeAttempts = (operation.revokeAttempts ?? 0) + 1;
+    this.logger.warn(
+      `自动回滚失败，保留撤销记录待重试：id=${operationId} tool=${operation.toolName} attempts=${operation.revokeAttempts} error=${error}`,
     );
 
     return true;

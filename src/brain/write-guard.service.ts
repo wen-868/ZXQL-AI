@@ -95,8 +95,60 @@ export interface WriteGuardConfirmResult {
   error?: string;
 }
 
-/** 写操作令牌 TTL：24 小时（毫秒） */
+/** 写操作令牌 TTL **默认值**：24 小时（毫秒） */
 export const WRITE_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** 写审核令牌有效期配置键（单位：小时）。缺省即 {@link WRITE_TOKEN_TTL_MS} */
+export const WRITE_TOKEN_TTL_HOURS_KEY = 'WRITE_TOKEN_TTL_HOURS';
+/** 合法区间下界（小时）：再短用户来不及在对话里确认 */
+export const WRITE_TOKEN_TTL_MIN_HOURS = 1;
+/** 合法区间上界（小时）：再长挂起令牌会长期占用 Redis/内存 */
+export const WRITE_TOKEN_TTL_MAX_HOURS = 720; // 30 天
+
+/**
+ * 解析写审核令牌 TTL（毫秒）
+ *
+ * 设计意图：24h 原为硬编码常量，调整即需改代码发版，使"TTL 该多长"
+ * 这一**产品决策**被代码阻塞。改为环境变量可配后，决策与发布解耦：
+ * 产品定调 → 改 `WRITE_TOKEN_TTL_HOURS` → 重启生效，零代码改动。
+ * 默认值仍为 24h，未配置时行为与改造前完全一致。
+ *
+ * 非法值（非数字/≤0）回落默认；越界值钳制到 [1, 720] 并告警，
+ * 避免误配 `0.5`（来不及确认）或 `8760`（令牌常年不释放）。
+ *
+ * @param hoursRaw 环境变量原始值（小时）
+ * @param onWarn   告警回调（便于单测断言与宿主 logger 注入）
+ * @returns TTL 毫秒数
+ */
+export function resolveWriteTokenTtlMs(
+  hoursRaw: string | number | undefined,
+  onWarn?: (message: string) => void,
+): number {
+  if (hoursRaw === undefined || hoursRaw === null || hoursRaw === '') {
+    return WRITE_TOKEN_TTL_MS;
+  }
+
+  const hours = typeof hoursRaw === 'number' ? hoursRaw : Number(hoursRaw);
+  if (!Number.isFinite(hours) || hours <= 0) {
+    onWarn?.(
+      `${WRITE_TOKEN_TTL_HOURS_KEY} 非法（${String(hoursRaw)}），回落默认 24 小时`,
+    );
+    return WRITE_TOKEN_TTL_MS;
+  }
+
+  if (hours < WRITE_TOKEN_TTL_MIN_HOURS || hours > WRITE_TOKEN_TTL_MAX_HOURS) {
+    const clamped = Math.min(
+      Math.max(hours, WRITE_TOKEN_TTL_MIN_HOURS),
+      WRITE_TOKEN_TTL_MAX_HOURS,
+    );
+    onWarn?.(
+      `${WRITE_TOKEN_TTL_HOURS_KEY}=${hours} 超出 [${WRITE_TOKEN_TTL_MIN_HOURS}, ${WRITE_TOKEN_TTL_MAX_HOURS}]，已钳制为 ${clamped}`,
+    );
+    return Math.round(clamped * 60 * 60 * 1000);
+  }
+
+  return Math.round(hours * 60 * 60 * 1000);
+}
 
 /** Redis Key 前缀 */
 const WG_KEY_PREFIX = 'ai:writeguard';
@@ -113,10 +165,33 @@ export class WriteGuardService {
   /** 内存降级租户索引：tenantId → Set<token> */
   private readonly memoryIndex = new Map<string, Set<string>>();
 
+  /** 写审核令牌 TTL（毫秒）：默认 24h，可由 WRITE_TOKEN_TTL_HOURS 覆盖 */
+  private readonly tokenTtlMs: number;
+
   constructor(
     private readonly configService: ConfigService,
     @Optional() private readonly auditLogger?: AuditLogger,
-  ) {}
+  ) {
+    this.tokenTtlMs = resolveWriteTokenTtlMs(
+      this.configService.get<string>(WRITE_TOKEN_TTL_HOURS_KEY),
+      (message) => this.logger.warn(message),
+    );
+    if (this.tokenTtlMs !== WRITE_TOKEN_TTL_MS) {
+      this.logger.log(
+        `写审核令牌 TTL 已配置为 ${Math.round(this.tokenTtlMs / 3600_000)} 小时（默认 24）`,
+      );
+    }
+  }
+
+  /**
+   * 当前写审核令牌 TTL（毫秒）
+   *
+   * 供 ConfirmationService / TaskRunner 等需要对齐同一过期口径的调用方取用，
+   * 避免多处各自引用默认常量导致"配了 env 但部分链路仍是 24h"。
+   */
+  getTokenTtlMs(): number {
+    return this.tokenTtlMs;
+  }
 
   /**
    * 初始化 Redis 连接（与 MemoryManager 同模式）
@@ -193,7 +268,7 @@ export class WriteGuardService {
       preview: input.preview,
       operationLabel: input.operationLabel,
       createdAt: now,
-      expiresAt: now + WRITE_TOKEN_TTL_MS,
+      expiresAt: now + this.tokenTtlMs,
       status: 'pending',
       confirmCount: 0,
     };
@@ -386,7 +461,7 @@ export class WriteGuardService {
   private async save(write: PendingWrite): Promise<void> {
     if (this.redisAvailable && this.redis) {
       try {
-        const ttlSeconds = Math.ceil(WRITE_TOKEN_TTL_MS / 1000);
+        const ttlSeconds = Math.ceil(this.tokenTtlMs / 1000);
         await this.redis
           .multi()
           .setex(

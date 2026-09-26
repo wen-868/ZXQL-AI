@@ -15,12 +15,14 @@ import { ConfigService } from '@nestjs/config';
 import {
   WriteGuardService,
   WRITE_TOKEN_TTL_MS,
+  WRITE_TOKEN_TTL_HOURS_KEY,
   maskToken,
+  resolveWriteTokenTtlMs,
 } from './write-guard.service';
 
-function createService(): WriteGuardService {
+function createService(env: Record<string, string> = {}): WriteGuardService {
   return new WriteGuardService({
-    get: () => undefined,
+    get: (key: string) => env[key],
   } as unknown as ConfigService);
 }
 
@@ -254,6 +256,57 @@ describe('P0-1 WriteGuardService', () => {
       expect(masked.startsWith('wg_12345')).toBe(true);
       expect(masked.endsWith('9abc')).toBe(true);
       expect(masked).not.toContain('1234-1234-1234-1234');
+    });
+  });
+
+  // ── 5. TTL 可配置（WRITE_TOKEN_TTL_HOURS）──
+  describe('写审核令牌 TTL 可配置', () => {
+    it('未配置时回落默认 24 小时（行为与改造前一致）', () => {
+      expect(resolveWriteTokenTtlMs(undefined)).toBe(WRITE_TOKEN_TTL_MS);
+      expect(resolveWriteTokenTtlMs('')).toBe(WRITE_TOKEN_TTL_MS);
+      expect(createService().getTokenTtlMs()).toBe(WRITE_TOKEN_TTL_MS);
+    });
+
+    it('合法值应按小时换算', () => {
+      expect(resolveWriteTokenTtlMs('2')).toBe(2 * 60 * 60 * 1000);
+      expect(resolveWriteTokenTtlMs(8)).toBe(8 * 60 * 60 * 1000);
+      expect(resolveWriteTokenTtlMs('1.5')).toBe(90 * 60 * 1000);
+    });
+
+    it('非法值（非数字/≤0）回落默认并告警', () => {
+      const warn = jest.fn();
+      expect(resolveWriteTokenTtlMs('abc', warn)).toBe(WRITE_TOKEN_TTL_MS);
+      expect(resolveWriteTokenTtlMs('-1', warn)).toBe(WRITE_TOKEN_TTL_MS);
+      expect(resolveWriteTokenTtlMs('0', warn)).toBe(WRITE_TOKEN_TTL_MS);
+      expect(warn).toHaveBeenCalledTimes(3);
+    });
+
+    it('越界值应钳制到 [1, 720] 并告警', () => {
+      const warn = jest.fn();
+      // 0.5 小时太短，用户来不及确认 → 钳到 1 小时
+      expect(resolveWriteTokenTtlMs('0.5', warn)).toBe(60 * 60 * 1000);
+      // 8760 小时 = 一年，令牌常年不释放 → 钳到 720 小时（30 天）
+      expect(resolveWriteTokenTtlMs('8760', warn)).toBe(720 * 60 * 60 * 1000);
+      expect(warn).toHaveBeenCalledTimes(2);
+    });
+
+    it('服务实例应读取环境变量且与 suspend 的 expiresAt 对齐', async () => {
+      const svc = createService({ [WRITE_TOKEN_TTL_HOURS_KEY]: '2' });
+      expect(svc.getTokenTtlMs()).toBe(2 * 60 * 60 * 1000);
+
+      const record = await svc.suspend(baseInput);
+      expect(record.expiresAt - record.createdAt).toBe(2 * 60 * 60 * 1000);
+    });
+
+    it('配短 TTL 后令牌应在 2 小时后过期（而非默认 24 小时）', async () => {
+      const svc = createService({ [WRITE_TOKEN_TTL_HOURS_KEY]: '2' });
+      await svc.suspend(baseInput);
+
+      jest.advanceTimersByTime(2 * 60 * 60 * 1000 - 1000);
+      expect(await svc.listPending('tenant-A')).toHaveLength(1);
+
+      jest.advanceTimersByTime(2000);
+      expect(await svc.listPending('tenant-A')).toHaveLength(0);
     });
   });
 });

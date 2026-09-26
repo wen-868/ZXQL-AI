@@ -371,12 +371,10 @@ export class ChatController {
       return { success: false, error: check.reason ?? '无法撤销' };
     }
 
-    // 在登记撤销前取操作记录（用于自动回滚）
+    // 先取操作记录（用于自动回滚），登记动作延后到回滚结果确定之后：
+    // 回滚失败时若已登记并删除记录，用户在 3 分钟窗口内将失去重试入口，
+    // 而业务单据仍在执行态——属静默数据不一致。
     const operation = this.confirmationService.getExecuted(operationId);
-    this.confirmationService.markRevoked(operationId, tenantId);
-    this.logger.log(
-      `操作已登记撤销：id=${operationId} tenant=${tenantId} reason=${dto.reason ?? '用户主动撤销'}`,
-    );
 
     // 自动回滚：有映射的写操作自动调用回滚工具，无映射降级为引导
     if (operation) {
@@ -387,6 +385,31 @@ export class ChatController {
         authToken: ctx?.authToken,
         sessionId: operation.conversationId,
       });
+
+      // 命中映射但回滚失败：保留撤销记录（窗口内可重试），如实返回失败
+      const rollbackFailed = rollback.handled && rollback.success === false;
+      if (rollbackFailed) {
+        this.confirmationService.markRevokeFailed(
+          operationId,
+          tenantId,
+          rollback.message,
+        );
+        this.logger.warn(
+          `撤销登记未完成：自动回滚失败，保留重试入口 id=${operationId} tenant=${tenantId}`,
+        );
+        return {
+          success: false,
+          revocable: true,
+          rollbackHandled: true,
+          rollbackSuccess: false,
+          error: rollback.message,
+        };
+      }
+
+      this.confirmationService.markRevoked(operationId, tenantId);
+      this.logger.log(
+        `操作已登记撤销：id=${operationId} tenant=${tenantId} reason=${dto.reason ?? '用户主动撤销'}`,
+      );
       return {
         success: true,
         revocable: true,
@@ -395,6 +418,11 @@ export class ChatController {
         message: rollback.message,
       };
     }
+
+    this.confirmationService.markRevoked(operationId, tenantId);
+    this.logger.log(
+      `操作已登记撤销：id=${operationId} tenant=${tenantId} reason=${dto.reason ?? '用户主动撤销'}`,
+    );
 
     return {
       success: true,

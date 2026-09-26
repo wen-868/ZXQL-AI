@@ -161,6 +161,16 @@ export class ServiceClient {
       this.configService.get<string>('JWT_SECRET') ||
       undefined;
 
+    if (!this.csrfSecret) {
+      // 运维黑洞：缺失时本类静默跳过 x-csrf-token 注入，所有后端写操作（POST/PUT/DELETE）
+      // 会被 backend 的 csrfMiddleware 统一拦成 403，而 AI 侧只看到"写工具调用失败"，
+      // 无法与真实业务错误区分。启动期必须显式告警。
+      this.logger.warn(
+        'CSRF_SECRET 与 JWT_SECRET 均未配置：写操作请求将缺少 x-csrf-token，' +
+          '后端会统一返回 403。请配置与管理系统 backend 一致的 CSRF_SECRET。',
+      );
+    }
+
     this.httpClient = axios.create({
       baseURL: this.baseUrl,
       timeout: this.timeout,
@@ -431,11 +441,18 @@ export class ServiceClient {
     if (err instanceof AxiosError) {
       // 有后端响应（4xx/5xx）
       if (err.response) {
+        const status = err.response.status;
         const backendData = err.response.data as BackendResponse | undefined;
+        // 403 时若本服务未注入 x-csrf-token，这是可自证的最高频根因，
+        // 直接点名以免与"真权限不足/路径不存在"混淆（见踩坑日志 [34]）。
+        const csrfHint =
+          status === 403 && !this.csrfSecret
+            ? '｜疑似 CSRF_SECRET 未配置：本次请求未携带 x-csrf-token'
+            : '';
         return new BridgeError(
-          `后端 HTTP ${err.response.status}：${backendData?.msg ?? err.message}（path=${path}）`,
-          err.response.status,
-          backendData?.code ?? String(err.response.status),
+          `后端 HTTP ${status}：${backendData?.msg ?? err.message}${csrfHint}（path=${path}）`,
+          status,
+          backendData?.code ?? String(status),
           backendData?.traceId,
         );
       }

@@ -330,6 +330,63 @@ describe('R70-15 + P0-1 ConfirmationService', () => {
         false,
       );
     });
+
+    it('自动回滚失败应保留记录，撤销窗口内仍可重试', () => {
+      const operation = service.registerExecuted({
+        tenantId: 'tenant-A',
+        toolName: 'createSalesOrder',
+        args: { confirm: true },
+        operationLabel: '创建销售单',
+      });
+
+      expect(
+        service.markRevokeFailed(
+          operation.operationId,
+          'tenant-A',
+          '后端取消失败',
+        ),
+      ).toBe(true);
+
+      // 关键：记录必须还在，否则用户失去重试入口而单据仍在执行态
+      const kept = service.getExecuted(operation.operationId);
+      expect(kept).not.toBeNull();
+      expect(kept?.status).toBe('executed');
+      expect(kept?.lastRevokeError).toBe('后端取消失败');
+      expect(service.canRevoke(operation.operationId, 'tenant-A').ok).toBe(
+        true,
+      );
+    });
+
+    it('重复回滚失败应累计尝试次数', () => {
+      const operation = service.registerExecuted({
+        tenantId: 'tenant-A',
+        toolName: 'createSalesOrder',
+        args: { confirm: true },
+        operationLabel: '创建销售单',
+      });
+
+      service.markRevokeFailed(operation.operationId, 'tenant-A', '第一次失败');
+      service.markRevokeFailed(operation.operationId, 'tenant-A', '第二次失败');
+
+      const kept = service.getExecuted(operation.operationId);
+      expect(kept?.revokeAttempts).toBe(2);
+      expect(kept?.lastRevokeError).toBe('第二次失败');
+    });
+
+    it('回滚失败保留的记录应在窗口到期后被清理（不泄漏）', () => {
+      const operation = service.registerExecuted({
+        tenantId: 'tenant-A',
+        toolName: 'createSalesOrder',
+        args: { confirm: true },
+        operationLabel: '创建销售单',
+      });
+      service.markRevokeFailed(operation.operationId, 'tenant-A', '失败');
+
+      jest.advanceTimersByTime(REVOKE_TTL_MS + 1000);
+      service.cleanupExpired();
+
+      expect(service.getExecuted(operation.operationId)).toBeNull();
+    });
   });
 
   // ── 4. 确认词/拒绝词识别 ──
