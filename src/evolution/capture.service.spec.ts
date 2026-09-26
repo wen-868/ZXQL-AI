@@ -6,13 +6,14 @@
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
 /* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- 测试断言直接引用 jest mock 方法及其调用参数 */
-import { Repository } from 'typeorm';
+import { Repository, type ObjectLiteral } from 'typeorm';
 import { AiExperienceEntity } from '../database/entities/ai-experience.entity';
 import { AiCorrectionEntity } from '../database/entities/ai-correction.entity';
 import { AiSampleEntity } from '../database/entities/ai-sample.entity';
 import { CaptureService } from './capture.service';
 
-function createRepo<T>() {
+// Repository<T> 要求 T extends ObjectLiteral，泛型需带同约束
+function createRepo<T extends ObjectLiteral>() {
   return {
     create: jest.fn((data) => data),
     save: jest.fn((data) => Promise.resolve({ id: 1, ...data })),

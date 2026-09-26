@@ -45,7 +45,7 @@ function makeDeps(env: Record<string, string> = {}): {
   res: { status: jest.Mock; json: jest.Mock };
   next: NextFunction;
 } {
-  const run = jest.fn((data: TenantContextData, cb: () => void) => cb());
+  const run = jest.fn((_data: TenantContextData, cb: () => void) => cb());
   const tenantContext = {
     run,
     getData: jest.fn(),

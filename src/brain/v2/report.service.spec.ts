@@ -62,12 +62,16 @@ describe('ReportService', () => {
     const calls = executor.executeToolCall.mock.calls as unknown as Array<
       [{ function: { name: string; arguments: string } }, unknown]
     >;
-    const lastCall = calls.at(-1)?.[0];
-    expect(lastCall.function.arguments).toContain('"groupBy":"store"');
+    // 取末次调用：缺调用时显式抛错，避免用 ! 掩盖断言失效
+    const lastCall = () => {
+      const c = calls.at(-1)?.[0];
+      if (!c) throw new Error('未捕获到工具调用');
+      return c;
+    };
+    expect(lastCall().function.arguments).toContain('"groupBy":"store"');
 
     await service.generate('C', { dateStart: '2026-08-01' }, CTX);
-    const callC = calls.at(-1)?.[0];
-    expect(callC.function.name).toBe('profitReport');
+    expect(lastCall().function.name).toBe('profitReport');
 
     const d = await service.generate('D', {}, CTX);
     expect(d.tool).toBe('api_get_business_overview');

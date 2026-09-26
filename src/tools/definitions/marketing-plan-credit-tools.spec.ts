@@ -245,7 +245,8 @@ describe('第一批 P0 写操作工具', () => {
         Record<string, unknown>,
       ];
       expect(path).toBe('/api/admin/purchase-plans');
-      expect(body.items[0]).toEqual({ skuId: 101, suggestQty: 10 });
+      const items = body.items as Array<{ skuId: number; suggestQty: number }>;
+      expect(items[0]).toEqual({ skuId: 101, suggestQty: 10 });
     });
 
     it('items 非法时返回错误', async () => {

@@ -118,6 +118,12 @@ function makeRunner(
     chatWithFallback: jest.fn(),
     getSystemScope: jest.fn(() => 'mgmt'),
   };
+  // 规则注入（2026-09-05 能力补齐新增的第 12 个依赖）：此前 spec 未传，
+  // 一旦走到步骤执行分支 this.knowledgeRules 就是 undefined → 直接崩。
+  // 返回 undefined = 不追加业务规则块，保持既有断言语义。
+  const knowledgeRules = {
+    getRulesContext: jest.fn(() => undefined),
+  };
   const aiConfigService = {
     getResolvedConfig: jest.fn().mockResolvedValue({
       provider: 'glm',
@@ -142,6 +148,7 @@ function makeRunner(
     auditLogger as never,
     router as never,
     aiConfigService as never,
+    knowledgeRules as never,
   );
   return {
     runner,

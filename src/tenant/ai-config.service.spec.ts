@@ -72,6 +72,9 @@ describe('AiConfigService', () => {
       defaultTemperature: 0.3,
       defaultMaxTokens: 2048,
       defaultSystemPrompt: '你是智享AI助手',
+      // 同 ai-config-admin.service.spec：补齐后续迁移新增的两个开关字段
+      ollamaFallbackEnabled: 1,
+      evolutionAutoActivate: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
       ...overrides,

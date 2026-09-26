@@ -22,7 +22,23 @@ function createService(opts: {
   const dataSource = {
     query: jest.fn().mockResolvedValue(opts.rows ?? []),
   } as unknown as DataSource;
-  const chatSync = jest.fn(
+  // 显式定型：否则两个分支的返回值会推导成空参数元组 []，
+  // 断言 chatSync.mock.calls[0][0] 时会报"元组无第 0 个元素"
+  const chatSync: jest.Mock<
+    Promise<{
+      content: string;
+      prompt_tokens: number;
+      completion_tokens: number;
+    }>,
+    [Array<{ content: string }>]
+  > = jest.fn<
+    Promise<{
+      content: string;
+      prompt_tokens: number;
+      completion_tokens: number;
+    }>,
+    [Array<{ content: string }>]
+  >(
     opts.llmError
       ? () => {
           throw new Error('llm down');

@@ -183,7 +183,7 @@ async function collectEvents(
   ctx: ToolContext,
 ) {
   const events: Array<{ type: string; [k: string]: unknown }> = [];
-  for await (const e of executor.execute(graph, ctx.sessionId, ctx)) {
+  for await (const e of executor.execute(graph, ctx.sessionId ?? 's1', ctx)) {
     events.push(e);
   }
   return events;

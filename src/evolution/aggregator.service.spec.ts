@@ -103,15 +103,19 @@ describe('P1-1 AggregatorService', () => {
       [{ tenantId: 't_001', intent: 'sales_order', outcome: 'success' }],
       [{ tenantId: 't_001', taskType: 'customer_create', reason: 'r' }],
     );
+    // 真实签名是 (taskType, limit?) => Promise<PublicPattern | null>：
+    // 原先直接返回裸对象（非 Promise）且缺字段，类型不匹配。
     const spy = jest
       .spyOn(service, 'aggregateByTaskType')
-      .mockImplementation((taskType) => ({
-        taskType,
-        total: 1,
-        tenantCount: 1,
-        outcomeDistribution: {},
-        reasonPatterns: [],
-      }));
+      .mockImplementation((taskType: string) =>
+        Promise.resolve({
+          taskType,
+          total: 1,
+          tenantCount: 1,
+          outcomeDistribution: {},
+          reasonPatterns: [],
+        }),
+      );
 
     const patterns = await service.aggregateAll();
     expect(patterns.length).toBe(2);

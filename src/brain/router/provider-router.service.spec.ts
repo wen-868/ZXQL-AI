@@ -7,7 +7,10 @@
 import { ConfigService } from '@nestjs/config';
 import { ProviderFactory } from '../../providers/provider-factory';
 import { ProviderRouterService } from './provider-router.service';
-import type { ResolvedAiConfig } from '../../tenant/ai-config.service';
+import type {
+  AiConfigService,
+  ResolvedAiConfig,
+} from '../../tenant/ai-config.service';
 import type {
   ChatMessage,
   ChatResult,
@@ -143,6 +146,11 @@ describe('ProviderRouterService', () => {
     const router = new ProviderRouterService(
       factory as unknown as ProviderFactory,
       { get: jest.fn(() => 'mgmt') } as unknown as ConfigService,
+      // 此前未传 → this.aiConfig 为 undefined，isFallbackEnabled() 抛错被
+      // try/catch 吞掉后按"默认开启"处理。这里显式给 true，保持等价行为。
+      {
+        isFallbackEnabled: jest.fn(() => Promise.resolve(true)),
+      } as unknown as AiConfigService,
     );
     const result = router.route({
       resolved: makeResolved(),

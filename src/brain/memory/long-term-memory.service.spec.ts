@@ -4,13 +4,14 @@
  * 覆盖：档案读写/覆盖、情节保存与配额淘汰、归档保存、检索相关性、租户隔离
  */
 import { ConfigService } from '@nestjs/config';
-import { Repository } from 'typeorm';
+import { Repository, type ObjectLiteral } from 'typeorm';
 import { AiLtmProfileEntity } from '../../database/entities/ai-ltm-profile.entity';
 import { AiLtmEpisodicEntity } from '../../database/entities/ai-ltm-episodic.entity';
 import { AiLtmArchivalEntity } from '../../database/entities/ai-ltm-archival.entity';
 import { LongTermMemoryService } from './long-term-memory.service';
 
-function makeRepo<T>() {
+// Repository<T> 要求 T extends ObjectLiteral，泛型需带同约束
+function makeRepo<T extends ObjectLiteral>() {
   return {
     findOne: jest.fn().mockResolvedValue(null),
     find: jest.fn().mockResolvedValue([]),
@@ -57,7 +58,7 @@ describe('LongTermMemoryService', () => {
       entityId: null,
       k: '品牌调性',
       vJson: { value: '旧值' },
-    } as AiLtmProfileEntity);
+    } as unknown as AiLtmProfileEntity);
     await svc.upsertProfile('t1', '品牌调性', '新值');
     const saved = profileRepo.save.mock.calls[1][0] as AiLtmProfileEntity;
     expect(saved.vJson).toEqual({ value: '新值' });
@@ -69,7 +70,7 @@ describe('LongTermMemoryService', () => {
       {
         k: '常用客户',
         vJson: { value: '红星商行' },
-      } as AiLtmProfileEntity,
+      } as unknown as AiLtmProfileEntity,
     ]);
     const svc = makeService({ profileRepo });
     const profiles = await svc.getProfiles('t1');

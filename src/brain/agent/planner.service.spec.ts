@@ -136,7 +136,13 @@ describe('PlannerService', () => {
   });
 
   it('LLM 输出超 12 步：裁剪至上限且末步为 end', async () => {
-    const manySteps = Array.from({ length: 15 }, (_, i) => ({
+    // 显式定型：末步 type='end' 不带 tool/args，字面量推导会拒绝 push
+    const manySteps: Array<{
+      label: string;
+      type: string;
+      tool?: string;
+      args?: Record<string, unknown>;
+    }> = Array.from({ length: 15 }, (_, i) => ({
       label: `步骤${i}`,
       type: 'tool',
       tool: 'queryInventory',

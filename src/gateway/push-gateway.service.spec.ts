@@ -132,7 +132,7 @@ describe('PushGatewayService', () => {
         } else if (Array.isArray(data)) {
           resolve(Buffer.concat(data).toString('utf8'));
         } else {
-          resolve(Buffer.from(data).toString('utf8'));
+          resolve(Buffer.from(data as ArrayBuffer).toString('utf8'));
         }
       });
     });

@@ -46,7 +46,20 @@ function createService(options?: {
     findOne: jest.fn(),
     createQueryBuilder: jest.fn(),
   } as unknown as Repository<never>;
-  const versions = new EvolutionVersionService(versionRepo);
+  // EvolutionVersionService 现需三个仓储；此前只传了一个，stage() 里访问
+  // sampleRepo/platformRepo 会 undefined 崩。取最保守的桩值：无样本 + 无策略
+  // （分别落到"跳过评测"与"人工放行"）。
+  const sampleRepo = {
+    find: jest.fn().mockResolvedValue([]),
+  } as unknown as Repository<never>;
+  const platformRepo = {
+    findOne: jest.fn().mockResolvedValue(null),
+  } as unknown as Repository<never>;
+  const versions = new EvolutionVersionService(
+    versionRepo,
+    sampleRepo,
+    platformRepo,
+  );
 
   const service = new ExperienceExtractorService(
     corrRepo,

@@ -87,7 +87,13 @@ describe('OllamaProvider', () => {
       },
     });
     const result = await provider.chatSync([{ role: 'user', content: 'hi' }], {
-      tools: [{ name: 'echo', description: 'e', parameters: {} }],
+      // ToolDefinition 是 OpenAI function 形态：{ type:'function', function:{...} }
+      tools: [
+        {
+          type: 'function',
+          function: { name: 'echo', description: 'e', parameters: {} },
+        },
+      ],
     });
     expect(result.tool_calls).toHaveLength(1);
     expect(result.tool_calls?.[0].function.name).toBe('echo');
@@ -119,7 +125,7 @@ describe('OllamaProvider', () => {
     let done = false;
     while (!done) {
       const next = await it.next();
-      done = next.done;
+      done = next.done === true;
       if (!done) texts.push(next.value as string);
       else result = next.value as { content?: string };
     }

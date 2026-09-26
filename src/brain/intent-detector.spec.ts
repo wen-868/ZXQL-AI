@@ -184,7 +184,8 @@ describe('resolveIntentCategories（意图分诊双通道）', () => {
       'utility',
     ];
     const valid = new Set(all);
-    const classifier = jest.fn().mockResolvedValue(all.concat(['x']));
+    // 末尾混入非法值 'x'，验证分诊器只保留合法 ToolCategory
+    const classifier = jest.fn().mockResolvedValue([...all, 'x']);
     const result = await resolveIntentCategories(
       '帮我全面看看生意',
       classifier,

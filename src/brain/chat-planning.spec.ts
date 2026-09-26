@@ -13,10 +13,33 @@ import {
 } from './chat-planning';
 import type { PlanStep } from './agent/agent.types';
 
+/**
+ * 步骤工厂：补齐 PlanStep 的必填字段（status/retryCount/时间戳）。
+ * 这些字段与 chat-planning 的三个纯函数无关，逐个字面量重复会淹没有效信息。
+ */
+function step(
+  s: Pick<PlanStep, 'id' | 'label' | 'type'> & Partial<PlanStep>,
+): PlanStep {
+  return {
+    status: 'pending',
+    retryCount: 0,
+    createdAt: 0,
+    updatedAt: 0,
+    ...s,
+  };
+}
+
 const STEPS: PlanStep[] = [
-  { id: 's1', label: '查询库存', type: 'tool', tool: 'queryInventory' },
-  { id: 's2', label: '生成补货单', type: 'tool', tool: 'createPurchaseOrder' },
-  { id: 's3', label: '总结', type: 'synthesis' },
+  step({ id: 's1', label: '查询库存', type: 'tool', tool: 'queryInventory' }),
+  step({
+    id: 's2',
+    label: '生成补货单',
+    type: 'tool',
+    tool: 'createPurchaseOrder',
+  }),
+  // type 取值域是 tool|agent|condition|end（无 synthesis）；
+  // 总结步用 agent 且不声明 tool —— 正是"永远无法精确命中"的那类步骤
+  step({ id: 's3', label: '总结', type: 'agent', prompt: '汇总结果' }),
 ];
 
 describe('G-A isComplexGoal（复杂目标分诊）', () => {
@@ -79,7 +102,7 @@ describe('G-A matchPlanStepsByTool（步骤进度）', () => {
     expect(done.has('s1')).toBe(true);
   });
 
-  it('未声明工具的 synthesis 步骤，最终能被兜底推进', () => {
+  it('未声明工具的步骤（总结步），最终能被兜底推进', () => {
     const done = new Set<string>(['s1', 's2']);
     // s3 是 synthesis，无 tool 字段，精确匹配永远命中不了；靠兜底完成
     expect(matchPlanStepsByTool(STEPS, 'unknownTool', done)).toEqual([2]);

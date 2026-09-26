@@ -88,6 +88,10 @@ describe('AiConfigAdminService', () => {
       defaultTemperature: 0.3,
       defaultMaxTokens: 2048,
       defaultSystemPrompt: '你是智享AI助手',
+      // 两个后续迁移新增的开关字段（缺省值与实体 @Column 默认一致：
+      // ollama_fallback_enabled=1 开启、evolution_auto_activate=0 人工放行）
+      ollamaFallbackEnabled: 1,
+      evolutionAutoActivate: 0,
       createdAt: new Date('2026-08-01T00:00:00Z'),
       updatedAt: new Date('2026-08-01T00:00:00Z'),
       ...overrides,
@@ -461,6 +465,7 @@ describe('AiConfigAdminService', () => {
       monthlyTokenLimit: 0,
       monthlyPrice: 0,
       enabled: 1,
+      balance: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
       ...overrides,

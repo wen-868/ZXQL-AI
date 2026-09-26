@@ -12,6 +12,7 @@ import { NotFoundException } from '@nestjs/common';
 import { ProactiveController } from './proactive.controller';
 import { ProactiveService } from './proactive.service';
 import { ProactiveJobInfo, ProactiveTaskResult } from './proactive.types';
+import type { WeeklyPlanService } from './weekly-plan.service';
 
 describe('ProactiveController', () => {
   let controller: ProactiveController;
@@ -36,6 +37,8 @@ describe('ProactiveController', () => {
     };
     controller = new ProactiveController(
       service as unknown as ProactiveService,
+      // 周报计划（第 2 个依赖）：此前未传，命中 /weekly-plan 会 undefined 崩
+      { buildWeeklyPlan: jest.fn() } as unknown as WeeklyPlanService,
     );
   });
 
