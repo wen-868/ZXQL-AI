@@ -46,6 +46,10 @@ import { KnowledgeRulesService } from './knowledge-rules.service';
 import { EvidenceLedgerService } from './evidence/evidence-ledger.service';
 import { EmployeeService } from './employee/employee.service';
 import {
+  EMPLOYEE_SESSION_PREFIX,
+  resolveEmployeeConversationId,
+} from './employee/employee-conversation';
+import {
   isComplexGoal,
   matchPlanStepsByTool,
   stepsToPlanContext,
@@ -324,9 +328,19 @@ export class Orchestrator {
       return;
     }
 
-    // 生成或复用会话 ID
-    const conversationId =
-      params.conversationId ?? this.memoryManager.generateSessionId();
+    // 生成或复用会话 ID（数字员工维度：未指定时后端兜底 emp_{uid}，避免记忆串岗）
+    const employeeConversation = resolveEmployeeConversationId({
+      conversationId: params.conversationId,
+      employeeUid: params.employeeUid,
+      generate: () => this.memoryManager.generateSessionId(),
+    });
+    const conversationId = employeeConversation.conversationId;
+    if (employeeConversation.unscopedWarning) {
+      // 可观测但不改数据：强行改写会让调用方既有历史会话断线
+      this.logger.warn(
+        `数字员工会话未按员工隔离：uid=${params.employeeUid} session=${conversationId}（建议以 ${EMPLOYEE_SESSION_PREFIX} 前缀传入，或不传由后端兜底）`,
+      );
+    }
 
     this.logger.log(
       `Agent Loop 启动：tenant=${tenantId} user=${userId ?? 'anonymous'} session=${conversationId} msg="${params.message.slice(0, 50)}..."`,
