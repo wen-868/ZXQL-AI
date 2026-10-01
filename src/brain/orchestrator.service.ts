@@ -312,6 +312,7 @@ export class Orchestrator {
    *   }
    */
   async *run(params: OrchestratorParams): AsyncGenerator<OrchestratorEvent> {
+    const runStartAt = Date.now();
     // ── 1. 解析租户信息 ──
     const ctxData = this.tenantContext.getData();
     const tenantId = params.tenantId ?? ctxData?.tenantId;
@@ -474,6 +475,58 @@ export class Orchestrator {
               return null;
             }
           });
+
+      // ── 4.0 自动分派（2026-09-05 自动化升级：任务必须自动分派、自动执行完成）──
+      // 默认会话发起的任务（非纯寒暄、意图命中业务域）自动派给能力最贴合的
+      // 数字员工：派发即返回 → 员工在自身对话框独立执行 → 完成后回传本会话。
+      // 守卫：员工运行不触发（防递归）；graph 模式不触发；纯寒暄不触发；
+      // 开关 ENABLE_AUTO_DISPATCH（默认开）；无匹配员工时走原默认助手流程。
+      if (
+        !params.employeeUid &&
+        params.mode !== 'graph' &&
+        this.configService.get<string>('ENABLE_AUTO_DISPATCH', 'true') ===
+          'true' &&
+        intent.lane !== 'chat' &&
+        intent.categories &&
+        intent.categories.length > 0
+      ) {
+        const target = await this.employeeService.findBestForCategories(
+          intent.categories,
+          tenantId,
+        );
+        if (target) {
+          const dr = await this.employeeService.dispatchTask({
+            tenantId,
+            targetKeyword: target.name,
+            task: userMessage,
+            dispatchDepth: 0,
+            originConversationId: conversationId,
+          });
+          if (dr.accepted) {
+            const notice = `已自动分派给「${dr.employeeName}」（任务#${dr.taskId}）执行。任务完成后结果将回传本会话；你也可以在左侧员工列表中查看其工作进度。`;
+            yield { type: 'text', content: notice };
+            await this.memoryManager.saveHistory(tenantId, conversationId, [
+              { role: 'user', content: params.message },
+              { role: 'assistant', content: notice },
+            ]);
+            this.logger.log(
+              `自动分派：任务#${dr.taskId} → ${dr.employeeName}（lane=${intent.lane}）`,
+            );
+            yield {
+              type: 'done',
+              conversationId,
+              usage: {
+                promptTokens: auxPromptTokens,
+                completionTokens: auxCompletionTokens,
+                totalTokens: auxPromptTokens + auxCompletionTokens,
+                latencyMs: Date.now() - runStartAt,
+                iterations: 0,
+              },
+            };
+            return;
+          }
+        }
+      }
 
       // ── 4.1 O7 规划先行启动（与分诊并行，2026-09-05 性能优化）──
       // 复杂目标时 Planner LLM 调用与意图分诊并发执行，省一次串行等待（约 1-2s）。

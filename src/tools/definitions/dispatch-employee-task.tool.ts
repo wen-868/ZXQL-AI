@@ -63,6 +63,7 @@ export class DispatchEmployeeTaskTool implements ITool {
       targetKeyword: targetName,
       task: taskText,
       dispatchDepth: context.dispatchDepth ?? 0,
+      originConversationId: context.sessionId,
     });
 
     if (!result.accepted) {

@@ -47,6 +47,8 @@ export interface EmployeeTaskRunInput {
   depth: number;
   tenantId: string;
   dispatchedBy: string;
+  /** 发起会话 ID（有值时结果回传到该会话——自动分派/上级派发场景） */
+  originConversationId?: string;
 }
 
 /** 任务执行回调签名（Brain 侧 bridge 注册，避免 EmployeeModule↔BrainModule 循环依赖） */
@@ -177,6 +179,8 @@ export class EmployeeService {
     targetKeyword: string;
     task: string;
     dispatchDepth: number;
+    /** 发起会话（结果回传目标；自动分派场景由 Orchestrator 传入） */
+    originConversationId?: string;
   }): Promise<{
     accepted: boolean;
     taskId?: number;
@@ -240,6 +244,7 @@ export class EmployeeService {
       depth: (input.dispatchDepth ?? 0) + 1,
       tenantId: input.tenantId,
       dispatchedBy,
+      originConversationId: input.originConversationId,
     }).catch((err: unknown) => {
       void this.completeTask(
         record.id,
@@ -282,6 +287,39 @@ export class EmployeeService {
       resultSummary: resultSummary.slice(0, 4000),
       status,
     });
+  }
+
+  /**
+   * 自动分派目标匹配（2026-09-05 自动分派升级）：
+   * 按意图业务域找能力最贴合的员工（toolCategories 交集最大者）。
+   *
+   * @param categories 意图分诊出的业务域
+   * @param excludeUid 排除的员工（调用者自身，防自派）
+   * @returns 最匹配员工；无匹配返回 null
+   */
+  async findBestForCategories(
+    categories: string[],
+    tenantId: string,
+    excludeUid?: string,
+  ): Promise<AiEmployeeEntity | null> {
+    if (!categories || categories.length === 0) return null;
+    const wanted = new Set(categories);
+    const items = await this.employeeRepo.find({
+      where: { tenantId, status: 1 },
+    });
+    let best: AiEmployeeEntity | null = null;
+    let bestScore = 0;
+    for (const e of items) {
+      if (excludeUid && e.employeeUid === excludeUid) continue;
+      const overlap = (e.toolCategories ?? []).filter((c) =>
+        wanted.has(c),
+      ).length;
+      if (overlap > bestScore) {
+        best = e;
+        bestScore = overlap;
+      }
+    }
+    return best;
   }
 
   /** 员工任务列表（对话框工作台：执行的任务 + 派发出的任务） */
