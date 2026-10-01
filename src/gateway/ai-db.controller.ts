@@ -32,6 +32,7 @@ import { AggregatorService } from '../evolution/aggregator.service';
 import { ExperienceExtractorService } from '../evolution/experience-extractor.service';
 import { EvolutionVersionService } from '../evolution/evolution-version.service';
 import { E4DistillationService } from '../evolution/e4-distillation.service';
+import { TenantContext } from '../tenant/tenant-context';
 import { StructuredExtractor } from '../brain/extraction/structured-extractor';
 
 /** 手动提交纠正 */
@@ -65,6 +66,7 @@ export class AiDbController {
     private readonly versions: EvolutionVersionService,
     private readonly structuredExtractor: StructuredExtractor,
     private readonly e4: E4DistillationService,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   /** 经验样本列表 */
@@ -140,7 +142,7 @@ export class AiDbController {
    * 策略：t_platform_ai_config.evolution_auto_activate=1 时达标自动激活/未达标自动拦截；默认人工放行。
    */
   @Post('versions/:id/auto-close')
-  autoCloseVersion(
+  async autoCloseVersion(
     @Param('id', ParseIntPipe) id: number,
     @Body()
     dto: {
@@ -148,12 +150,18 @@ export class AiDbController {
       actor?: string;
     },
   ) {
-    return this.versions.runAutoClosure(id, {
-      extract: async (docType, utterance) =>
-        await this.structuredExtractor.extract({ docType, utterance }),
-      cases: dto.cases,
-      actor: dto.actor,
-    });
+    // E5 评测的抽取调用需租户上下文（aiConfig 解析），管理路由不在
+    // TenantMiddleware 内——用 TenantContext.run 显式包一层；
+    // 平台管理员无租户 → synthetic default（评测走平台默认/环境配置）
+    const tenantId = this.tenantContext.getData()?.tenantId ?? 'default';
+    return await this.tenantContext.run({ tenantId, userId: 'e5-eval' }, () =>
+      this.versions.runAutoClosure(id, {
+        extract: async (docType, utterance) =>
+          await this.structuredExtractor.extract({ docType, utterance }),
+        cases: dto.cases,
+        actor: dto.actor,
+      }),
+    );
   }
 
   /** 触发萃取（纠正→staged 版本提案） */

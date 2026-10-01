@@ -152,6 +152,18 @@ export class EvolutionVersionService {
   ): Promise<AiEvolutionVersionEntity> {
     const entity = await this.getOrThrow(id);
     this.assertStatus(entity, ['staged']);
+    // 单活约束：同 artifact 的旧 active 自动退役（避免双活版本导致基线歧义）
+    const olds = await this.repo.find({
+      where: { artifact: entity.artifact, status: 'active' },
+    });
+    for (const old of olds) {
+      old.status = 'rolled_back';
+      old.approvedBy = approver;
+      await this.repo.save(old);
+      this.logger.log(
+        `旧版本已退役：id=${old.id} toVersion=${old.toVersion}（被 ${entity.toVersion} 取代）`,
+      );
+    }
     entity.status = 'active';
     entity.approvedBy = approver;
     await this.repo.save(entity);
@@ -304,7 +316,11 @@ export class EvolutionVersionService {
       let note: string | undefined;
       let r: Awaited<ReturnType<E5ExtractFn>> = null;
       try {
-        r = await deps.extract(artifact, c.prompt);
+        // 抽取器按裸 docType 查 Schema（artifact 带 write_schema. 前缀，需剥除）
+        r = await deps.extract(
+          artifact.replace(/^write_schema\./, ''),
+          c.prompt,
+        );
       } catch (err) {
         note = `抽取器异常：${err instanceof Error ? err.message : String(err)}`;
       }
@@ -321,7 +337,8 @@ export class EvolutionVersionService {
         ok =
           keys.length > 0 &&
           keys.every((k) => fmt(data[k]).trim() === fmt(expected[k]).trim());
-        if (!ok) note = '字段与标准答案不匹配';
+        if (!ok)
+          note = `字段与标准答案不匹配（实际抽取：${JSON.stringify(data).slice(0, 200)}）`;
       } else {
         // groundTruth 非 JSON：退化为包含判定（历史样本兜底）
         ok = JSON.stringify(r.data ?? {}).includes(trimmed);

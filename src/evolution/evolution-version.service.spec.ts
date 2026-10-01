@@ -18,6 +18,7 @@ function createService() {
     create: jest.fn((data) => data),
     save: jest.fn(async (data) => ({ ...data })),
     findOne: jest.fn(),
+    find: jest.fn().mockResolvedValue([]),
     createQueryBuilder: jest.fn(),
   } as unknown as Repository<AiEvolutionVersionEntity>;
   const sampleRepo = {
@@ -96,6 +97,45 @@ describe('P1-1 EvolutionVersionService', () => {
     const entity = await service.activate(1, 'admin');
     expect(entity.status).toBe('active');
     expect(entity.approvedBy).toBe('admin');
+  });
+
+  it('activate：同 artifact 旧 active 自动退役（单活约束）', async () => {
+    const { service, repo } = createService();
+    // getOrThrow 按主键查；find 查旧 active
+    repo.findOne = jest.fn((opts?: { where?: Record<string, unknown> }) => {
+      const w = opts?.where ?? {};
+      if ('id' in w) {
+        return Promise.resolve({
+          id: 2,
+          artifact: 'write_schema.customer_create',
+          fromVersion: 'v1',
+          status: 'staged',
+        });
+      }
+      return Promise.resolve(null);
+    }) as never;
+    repo.find = jest.fn().mockResolvedValue([
+      {
+        id: 1,
+        artifact: 'write_schema.customer_create',
+        toVersion: 'v1',
+        status: 'active',
+        approvedBy: 'seed',
+      },
+    ]) as never;
+
+    const entity = await service.activate(2, 'e5-auto');
+    expect(entity.status).toBe('active');
+    // 旧 active 被退役
+    const saved = (repo.save as jest.Mock).mock.calls.map((c) => c[0]);
+    expect(
+      saved.some(
+        (e) =>
+          e.id === 1 &&
+          e.status === 'rolled_back' &&
+          e.approvedBy === 'e5-auto',
+      ),
+    ).toBe(true);
   });
 
   it('activate：非 staged 状态拒绝激活', async () => {
