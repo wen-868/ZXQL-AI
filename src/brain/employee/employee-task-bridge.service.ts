@@ -76,12 +76,20 @@ export class EmployeeTaskBridge implements OnModuleInit {
     // 任务状态落库（completed/failed）
     await this.employeeService.completeTask(input.taskId, summary, status);
 
-    // 3. 结果回传：写入派发方的会话（上级员工或用户所在对话）
+    // 3. 结果回传：优先写发起会话（originConversationId——自动分派场景
+    //    由 Orchestrator 传入，回传直接出现在用户当前对话）；
+    //    上级员工派发写上级会话；用户直接交办写回下级会话本身
     try {
       const report = `【任务回传】${input.employee.name}：${
         status === 'completed' ? '任务已完成' : '任务执行失败'
       }\n${summary.slice(0, 800)}`;
-      if (input.dispatchedBy.startsWith('employee:')) {
+      if (input.originConversationId) {
+        await this.memoryManager.saveHistory(
+          input.tenantId,
+          input.originConversationId,
+          [{ role: 'user', content: report }],
+        );
+      } else if (input.dispatchedBy.startsWith('employee:')) {
         const callerUid = input.dispatchedBy.slice('employee:'.length);
         await this.memoryManager.saveHistory(
           input.tenantId,
