@@ -10,16 +10,19 @@ import {
   AiEmployeeTaskEntity,
 } from '../../database/entities/ai-employee.entity';
 import { TenantModule } from '../../tenant/tenant.module';
+import { EvolutionModule } from '../../evolution/evolution.module';
 import { EmployeeController } from './employee.controller';
 import { EmployeeService } from './employee.service';
+import { OfficeEvolutionService } from './office-evolution.service';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([AiEmployeeEntity, AiEmployeeTaskEntity]),
     TenantModule,
+    EvolutionModule,
   ],
-  providers: [EmployeeService],
-  controllers: [EmployeeController],
+  providers: [EmployeeService, OfficeEvolutionService],
   exports: [EmployeeService],
+  controllers: [EmployeeController],
 })
 export class EmployeeModule {}

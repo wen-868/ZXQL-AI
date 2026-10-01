@@ -322,6 +322,11 @@ export class EmployeeService {
     return best;
   }
 
+  /** 按 ID 直查任务（评分回流用） */
+  async getTaskById(taskId: number): Promise<AiEmployeeTaskEntity | null> {
+    return this.taskRepo.findOne({ where: { id: taskId } });
+  }
+
   /** 员工任务列表（对话框工作台：执行的任务 + 派发出的任务） */
   async listTasksFor(
     employeeUid: string,

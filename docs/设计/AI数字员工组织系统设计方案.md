@@ -917,3 +917,21 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 **当前状态**：**规格已定，桌面端 UI 本轮不动**。桌面端现状仍是两块（`#sessList` 本地会话列表 + `#empList` 员工列表），规格落地待排期，届时按本节改造。
 
 
+
+
+---
+
+### 12.10 办公场景进化（2026-10-02：飞轮覆盖办公任务）
+
+**缺口**：进化飞轮此前只校准结构化抽取（write_schema.*）与对话纠错；数字员工承接的办公任务（报告/通知/纪要/分析）产出的验收结果没有回流通道——办公场景游离在进化飞轮之外。
+
+**补齐：评分回流闭环**（端点 `POST /api/ai/employees/tasks/:taskId/rate`）：
+- 用户对员工完成的任务评分（score 1-5 + 采纳/驳回 + 修改意见 + 任务类型）
+- **采纳（score≥4）→ ai_sample**（prompt=任务、completion=产出、quality=评分）→ E3 few-shot 回流（同类型办公任务自动带上历史最佳示例）/ E4 训练管线
+- **驳回（score≤2 或 adopted=false）→ ai_correction**（wrong=产出、right=意见）→ E2 萃取 → E5 校准
+- 中评（3）→ 仅记经验
+- 路由结果可观测（routedTo: sample/correction/experience）
+
+**办公任务类型注册表**（OFFICE_TASK_TYPES）：office_report（报告）/ office_notification（通知文案）/ office_minutes（会议纪要）/ office_analysis（数据分析）/ office_document（通用文档）——样本归档、few-shot 匹配、E4 就绪度统计共用同一口径。
+
+**验证**：真机实测采纳（score=5 → ai_sample quality=5）与驳回（score=2+意见 → ai_correction）双路径；captureTask 增加 sampleQuality 覆盖支持。

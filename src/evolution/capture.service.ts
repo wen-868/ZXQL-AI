@@ -35,6 +35,8 @@ export interface CaptureTaskInput {
   toolCalls?: Array<Record<string, unknown>>;
   /** 结果：success/corrected/failed */
   outcome: 'success' | 'corrected' | 'failed';
+  /** 样本质量覆盖（1-5；缺省按 outcome：success=3、corrected=4。办公评分回流用） */
+  sampleQuality?: number;
   /** 最终回复（脱敏后作为样本 completion） */
   reply?: string;
   /** 失败信息（可选） */
@@ -102,7 +104,8 @@ export class CaptureService {
             completion: input.reply
               ? String(sanitizeJson(input.reply)).slice(0, 2000)
               : null,
-            quality: input.outcome === 'success' ? 3 : 4,
+            quality:
+              input.sampleQuality ?? (input.outcome === 'success' ? 3 : 4),
             usedForTraining: 0,
           }),
         );

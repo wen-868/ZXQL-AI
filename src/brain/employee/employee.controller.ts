@@ -23,6 +23,7 @@ import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { AdminGuard, JwtGuard } from '../../tenant/admin-auth.guard';
 import { TenantContext } from '../../tenant/tenant-context';
 import { EmployeeService } from './employee.service';
+import { OfficeEvolutionService } from './office-evolution.service';
 import type { AiEmployeeUpdate } from './employee.service';
 
 export class CreateEmployeeDto {
@@ -95,6 +96,7 @@ export class EmployeeController {
   constructor(
     private readonly employeeService: EmployeeService,
     private readonly tenantContext: TenantContext,
+    private readonly officeEvolution: OfficeEvolutionService,
   ) {}
 
   /** 员工列表（=联系人列表数据源） */
@@ -131,5 +133,28 @@ export class EmployeeController {
     return this.employeeService
       .getById(id, tenantId)
       .then((e) => this.employeeService.listTasksFor(e.employeeUid, e.id));
+  }
+
+  /** 办公任务评分回流（采纳→样本池喂 E3/E4；驳回→纠错喂 E2/E5） */
+  @Post('tasks/:taskId/rate')
+  rate(
+    @Param('taskId', ParseIntPipe) taskId: number,
+    @Body()
+    dto: {
+      score: number;
+      adopted: boolean;
+      feedback?: string;
+      taskType?: string;
+    },
+  ) {
+    const tenantId = this.tenantContext.require().tenantId;
+    return this.officeEvolution.rate({
+      taskId,
+      tenantId,
+      score: dto.score,
+      adopted: dto.adopted,
+      feedback: dto.feedback,
+      taskType: dto.taskType,
+    });
   }
 }
