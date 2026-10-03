@@ -980,3 +980,31 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 | `npx eslint "{src,apps,libs,test}/**/*.ts"` | 0 error / 0 warning |
 
 > 本轮同时修掉未提交改动引入的 16 处 lint（`ConfigService.get()` 缺泛型 2 处、`jest.Mock.calls[0]` any 1 处、prettier 13 处）。
+### 12.13 代码审查发现并修复的 6 个 P0（2026-10-03）
+
+前两轮修的是"已知未完成项"，本轮是**主动代码审查**——按"不信自述、只认代码"的同一标准，
+对 E4 蒸馏、审计链路、编排器兜底、graph 注入、记忆隔离五条链路做深读，挖出 6 个 P0。
+
+| # | 缺陷 | 后果 | 修法 |
+|---|---|---|---|
+| 1 | `e4/train` 的 `baseModel` 未校验拼进 Modelfile 首行 | 换行注入 `ADAPTER /etc/shadow` → 宿主机**文件读取原语** | 字符白名单，非法直接拒绝 |
+| 2 | 同端点 `taskType` 未校验且拼进 SYSTEM `"""` 块内 | `"""` 可闭合并追加指令；空值在 force 下产出脏模型 | 白名单 + 空值前置拒绝 |
+| 3 | E4 `readiness`/`exportDataset` 缺 tenantId 过滤 | A 租户训练混入 B 租户真实用户对话 | 三端点统一从 `TenantContext` 取租户 |
+| 4 | `audit-logs` 的 tenantId 由查询参数自报 | 商家超管可读任意租户审计日志 | 商家强制用自己租户，自报他人 → 403 + warn |
+| 5 | `plan_step` skipped 兜底把 `end` 收尾步也标 skipped | **我上一提交引入的新缺陷**：每张卡最后一步恒显"已跳过" | 抽出纯函数排除 `type==='end'` |
+| 6 | 工具执行失败仍标 `done` | 失败被报成"完成"，比"没走完"更隐蔽 | 仅 `toolResult.success` 时标 done |
+
+**两条元教训**（已写入踩坑日志 [44]）：
+
+1. **内联 DTO 类型 = 没有运行时校验**。`ValidationPipe.toValidate()` 对 metatype 为
+   `Object` 的参数直接返回 `false`，所以 `main.ts` 里配好的 `whitelist` /
+   `forbidNonWhitelisted` 对内联类型标注的端点**形同虚设**，且 `tsc` 0 错误给足错觉。
+2. **"引入修复"本身可能制造比原问题更显眼的新缺陷**。#5 正是如此：原问题是进度虚高，
+   修完变成"末步永远显示已跳过"。它能溜过去是因为只测了纯函数，而 bug 在
+   "纯函数 + orchestrator 拼接"处，且 `orchestrator.service.spec.ts` 当时并不存在。
+   ⇒ **纯函数测试不能替代集成测试**；每次引入新逻辑都要反向追问"会不会有新错误表现"。
+
+**测试**：新增 17 例（e4 6→14、audit-logs 0→8、chat-planning 12→20），
+**全部经反测验证**（临时移除修复 → 对应用例立即变红），确认非恒真断言。
+
+门禁：tsc build 0 ｜ 含 spec 全量 tsc 0 ｜ jest 112 套件 / 1097 用例全过 ｜ eslint 0/0。
