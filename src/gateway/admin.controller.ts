@@ -21,9 +21,11 @@
  * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-01
  */
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Header,
   Logger,
@@ -33,7 +35,9 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { aiError } from '../common/ai-errors';
 import { AdminGuard } from '../tenant/admin-auth.guard';
+import { TenantContext } from '../tenant/tenant-context';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
@@ -90,6 +94,7 @@ export class AdminController {
     private readonly executor: ToolExecutor,
     private readonly serviceClient: ServiceClient,
     private readonly auditLogger: AuditLogger,
+    private readonly tenantContext: TenantContext,
     private readonly configService: ConfigService,
     private readonly memoryManager: MemoryManager,
     private readonly metricsService: MetricsService,
@@ -458,11 +463,36 @@ export class AdminController {
     page: number;
     pageSize: number;
   }> {
-    if (!tenantId) {
-      return { list: [], total: 0, page: 1, pageSize: 20 };
+    // 租户口径：商家 JWT 只能查自己租户（tenantId 只认 JWT payload，不接受查询参数自报）；
+    // 平台 JWT 跨租户运维，需显式指定目标租户。全项目安全约定见 tenant.middleware.ts。
+    const ctx = this.tenantContext.getData();
+    if (!ctx?.tenantId) {
+      throw new BadRequestException({
+        statusCode: 400,
+        ...aiError('AI_001', { detail: '缺少租户上下文：请携带有效 JWT 访问' }),
+      });
     }
+    if (
+      !this.tenantContext.isPlatform() &&
+      tenantId &&
+      tenantId !== ctx.tenantId
+    ) {
+      this.logger.warn(
+        `审计查询越权拦截：商家身份 tenantId=${ctx.tenantId} 试图查询 tenantId=${tenantId}`,
+      );
+      throw new ForbiddenException({
+        statusCode: 403,
+        ...aiError('AI_010', {
+          detail: '仅平台身份可跨租户查询审计日志',
+        }),
+      });
+    }
+    // 商家身份忽略查询参数里的 tenantId，强制用自己租户
+    const scopedTenantId = this.tenantContext.isPlatform()
+      ? tenantId || ctx.tenantId
+      : ctx.tenantId;
 
-    const result = await this.auditLogger.queryAuditLogs(tenantId, {
+    const result = await this.auditLogger.queryAuditLogs(scopedTenantId, {
       startDate,
       endDate,
       intent,

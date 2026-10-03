@@ -180,16 +180,20 @@ export class AiDbController {
       baseModel?: string;
     },
   ) {
+    // tenantId 由上下文取，不接受请求体传入——否则可伪造读取/训练他人样本
     return this.e4.train(dto.taskType ?? '', {
       force: dto.force ?? false,
       baseModel: dto.baseModel,
+      tenantId: this.tenantContext.getData()?.tenantId ?? 'default',
     });
   }
 
   /** E4 就绪度看板（各 taskType 的 quality≥4 样本量/平均质量/是否达训练阈值） */
   @Get('e4/readiness')
   e4Readiness() {
-    return this.e4.readiness();
+    return this.e4.readiness(
+      this.tenantContext.getData()?.tenantId ?? 'default',
+    );
   }
 
   /** E4 训练集导出（JSONL messages 格式，quality≥4，供离线微调管线） */
@@ -198,7 +202,11 @@ export class AiDbController {
     @Query('taskType') taskType: string,
     @Query('limit') limit?: string,
   ) {
-    return this.e4.exportDataset(taskType ?? '', limit ? Number(limit) : 500);
+    return this.e4.exportDataset(
+      taskType ?? '',
+      limit ? Number(limit) : 500,
+      this.tenantContext.getData()?.tenantId ?? 'default',
+    );
   }
 
   /** 触发跨租户聚合（脱敏公共模式） */
