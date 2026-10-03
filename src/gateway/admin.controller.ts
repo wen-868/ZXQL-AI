@@ -320,12 +320,41 @@ export class AdminController {
     total: number;
     items: AiSessionArchiveEntity[];
   }> {
+    // 租户口径同 audit-logs / clearMemory：
+    // ① tenantId 原本可选 ⇒ 不传时返回**全部租户**的会话归档（比越权读更糟）；
+    // ② 传了也不校验归属 ⇒ 可读他人租户归档。
+    // 现改为：商家恒定查自己租户；平台身份才可跨租户且必须显式指定。
+    const ctx = this.tenantContext.getData();
+    if (!ctx?.tenantId) {
+      throw new BadRequestException({
+        statusCode: 400,
+        ...aiError('AI_001', { detail: '缺少租户上下文：请携带有效 JWT 访问' }),
+      });
+    }
+    if (
+      !this.tenantContext.isPlatform() &&
+      tenantId &&
+      tenantId !== ctx.tenantId
+    ) {
+      this.logger.warn(
+        `会话归档越权拦截：商家身份 tenantId=${ctx.tenantId} 试图查询 tenantId=${tenantId}`,
+      );
+      throw new ForbiddenException({
+        statusCode: 403,
+        ...aiError('AI_010', { detail: '仅平台身份可跨租户查询会话归档' }),
+      });
+    }
+    const scopedTenantId = this.tenantContext.isPlatform()
+      ? tenantId
+      : ctx.tenantId;
+
     const qb = this.sessionArchiveRepo
       .createQueryBuilder('a')
       .orderBy('a.id', 'DESC')
       .take(Math.min(Number(limit) || 20, 100));
-    if (tenantId) {
-      qb.andWhere('a.tenant_id = :tenantId', { tenantId });
+    // 商家身份必带租户条件；平台身份未指定租户时保持跨租户查询（运维场景）
+    if (scopedTenantId) {
+      qb.andWhere('a.tenant_id = :scopedTenantId', { scopedTenantId });
     }
     if (sessionId) {
       qb.andWhere('a.session_id = :sessionId', { sessionId });
@@ -359,8 +388,32 @@ export class AdminController {
     @Param('tenantId') tenantId: string,
     @Param('sessionId') sessionId: string,
   ): Promise<{ success: boolean; message: string }> {
-    await this.memoryManager.clearHistory(tenantId, sessionId);
-    this.logger.log(`会话记忆已清除：tenant=${tenantId} session=${sessionId}`);
+    // 与 audit-logs 同一租户口径：商家 JWT 只能清自己租户的记忆，
+    // 平台身份才可跨租户运维。tenantId 只认 JWT payload，不接受路径自报。
+    const ctx = this.tenantContext.getData();
+    if (!ctx?.tenantId) {
+      throw new BadRequestException({
+        statusCode: 400,
+        ...aiError('AI_001', { detail: '缺少租户上下文：请携带有效 JWT 访问' }),
+      });
+    }
+    if (!this.tenantContext.isPlatform() && tenantId !== ctx.tenantId) {
+      this.logger.warn(
+        `清除记忆越权拦截：商家身份 tenantId=${ctx.tenantId} 试图操作 tenantId=${tenantId}`,
+      );
+      throw new ForbiddenException({
+        statusCode: 403,
+        ...aiError('AI_010', { detail: '仅平台身份可跨租户清除记忆' }),
+      });
+    }
+    const scopedTenantId = this.tenantContext.isPlatform()
+      ? tenantId
+      : ctx.tenantId;
+
+    await this.memoryManager.clearHistory(scopedTenantId, sessionId);
+    this.logger.log(
+      `会话记忆已清除：tenant=${scopedTenantId} session=${sessionId}`,
+    );
     return { success: true, message: '会话记忆已清除' };
   }
 
