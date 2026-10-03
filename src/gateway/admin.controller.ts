@@ -41,6 +41,7 @@ import { aiError } from '../common/ai-errors';
 import { AdminGuard } from '../tenant/admin-auth.guard';
 import { TenantContext } from '../tenant/tenant-context';
 import { getAdminIdentity } from '../tenant/admin-auth.guard';
+import { resolveAdminTenantId } from '../tenant/admin-tenant-scope';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
@@ -140,24 +141,13 @@ export class AdminController {
     @Req() req: Request,
     @Body() dto: ExecuteToolDto,
   ): Promise<ToolResult> {
+    // 租户口径统一走 admin-tenant-scope（与 ai-config / ai-db 三处一致）：
+    // 商户锁本租户、自报他人 → **403 明确拒绝**（此前是静默改写成自己的租户，
+    // 虽然安全但越权尝试不留痕、不可观测，且与另两处口径不一致）；
+    // 平台身份须显式指定目标租户。
     const identity = getAdminIdentity(req);
-    const effectiveTenantId =
-      identity.identityType === 'merchant'
-        ? identity.tenantId
-        : dto.context.tenantId || identity.tenantId || 'default';
-    if (!effectiveTenantId) {
-      throw new ForbiddenException({
-        statusCode: 403,
-        ...aiError('AI_010', {
-          detail: '商户 JWT 缺少 tenantId，无法确定执行租户',
-        }),
-      });
-    }
-    if (
-      identity.identityType === 'platform' &&
-      dto.context.tenantId &&
-      dto.context.tenantId !== effectiveTenantId
-    ) {
+    const effectiveTenantId = resolveAdminTenantId(req, dto.context.tenantId);
+    if (identity.identityType === 'platform') {
       this.logger.log(
         `平台身份代执行：${identity.username} 指定租户 ${effectiveTenantId}`,
       );
