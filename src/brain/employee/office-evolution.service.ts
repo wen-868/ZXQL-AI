@@ -83,6 +83,7 @@ export class OfficeEvolutionService {
       this.logger.log(
         `办公任务评分采纳：task=${input.taskId} type=${taskType} score=${score} → ai_sample`,
       );
+      await this.employeeService.markTaskRated(input.taskId, 'sample');
       return { routedTo: 'sample' };
     }
 
@@ -100,6 +101,7 @@ export class OfficeEvolutionService {
       this.logger.log(
         `办公任务评分驳回：task=${input.taskId} score=${score} → ai_correction`,
       );
+      await this.employeeService.markTaskRated(input.taskId, 'correction');
       return { routedTo: 'correction' };
     }
 
@@ -113,6 +115,7 @@ export class OfficeEvolutionService {
       outcome: 'success',
     });
     this.logger.log(`办公任务中评记录：task=${input.taskId} score=${score}`);
+    await this.employeeService.markTaskRated(input.taskId, 'experience');
     return { routedTo: 'experience' };
   }
 }

@@ -181,6 +181,8 @@ export class EmployeeService {
     dispatchDepth: number;
     /** 发起会话（结果回传目标；自动分派场景由 Orchestrator 传入） */
     originConversationId?: string;
+    /** 任务类型（派发时的意图业务域，评分回流按此归档样本） */
+    taskType?: string;
   }): Promise<{
     accepted: boolean;
     taskId?: number;
@@ -236,6 +238,7 @@ export class EmployeeService {
       employeeId: target.id,
       task: input.task,
       dispatchedBy,
+      taskType: input.taskType,
     });
     void this.taskRunner({
       taskId: record.id,
@@ -267,12 +270,14 @@ export class EmployeeService {
     employeeId: number;
     task: string;
     dispatchedBy: string;
+    taskType?: string;
   }): Promise<AiEmployeeTaskEntity> {
     return this.taskRepo.save(
       this.taskRepo.create({
         employeeId: input.employeeId,
         task: input.task,
         dispatchedBy: input.dispatchedBy,
+        taskType: input.taskType ?? null,
         status: 'running',
       }),
     );
@@ -287,6 +292,11 @@ export class EmployeeService {
       resultSummary: resultSummary.slice(0, 4000),
       status,
     });
+  }
+
+  /** 评分回流结果落任务记录（sample/correction） */
+  async markTaskRated(taskId: number, result: string): Promise<void> {
+    await this.taskRepo.update(taskId, { ratingResult: result });
   }
 
   /**
@@ -314,9 +324,12 @@ export class EmployeeService {
       const overlap = (e.toolCategories ?? []).filter((c) =>
         wanted.has(c),
       ).length;
-      if (overlap > bestScore) {
+      const terminal = (e.dispatchUids?.length ?? 0) === 0 ? 1 : 0;
+      // 主排序：交集数；次级：终端岗位优先（管理岗保留作协调）
+      const score = overlap * 2 + terminal;
+      if (overlap > 0 && score > bestScore) {
         best = e;
-        bestScore = overlap;
+        bestScore = score;
       }
     }
     return best;

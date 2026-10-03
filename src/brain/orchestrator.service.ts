@@ -501,6 +501,7 @@ export class Orchestrator {
             task: userMessage,
             dispatchDepth: 0,
             originConversationId: conversationId,
+            taskType: (intent.categories ?? [])[0],
           });
           if (dr.accepted) {
             const notice = `已自动分派给「${dr.employeeName}」（任务#${dr.taskId}）执行。任务完成后结果将回传本会话；你也可以在左侧员工列表中查看其工作进度。`;
@@ -512,6 +513,23 @@ export class Orchestrator {
             this.logger.log(
               `自动分派：任务#${dr.taskId} → ${dr.employeeName}（lane=${intent.lane}）`,
             );
+            // 审计留痕：自动分派路径也入审计（triage 埋点供跨域占比统计）
+            this.auditLogger.logAiCall({
+              tenantId,
+              userId,
+              sessionId: conversationId,
+              employeeUid: dr.employeeUid,
+              provider: providerName,
+              model: modelName,
+              intent: 'auto_dispatch',
+              triageLane: intent.lane,
+              triageCategories: (intent.categories ?? []).join(',') || undefined,
+              userMessage: params.message,
+              promptTokens: auxPromptTokens,
+              completionTokens: auxCompletionTokens,
+              latencyMs: Date.now() - runStartAt,
+              success: true,
+            });
             yield {
               type: 'done',
               conversationId,
@@ -1319,6 +1337,10 @@ export class Orchestrator {
         provider: providerName,
         model: modelName,
         intent: 'chat',
+        triageLane: intent?.lane ?? null,
+
+        triageCategories: (intent?.categories ?? []).join(',') || undefined,
+
         lane: 'chat',
         categories: this.collectToolCategories(allToolCalls),
         userMessage: params.message,

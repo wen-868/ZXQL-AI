@@ -474,7 +474,30 @@ async function loadEmployeeTasks(emp){
       const bd=b.parentElement.querySelector('.bd');
       const d=document.createElement('div');d.className='usage-line';d.style.cssText='font-size:11px;color:var(--sub);margin-top:4px';
       d.textContent=(t.status==='completed'?'✅ ':'⏳ ')+(t.resultSummary||'执行中').slice(0,120);
-      bd.appendChild(d);col.appendChild(b.parentElement);end();
+      bd.appendChild(d);
+      // 评分回流（办公场景进化）：完成任务可评分，采纳/驳回直接喂进化飞轮
+      if(t.status==='completed'){
+        const rateRow=document.createElement('div');rateRow.style.cssText='font-size:11px;margin-top:4px';
+        const mkBtn=(label,score,adopted)=>{
+          const btn=document.createElement('button');btn.textContent=label;btn.style.cssText='margin-right:6px;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--ink);cursor:pointer;font-size:11px';
+          btn.onclick=async()=>{
+            btn.disabled=true;
+            try{
+              const rr=await fetch(S.server+'/api/ai/employees/tasks/'+t.id+'/rate',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+S.token},body:JSON.stringify({score,adopted,taskType:t.taskType||undefined})});
+              const rj=await rr.json();
+              rateRow.innerHTML='<span style="color:var(--sub)">已评分（'+(rj.routedTo==='sample'?'已采纳入进化样本':'已驳回入纠错校准')+'）</span>';
+            }catch(e2){rateRow.innerHTML='<span style="color:var(--red)">评分失败</span>'}
+          };
+          return btn;
+        };
+        if(!t.ratingResult){
+          rateRow.append(mkBtn('👍 采纳',5,true),mkBtn('👎 驳回',2,false));
+        }else{
+          rateRow.innerHTML='<span style="color:var(--sub)">已评分：'+(t.ratingResult==='sample'?'已采纳':'已驳回')+'</span>';
+        }
+        bd.appendChild(rateRow);
+      }
+      col.appendChild(b.parentElement);end();
     });
   }catch(e){/* 静默 */}
 }

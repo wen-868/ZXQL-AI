@@ -935,3 +935,13 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 **办公任务类型注册表**（OFFICE_TASK_TYPES）：office_report（报告）/ office_notification（通知文案）/ office_minutes（会议纪要）/ office_analysis（数据分析）/ office_document（通用文档）——样本归档、few-shot 匹配、E4 就绪度统计共用同一口径。
 
 **验证**：真机实测采纳（score=5 → ai_sample quality=5）与驳回（score=2+意见 → ai_correction）双路径；captureTask 增加 sampleQuality 覆盖支持。
+
+### 12.11 自动分派（2026-10-02 实现：任务自动分派、自动执行完成）
+
+**触发**：默认会话发起的消息，意图分诊命中业务域（非纯寒暄）且存在能力匹配员工（toolCategories 交集最大者）→ 自动派发（ENABLE_AUTO_DISPATCH 默认开）。
+
+**执行模型**：派发即返回（实测 79ms）→ 目标员工在**自己的对话框**独立执行（写确认也在其会话）→ 完成后**回传消息写入发起会话**供验收。防失控：员工运行不再触发自动分派（防自循环）；深度上限 MAX_DISPATCH_DEPTH=2；派发路径写审计（intent=auto_dispatch + triage 埋点）。
+
+**真机验证**：默认会话发「查一下缺货的商品，给采购专员下补货任务」→ 79ms 返回「已自动分派给采专员（任务#N）」→ 采专员独立执行完成 → 回传消息（含低库存清单与补货建议）落在发起会话历史（Redis 实查）。审计埋点生效（audit_log: intent=auto_dispatch, triage_lane=rules, triage_categories=inventory,product,purchase——平分时终端岗位次级排序生效）。
+
+**待办**：桌面端用户会话打开时拉取服务端历史（回传消息当前在 Redis 会话历史，需历史拉取或 WS 实时推送才在桌面端立即可见）。
