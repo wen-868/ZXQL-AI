@@ -28,6 +28,8 @@ export interface V2HandleContext {
   customerId?: string;
   authToken?: string;
   sessionId?: string;
+  /** 数字员工 UID：透传给 Orchestrator 以按员工隔离会话记忆 */
+  employeeUid?: string;
   model?: string;
   scope?: 'mgmt' | 'platform';
 }
@@ -257,6 +259,8 @@ export class V2HandleService {
         customerId: ctx.customerId,
         authToken: ctx.authToken,
         conversationId: ctx.sessionId,
+        // 员工会话必须透传 uid，否则记忆退回租户级共享（跨员工串记忆）
+        employeeUid: ctx.employeeUid,
         model: ctx.model,
         scope: ctx.scope,
       })) {

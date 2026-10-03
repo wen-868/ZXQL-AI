@@ -24,7 +24,9 @@ import { readFile } from 'fs/promises';
 import { basename } from 'path';
 import * as XLSX from 'xlsx';
 import * as mammoth from 'mammoth';
-import { PDFParse } from 'pdf-parse';
+// ⚠ pdf-parse 必须**动态** import（见 extractPdf 的懒加载说明）。
+// 顶层静态 import 会让 pdfjs-dist 在模块求值期访问 DOMMatrix，而 Node 无此全局
+// ⇒ `ReferenceError: DOMMatrix is not defined` 直接打死整个服务启动（2026-10-03 实测）。
 
 /** 支持的文档类型 */
 export type SupportedDocType = 'pdf' | 'docx' | 'markdown' | 'excel' | 'text';
@@ -147,6 +149,14 @@ export class DocumentLoaderService {
           // 无 canvas 原生绑定：PDF 解析将失败，但不阻塞服务启动
         }
       }
+      // ⚠ 必须用require 而非 `await import()`：
+      // ① 顶层 import 会在模块求值期触发 pdfjs-dist 访问 DOMMatrix，
+      //    Node 无此全局 → 整个服务起不来（2026-10-03 实测）；
+      // ② `await import()` 在 jest VM 环境下抛 ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG，
+      //    会绕过 jest.mock('pdf-parse') 导致单测无法隔离（2026-10-03 实测）。
+      // 编译到 CommonJS 后 require 本身即懒加载（只在调用点求值），且能被 jest 拦截。
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { PDFParse } = require('pdf-parse') as typeof import('pdf-parse');
       const parser = new PDFParse({ data: buffer });
       const result = await parser.getText();
       const text = result.text ?? '';

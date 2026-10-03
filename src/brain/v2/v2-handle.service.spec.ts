@@ -135,6 +135,39 @@ describe('V2HandleService', () => {
     );
   });
 
+  // ── 2026-10-03 回归：v2 通道此前无法标识员工，员工会话走v2 会静默失去记忆隔离 ──
+  describe('员工会话记忆隔离（employeeUid 透传）', () => {
+    it('传 employeeUid → 透传给 Orchestrator（后端据此按员工归一会话 ID）', async () => {
+      const { service, orchestrator } = makeService();
+      await service.handle('查询五粮液库存', {
+        ...CTX,
+        employeeUid: 'emp_testAAA',
+      });
+      expect(orchestrator.run).toHaveBeenCalledWith(
+        expect.objectContaining({ employeeUid: 'emp_testAAA' }),
+      );
+    });
+
+    it('不传 employeeUid → 该字段为 undefined（不得被填成默认员工）', async () => {
+      const { service, orchestrator } = makeService();
+      await service.handle('查询五粮液库存', CTX);
+      const arg = (
+        orchestrator.run.mock.calls as Array<[{ employeeUid?: string }]>
+      )[0]?.[0];
+      expect(arg?.employeeUid).toBeUndefined();
+    });
+
+    it('两个不同员工 → 各自带上自己的 uid（不串号）', async () => {
+      const { service, orchestrator } = makeService();
+      await service.handle('查库存', { ...CTX, employeeUid: 'emp_AAA' });
+      await service.handle('查库存', { ...CTX, employeeUid: 'emp_BBB' });
+      const uids = (
+        orchestrator.run.mock.calls as Array<[{ employeeUid?: string }]>
+      ).map((c) => c[0].employeeUid);
+      expect(uids).toEqual(['emp_AAA', 'emp_BBB']);
+    });
+  });
+
   it('写意图：LLM 选工具 → 预览 → WriteGuard 挂起令牌', async () => {
     const { service, confirmationService, executor, registry } = makeService();
     const result = await service.handle('给红星商行开单20件五粮液980', CTX);

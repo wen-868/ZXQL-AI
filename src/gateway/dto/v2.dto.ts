@@ -32,6 +32,18 @@ export class V2HandleDto {
   @IsString()
   sessionId?: string;
 
+  /**
+   * 数字员工 UID（可选）
+   *
+   * 员工会话必须显式传此字段，否则后端无法按员工隔离记忆
+   * （见 employee-conversation.ts）。传入后 Orchestrator 会把会话 ID
+   * 归一到 `emp_{uid}`；不传则按普通租户会话处理。
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  employeeUid?: string;
+
   /** 租户 ID（可选，JWT 兼容） */
   @IsOptional()
   @IsString()

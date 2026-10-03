@@ -67,6 +67,8 @@ export class V2Controller {
       customerId: ctx?.customerId,
       authToken: ctx?.authToken,
       sessionId: dto.sessionId,
+      // 员工会话：透传 uid 让后端按员工隔离记忆（不传则退回租户级共享）
+      employeeUid: dto.employeeUid,
       model: dto.model,
       scope: dto.scope,
     });
