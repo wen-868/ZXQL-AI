@@ -65,24 +65,36 @@ export class McpTokenService {
   /**
    * 生成 MCP Token（mcp_ + 32 字节随机 hex，共 66 字符）
    *
+   * 安全默认（2026-10-04 P2 修复）：不传 expiresAt 时按 MCP_TOKEN_TTL_DAYS
+   * （默认 90 天）写入过期时间——此前"不传=永不过期"，第三方 Token 一旦
+   * 泄露没有时间兜底。需要长期凭证的场景应显式传远期 expiresAt 并定期轮换。
+   *
    * @param input 创建输入
    * @returns entity（token 列已是哈希）+ plaintext 明文（仅本次返回，供交付第三方）
    */
   async create(input: CreateMcpTokenInput): Promise<CreateMcpTokenResult> {
     const plaintext = `mcp_${randomBytes(32).toString('hex')}`;
+    const expiresAt = input.expiresAt ?? this.defaultExpiry();
     const entity = await this.repo.save(
       this.repo.create({
         tenantId: input.tenantId,
         token: this.hashToken(plaintext),
         name: input.name ?? null,
         enabled: 1,
-        expiresAt: input.expiresAt ?? null,
+        expiresAt,
       }),
     );
     this.logger.log(
-      `MCP Token 已生成：id=${entity.id} tenant=${input.tenantId} name=${input.name ?? '未命名'}（库中存哈希）`,
+      `MCP Token 已生成：id=${entity.id} tenant=${input.tenantId} name=${input.name ?? '未命名'} expiresAt=${expiresAt?.toISOString() ?? 'never'}（库中存哈希）`,
     );
     return { entity, plaintext };
+  }
+
+  /** 默认过期时间：MCP_TOKEN_TTL_DAYS（默认 90 天） */
+  private defaultExpiry(): Date {
+    const days = Number.parseInt(process.env.MCP_TOKEN_TTL_DAYS ?? '90', 10);
+    const safeDays = Number.isFinite(days) && days > 0 ? days : 90;
+    return new Date(Date.now() + safeDays * 24 * 60 * 60 * 1000);
   }
 
   /**

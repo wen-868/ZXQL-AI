@@ -48,6 +48,10 @@ async function bootstrap() {
 
   // CORS 白名单（2026-09-05 审查 H1 修复：不再反射任意 Origin）
   // 默认放行智享全链站点与本地开发端口；可用 CORS_ORIGINS（逗号分隔）覆盖。
+  // P3 修复（2026-10-04）：生产环境（NODE_ENV=production）不再默认放行
+  // localhost——本机其他开发服务遭 SSRF/CSRF 时可携带凭证跨域调用；
+  // 生产要么命中站点白名单，要么显式配置 CORS_ORIGINS。
+  const isProduction = configService.get<string>('NODE_ENV') === 'production';
   const corsOrigins = (configService.get<string>('CORS_ORIGINS') || '')
     .split(',')
     .map((s) => s.trim())
@@ -58,12 +62,16 @@ async function bootstrap() {
     'https://m.onepan.cn',
     'https://store.onepan.cn',
     // 本地开发（admin-web 5173 / saas-admin 5174 / 预览 5175 等）
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174',
-    'http://127.0.0.1:5175',
+    ...(isProduction
+      ? []
+      : [
+          'http://localhost:5173',
+          'http://localhost:5174',
+          'http://localhost:5175',
+          'http://127.0.0.1:5173',
+          'http://127.0.0.1:5174',
+          'http://127.0.0.1:5175',
+        ]),
   ];
   const allowedOrigins = new Set(
     corsOrigins.length > 0 ? corsOrigins : defaultOrigins,

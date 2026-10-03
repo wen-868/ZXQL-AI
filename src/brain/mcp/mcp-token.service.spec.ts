@@ -43,7 +43,12 @@ describe('P0-3 McpTokenService', () => {
     expect(entity.tenantId).toBe('t_001');
     expect(entity.name).toBe('WorkBuddy对接');
     expect(entity.enabled).toBe(1);
-    expect(entity.expiresAt).toBeNull();
+    // P2 修复（2026-10-04）：不传 expiresAt 不再永不过期，默认 90 天兜底
+    expect(entity.expiresAt).toBeInstanceOf(Date);
+    expect(entity.expiresAt!.getTime()).toBeGreaterThan(Date.now());
+    expect(entity.expiresAt!.getTime()).toBeLessThan(
+      Date.now() + 91 * 24 * 60 * 60 * 1000,
+    );
   });
 
   it('生成 Token：支持过期时间', async () => {

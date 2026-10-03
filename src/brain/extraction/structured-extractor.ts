@@ -144,7 +144,9 @@ export class StructuredExtractor {
           { tenantId, taskType: base, quality: MoreThanOrEqual(4) },
           { tenantId, taskType: base, quality: MoreThanOrEqual(3) },
         ],
-        order: { createdAt: 'DESC' },
+        // P3 修复（2026-10-04）：quality DESC 兑现注释承诺的"纠错样本优先"
+        // （此前仅 createdAt DESC，纠错样本并无优先权）
+        order: { quality: 'DESC', createdAt: 'DESC' },
         take: 8,
       });
 
@@ -164,8 +166,13 @@ export class StructuredExtractor {
             !Array.isArray(parsed) &&
             Object.keys(parsed).length > 0
           ) {
+            // P3 修复（2026-10-04）：样本内容注入提示词前压平换行+截断——
+            // 历史用户输入可能含"忽略以上指令"类内容，单行化并限长收敛
+            // 提示注入面（截取器本身有 schema 校验兜底，此处为纵深防御）
+            const flat = (v: unknown) =>
+              JSON.stringify(v).replace(/\\n/g, ' ').slice(0, 400);
             shots.push(
-              `示例：${(s.prompt ?? '').slice(0, 80)} => ${JSON.stringify(parsed)}`,
+              `示例：${(s.prompt ?? '').replace(/\n+/g, ' ').slice(0, 80)} => ${flat(parsed)}`,
             );
           }
         } catch {

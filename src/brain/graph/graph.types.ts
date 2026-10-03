@@ -66,6 +66,26 @@ export interface GraphDefinition {
   categories?: ToolCategory[];
 }
 
+/**
+ * 合法 ToolCategory 运行时集合（P3 修复 2026-10-04）：图定义的 categories
+ * 拼错时 getRulesContext 会静默返回 undefined（规则注入悄悄失效），
+ * 启动期据此校验并 warn。
+ */
+export const LEGAL_TOOL_CATEGORIES: ReadonlySet<string> = new Set([
+  'order',
+  'inventory',
+  'product',
+  'customer',
+  'purchase',
+  'delivery',
+  'finance',
+  'report',
+  'marketing',
+  'platform',
+  'system',
+  'utility',
+]);
+
 /** 图状态（Checkpointer 持久化） */
 export interface GraphState {
   graphId: string;

@@ -15,7 +15,7 @@
  * 对应计划：
  * - docs/ai-base/管理系统AI底座完善计划.md P0-1 Orchestrator graph 模式 / P0-2 Checkpointer
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ToolExecutor } from '../../tools/tool-executor';
 import { ToolRegistry } from '../../tools/tool-registry';
 import type { ToolCall } from '../../providers/provider.interface';
@@ -29,7 +29,11 @@ import { CheckpointerService } from './checkpointer.service';
 import { ReviewTaskService } from '../review/review-task.service';
 import { EvidenceLedgerService } from '../evidence/evidence-ledger.service';
 import { KnowledgeRulesService } from '../knowledge-rules.service';
-import { BUILTIN_GRAPHS, GraphDefinition } from './graph.types';
+import {
+  BUILTIN_GRAPHS,
+  GraphDefinition,
+  LEGAL_TOOL_CATEGORIES,
+} from './graph.types';
 
 /** 图执行安全上限（防死循环） */
 const MAX_NODE_STEPS = 50;
@@ -58,7 +62,7 @@ export type GraphRunEvent =
   | { type: 'error'; message: string };
 
 @Injectable()
-export class GraphExecutorService {
+export class GraphExecutorService implements OnModuleInit {
   private readonly logger = new Logger(GraphExecutorService.name);
 
   constructor(
@@ -69,6 +73,23 @@ export class GraphExecutorService {
     private readonly evidence: EvidenceLedgerService,
     private readonly knowledgeRules: KnowledgeRulesService,
   ) {}
+
+  /**
+   * 启动期校验内置图的 categories 声明（P3 修复 2026-10-04）：
+   * 拼错的业务域会让 getRulesContext 静默返回 undefined，规则注入悄悄失效
+   * 且无任何告警——启动时 warn 一次，让配置错误可见。
+   */
+  onModuleInit(): void {
+    for (const graph of Object.values(BUILTIN_GRAPHS)) {
+      for (const c of graph.categories ?? []) {
+        if (!LEGAL_TOOL_CATEGORIES.has(c)) {
+          this.logger.warn(
+            `内置图 ${graph.id} 声明了非法业务域 "${c}"（不在 ToolCategory 枚举内），该域规则注入将静默失效`,
+          );
+        }
+      }
+    }
+  }
 
   /**
    * 获取内置图（未知返回 null）
@@ -236,12 +257,18 @@ export class GraphExecutorService {
               },
             };
             yield { type: 'tool_start', tool: node.tool };
-            const result = await this.executor.executeToolCall(
+            // P2 修复（2026-10-04）：与 chat 通道同口径的超时闸门——
+            // 此前直接 await，卡死的工具会无限挂起图执行与 SSE 流，
+            // checkpointer 永远停在 running
+            const result = await this.executeToolWithTimeout(
               toolCall,
               toolContext,
             );
             // C10 证据优先（P0-7）：写操作账本 + 呈现前核查
-            if (node.tool) {
+            // P2 修复（2026-10-04）：与 chat 通道口径对齐——仅写工具且执行
+            // 成功才记台账（此前只读查询与失败调用也打 is_write_operation=true，
+            // 污染证据台账的撤销/追责溯源）
+            if (node.tool && this.isWriteTool(node.tool) && result.success) {
               this.evidence.recordWrite(
                 toolContext,
                 node.tool,
@@ -468,5 +495,36 @@ export class GraphExecutorService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * 工具执行超时闸门（P2 修复 2026-10-04，与 chat 通道同口径）：
+   * TOOL_TIMEOUT_MS（默认 60s）超时按失败落账，防卡死工具无限挂起图执行。
+   */
+  private async executeToolWithTimeout(
+    toolCall: ToolCall,
+    toolContext: ToolContext,
+  ): Promise<ToolResult> {
+    const timeoutMs = Number(process.env.TOOL_TIMEOUT_MS ?? 60000);
+    return await Promise.race([
+      this.executor.executeToolCall(toolCall, toolContext),
+      new Promise<ToolResult>((resolve) => {
+        const timer = setTimeout(
+          () =>
+            resolve({
+              success: false,
+              error: `工具执行超时（${timeoutMs}ms），已中止图节点`,
+            }),
+          timeoutMs,
+        );
+        // 超时是兜底路径：正常完成时不让 timer 挂住进程/测试退出
+        timer.unref?.();
+      }),
+    ]);
+  }
+
+  /** 是否写操作工具（证据台账只记写操作，与 chat 通道口径对齐） */
+  private isWriteTool(toolName: string): boolean {
+    return this.registry.get(toolName)?.isWriteOperation === true;
   }
 }

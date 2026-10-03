@@ -145,7 +145,13 @@ export class McpServerService {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`MCP 方法执行异常：method=${method} err=${msg}`);
-      return this.error(id, -32603, `Internal error：${msg}`);
+      // P3 修复（2026-10-04）：内部错误细节（SQL/路径/依赖报错）只落日志，
+      // 对第三方客户端统一返回通用文案，防信息外泄
+      return this.error(
+        id,
+        -32603,
+        'Internal error：工具执行失败，请联系租户管理员或查看服务端日志',
+      );
     }
   }
 

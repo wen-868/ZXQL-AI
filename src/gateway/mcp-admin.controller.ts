@@ -10,6 +10,7 @@
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -86,10 +87,20 @@ export class McpAdminController {
     @Body() dto: CreateMcpTokenDto,
   ): Promise<{ success: boolean; token?: string; message: string }> {
     const tenantId = resolveAdminTenantId(req, dto.tenantId);
+    // P3 修复（2026-10-04）：非法日期串此前入库报 500，这里显式 400
+    let expiresAt: Date | undefined;
+    if (dto.expiresAt) {
+      expiresAt = new Date(dto.expiresAt);
+      if (Number.isNaN(expiresAt.getTime())) {
+        throw new BadRequestException(
+          `expiresAt 不是合法日期：${dto.expiresAt}（ISO 8601 格式，如 2026-12-31T00:00:00Z）`,
+        );
+      }
+    }
     const { plaintext } = await this.tokenService.create({
       tenantId,
       name: dto.name,
-      expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
+      expiresAt,
     });
     return {
       success: true,

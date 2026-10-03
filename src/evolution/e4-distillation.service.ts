@@ -33,6 +33,8 @@ export const E4_MIN_QUALITY = 4;
 export const E4_FORCE_MIN_SAMPLES = 10;
 /** 训练集实际使用的样本条数（写入 Modelfile 的示例） */
 const E4_EXAMPLE_COUNT = 8;
+/** Ollama create 超时上限（毫秒）——防止 base model 拉取时请求无限挂起 */
+export const E4_TRAIN_TIMEOUT_MS = 120_000;
 /** taskType 允许的字符集：与 ai_sample.task_type VARCHAR(64) 对齐，留一位给模型名后缀拼接 */
 const TASK_TYPE_RE = /^[\w.-]{1,60}$/;
 /**
@@ -116,11 +118,17 @@ export class E4DistillationService {
       (r) => r.taskType === task,
     );
     if (!options.force && (!readiness || !readiness.ready)) {
+      // P3 修复（2026-10-04）：文案带上平均质量与门槛差距——此前只提条数，
+      // avgQuality 不达标时用户按文案补数量也过不了门，排查误导
+      const avgGap =
+        readiness && readiness.avgQuality < E4_MIN_QUALITY
+          ? `，当前平均质量 ${readiness.avgQuality}（需 ≥${E4_MIN_QUALITY}）`
+          : '';
       return {
         ok: false,
         message: `E4 训练门控未通过：${task} 需 ≥${E4_MIN_SAMPLES} 条 quality≥${E4_MIN_QUALITY} 样本（当前 ${
           readiness?.qualifiedSamples ?? 0
-        } 条），可用 readiness 看板跟进积累进度`,
+        } 条${avgGap}），可用 readiness 看板跟进积累进度`,
       };
     }
 
@@ -155,12 +163,22 @@ export class E4DistillationService {
     }
 
     // 3. 蒸馏指令（从样本提炼的口径——MVP 以第一类共性开场 + 示例内嵌）
+    // MESSAGE 行清洗（P3 修复 2026-10-04）：剔除控制字符并折叠换行——
+    // JSON.stringify 转义依赖 Ollama 解析恰好兼容，含控制字符/裸换行的
+    // 样本可能导致 create 解析失败或转义字面量残留
+    const clean = (s: string) =>
+      s
+        // 此处控制字符正是要剔除的目标，no-control-regex 误报（行内豁免）
+        // eslint-disable-next-line no-control-regex
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+        .replace(/\\+$/g, '')
+        .replace(/\n+/g, ' ');
     const examples = parsed
       .slice(0, E4_EXAMPLE_COUNT)
       .map(
         (m) =>
-          `MESSAGE user ${JSON.stringify(m[0]?.content ?? '')}\nMESSAGE assistant ${JSON.stringify(
-            m[1]?.content ?? '',
+          `MESSAGE user ${JSON.stringify(clean(m[0]?.content ?? ''))}\nMESSAGE assistant ${JSON.stringify(
+            clean(m[1]?.content ?? ''),
           )}`,
       )
       .join('\n');
@@ -175,12 +193,15 @@ export class E4DistillationService {
       `以下是从历史高质量任务中蒸馏的口径与示例，回答时保持一致的风格与字段口径。"""\n` +
       examples;
 
-    // 4. Ollama create API
+    // 4. Ollama create API（P2 修复 2026-10-04：加超时上限——base model
+    // 需拉取时 create 可能挂起数分钟，无超时会占死管理端请求并可能被
+    // 并发重试放大成多次 create）
     try {
       const res = await fetch(`${ollamaBase}/api/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: modelName, modelfile, stream: false }),
+        signal: AbortSignal.timeout(E4_TRAIN_TIMEOUT_MS),
       });
       if (!res.ok) {
         const body = await res.text().catch(() => '');
@@ -190,11 +211,12 @@ export class E4DistillationService {
         };
       }
     } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
       return {
         ok: false,
-        message: `Ollama 不可达（${ollamaBase}）：${
-          err instanceof Error ? err.message : String(err)
-        }。请确认 Ollama 服务已启动后再试`,
+        message: `Ollama 不可达或超时（${ollamaBase}，上限 ${Math.round(
+          E4_TRAIN_TIMEOUT_MS / 1000,
+        )}s）：${detail}。请确认 Ollama 服务已启动、base model 已拉取后再试`,
       };
     }
 

@@ -93,7 +93,6 @@ export class CaptureService {
 
       // 样本：成功/纠正路径（失败路径不进样本池）
       if (input.outcome !== 'failed' && (input.userMessage || input.reply)) {
-        this.metrics.recordDbSample('sample');
         await this.sampleRepo.save(
           this.sampleRepo.create({
             tenantId: input.tenantId,
@@ -109,6 +108,9 @@ export class CaptureService {
             usedForTraining: 0,
           }),
         );
+        // P3 修复（2026-10-04）：指标在 save 成功后计——此前 save 前虚计，
+        // 落库失败时样本计数虚高
+        this.metrics.recordDbSample('sample');
       }
 
       this.logger.debug(

@@ -86,28 +86,26 @@ export class ExperienceExtractorService {
     let degraded: string | undefined;
 
     for (const [type, group] of byType) {
+      // P2 修复（2026-10-04）：stage 与"标记已反哺"拆成独立 try/catch——
+      // 此前标记失败会落入 catch 再生成一个保守提案（同 artifact 双 staged），
+      // 且纠正样本仍未标记，下轮重复萃取永不收敛
+      let version: string;
       try {
         const summary = await this.summarize(type, group);
-        const toVersion = `v${Date.now().toString(36)}`;
+        version = `v${Date.now().toString(36)}`;
         await this.versions.stage({
           artifact: this.artifactFor(type),
-          toVersion,
+          toVersion: version,
           changeSummary: summary,
           trigger: 'auto_learn',
         });
         insights.push({
           artifact: this.artifactFor(type),
           fromVersion: null,
-          toVersion,
+          toVersion: version,
           changeSummary: summary,
         });
         staged++;
-
-        // 标记已反哺
-        for (const c of group) {
-          c.appliedToVersion = toVersion;
-        }
-        await this.correctionRepo.save(group);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         this.logger.warn(
@@ -116,13 +114,37 @@ export class ExperienceExtractorService {
         degraded = msg;
         // 降级：直接按 reason 统计生成保守提案，不调用 LLM
         const conservative = this.conservativeSummary(group);
-        await this.versions.stage({
-          artifact: this.artifactFor(type),
-          toVersion: `v${Date.now().toString(36)}`,
-          changeSummary: conservative,
-          trigger: 'auto_learn',
-        });
-        staged++;
+        version = `v${Date.now().toString(36)}`;
+        try {
+          await this.versions.stage({
+            artifact: this.artifactFor(type),
+            toVersion: version,
+            changeSummary: conservative,
+            trigger: 'auto_learn',
+          });
+          staged++;
+        } catch (stageErr) {
+          this.logger.warn(
+            `保守提案也失败（跳过该类型，纠正样本留待下轮）：type=${type} err=${
+              stageErr instanceof Error ? stageErr.message : String(stageErr)
+            }`,
+          );
+          continue;
+        }
+      }
+
+      // 标记已反哺（独立失败域：只 warn，不重生成提案）
+      try {
+        for (const c of group) {
+          c.appliedToVersion = version;
+        }
+        await this.correctionRepo.save(group);
+      } catch (err) {
+        this.logger.warn(
+          `标记已反哺失败（纠正样本可能下轮重复萃取，需按 appliedToVersion 防重）：type=${type} err=${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
       }
     }
 
