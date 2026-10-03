@@ -8,6 +8,7 @@
 import {
   maskPhone,
   maskAmount,
+  maskStringContent,
   sanitizeJson,
   hashInput,
   toTrajectory,
@@ -59,5 +60,25 @@ describe('P1-1 sanitize（脱敏工具）', () => {
     expect(trajectory).toContain('searchProduct');
     expect(trajectory).toContain('***');
     expect(toTrajectory(undefined)).toBeNull();
+  });
+
+  // 内容级 PII 遮蔽（2026-10-04 P1 修复回归）：裸字符串入参此前不脱敏
+  it('字符串内容级遮蔽：裸字符串里的 11 位手机号被遮蔽（含带分隔符形态）', () => {
+    expect(maskStringContent('客户电话 13812345678 请联系')).toBe(
+      '客户电话 138****5678 请联系',
+    );
+    expect(maskStringContent('电话是 138-1234-5678')).toBe(
+      '电话是 138****5678',
+    );
+    // 非手机号数字（订单号片段等）不受影响
+    expect(maskStringContent('订单号 202608150001')).toBe(
+      '订单号 202608150001',
+    );
+  });
+
+  it('sanitizeJson 对裸字符串入参也做内容级遮蔽（captureTask 字符串路径）', () => {
+    const out = sanitizeJson('用户张三 13812345678 说要进货') as string;
+    expect(out).toContain('138****5678');
+    expect(out).not.toContain('13812345678');
   });
 });

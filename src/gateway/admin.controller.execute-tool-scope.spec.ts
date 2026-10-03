@@ -8,7 +8,7 @@
  *
  * 用 Object.create 式最小构造：只挂被测方法用到的 executor/logger。
  */
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import type { Request } from 'express';
 import { AdminController } from './admin.controller';
 
@@ -42,18 +42,16 @@ const baseDto = {
 };
 
 describe('AdminController.executeTool 租户锁定（P0）', () => {
-  it('商家身份：body 自报他人租户 → 强制改回 JWT 租户执行', async () => {
+  it('商家身份：body 自报他人租户 → 403（统一口径：不静默改写）', async () => {
     const { controller, executor } = createController();
 
-    await controller.executeTool(reqOf('merchant', 'tenant-A'), {
-      ...baseDto,
-      context: { ...baseDto.context, tenantId: 'tenant-B' },
-    });
-
-    expect(executor.executeToolCall).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ tenantId: 'tenant-A' }),
-    );
+    await expect(
+      controller.executeTool(reqOf('merchant', 'tenant-A'), {
+        ...baseDto,
+        context: { ...baseDto.context, tenantId: 'tenant-B' },
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(executor.executeToolCall).not.toHaveBeenCalled();
   });
 
   it('商家身份：body 缺 tenantId → 用 JWT 租户，不再沿用请求体', async () => {
@@ -81,6 +79,15 @@ describe('AdminController.executeTool 租户锁定（P0）', () => {
       expect.anything(),
       expect.objectContaining({ tenantId: 'tenant-B' }),
     );
+  });
+
+  it('平台身份：未指定目标租户 → 400（不接受缺省，防静默落到错误租户）', async () => {
+    const { controller, executor } = createController();
+
+    await expect(
+      controller.executeTool(reqOf('platform'), baseDto as never),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(executor.executeToolCall).not.toHaveBeenCalled();
   });
 
   it('身份缺失（未经守卫直调）→ 403', async () => {

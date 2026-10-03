@@ -26,8 +26,12 @@ import { AsyncLocalStorage } from 'async_hooks';
  * 所有字段在请求生命周期内不可变（enter 后不可修改）。
  */
 export interface TenantContextData {
-  /** 租户 ID（必填，用于数据隔离） */
-  tenantId: string;
+  /**
+   * 租户 ID。商家身份必有；平台身份可缺省（总台管理员跨租户操作，
+   * 2026-10-04 P1 修复：AdminContextMiddleware 允许平台无目标租户进入
+   * 管理端点，归属由端点按 isPlatform()/getAdminIdentity 口径自行收口）
+   */
+  tenantId?: string;
   /** 用户 ID（可选） */
   userId?: string;
   /** 用户角色（可选，用于权限校验） */
@@ -159,5 +163,22 @@ export class TenantContext {
       );
     }
     return data;
+  }
+
+  /**
+   * 要求必须存在租户 ID（2026-10-04：tenantId 可选化后的强取口）
+   *
+   * 商户链路（TenantMiddleware 覆盖的业务路由）租户必在；平台跨租户场景
+   * （AdminContextMiddleware 无目标租户）调用此方法会抛错——此类端点应走
+   * getAdminIdentity()/isPlatform() 口径而非强取租户。
+   */
+  requireTenantId(): string {
+    const data = this.require();
+    if (!data.tenantId) {
+      throw new Error(
+        '当前上下文无租户 ID（平台跨租户身份）：请改用身份口径判定归属',
+      );
+    }
+    return data.tenantId;
   }
 }

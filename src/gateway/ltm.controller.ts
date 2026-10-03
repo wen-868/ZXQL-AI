@@ -8,8 +8,10 @@
  *
  * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-15
  */
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import { AdminGuard } from '../tenant/admin-auth.guard';
+import { resolveAdminTenantId } from '../tenant/admin-tenant-scope';
 import { LongTermMemoryService } from '../brain/memory/long-term-memory.service';
 
 @UseGuards(AdminGuard)
@@ -17,16 +19,19 @@ import { LongTermMemoryService } from '../brain/memory/long-term-memory.service'
 export class LtmController {
   constructor(private readonly ltm: LongTermMemoryService) {}
 
-  /** 长期记忆总览 */
+  /** 长期记忆总览（2026-10-04 P1 修复：tenantId 一律由 JWT 身份解析，
+   * 商户自报他人租户 → 403；平台须显式指定，不再静默落 'default'——
+   * 此前自报 tenantId 可读任意租户的用户档案与情节记忆） */
   @Get()
-  async overview(@Query('tenantId') tenantId = 'default') {
+  async overview(@Req() req: Request, @Query('tenantId') tenantId?: string) {
+    const scoped = resolveAdminTenantId(req, tenantId);
     const [profiles, episodes, archivals] = await Promise.all([
-      this.ltm.getProfiles(tenantId),
-      this.ltm.listEpisodic(tenantId, 20),
-      this.ltm.listArchival(tenantId, 20),
+      this.ltm.getProfiles(scoped),
+      this.ltm.listEpisodic(scoped, 20),
+      this.ltm.listArchival(scoped, 20),
     ]);
     return {
-      tenantId,
+      tenantId: scoped,
       profiles,
       episodes,
       archivals,
@@ -41,20 +46,24 @@ export class LtmController {
   /** 情节列表 */
   @Get('episodic')
   episodic(
-    @Query('tenantId') tenantId = 'default',
+    @Req() req: Request,
+    @Query('tenantId') tenantId?: string,
     @Query('limit') limit?: string,
   ) {
+    const scoped = resolveAdminTenantId(req, tenantId);
     const n = Math.min(Number.parseInt(limit ?? '20', 10) || 20, 200);
-    return this.ltm.listEpisodic(tenantId, n);
+    return this.ltm.listEpisodic(scoped, n);
   }
 
   /** 归档列表 */
   @Get('archival')
   archival(
-    @Query('tenantId') tenantId = 'default',
+    @Req() req: Request,
+    @Query('tenantId') tenantId?: string,
     @Query('limit') limit?: string,
   ) {
+    const scoped = resolveAdminTenantId(req, tenantId);
     const n = Math.min(Number.parseInt(limit ?? '20', 10) || 20, 200);
-    return this.ltm.listArchival(tenantId, n);
+    return this.ltm.listArchival(scoped, n);
   }
 }

@@ -117,6 +117,30 @@ export class McpTokenService {
   }
 
   /**
+   * 启停 Token（租户域版本，2026-10-04 P1 修复）
+   *
+   * @param tenantId 传入时条件追加 tenant_id（商户身份只允许操作本租户
+   *   的 Token，跨租户 id 枚举直接落到"不存在"）；平台身份不传=全量。
+   */
+  async setEnabledFor(
+    id: number,
+    enabled: boolean,
+    tenantId?: string,
+  ): Promise<boolean> {
+    const result = await this.repo.update(
+      { id, ...(tenantId ? { tenantId } : {}) },
+      { enabled: enabled ? 1 : 0 },
+    );
+    if (result.affected && result.affected > 0) {
+      this.logger.log(
+        `MCP Token 已${enabled ? '启用' : '停用'}：id=${id}${tenantId ? ` tenant=${tenantId}` : ''}`,
+      );
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * 删除 Token
    *
    * @param id Token ID
@@ -126,6 +150,23 @@ export class McpTokenService {
     const result = await this.repo.delete(id);
     if (result.affected && result.affected > 0) {
       this.logger.warn(`MCP Token 已删除：id=${id}`);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 删除 Token（租户域版本，2026-10-04 P1 修复；语义同 setEnabledFor）
+   */
+  async removeFor(id: number, tenantId?: string): Promise<boolean> {
+    const result = await this.repo.delete({
+      id,
+      ...(tenantId ? { tenantId } : {}),
+    });
+    if (result.affected && result.affected > 0) {
+      this.logger.warn(
+        `MCP Token 已删除：id=${id}${tenantId ? ` tenant=${tenantId}` : ''}`,
+      );
       return true;
     }
     return false;

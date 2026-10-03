@@ -72,7 +72,9 @@ export class AiConfigService {
    */
   async getResolvedConfig(): Promise<ResolvedAiConfig> {
     const ctx = this.tenantContext.require();
-    const tenantId = ctx.tenantId;
+    // 平台跨租户身份（无目标租户）→ 直取平台默认配置（'default' 租户无配置行，
+    // findOne 落空后自然走第 3 步降级分支）
+    const tenantId = ctx.tenantId ?? 'default';
 
     // 1. 尝试读取租户配置
     const tenantConfig = await this.tenantRepo.findOne({

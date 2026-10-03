@@ -37,7 +37,7 @@ import { TenantContext } from './tenant-context';
 import { CryptoService } from './crypto.service';
 import { AiConfigService } from './ai-config.service';
 import { AiConfigAdminService } from './ai-config-admin.service';
-import { TenantMiddleware } from './tenant.middleware';
+import { TenantMiddleware, AdminContextMiddleware } from './tenant.middleware';
 import { ExternalModelService } from './external-model.service';
 import { BillingService } from './billing.service';
 
@@ -59,6 +59,7 @@ import { BillingService } from './billing.service';
     AiConfigService,
     AiConfigAdminService,
     TenantMiddleware,
+    AdminContextMiddleware,
     RateLimiterMiddleware,
     RequestLoggingMiddleware,
     ExternalModelService,
@@ -89,6 +90,15 @@ export class TenantModule implements NestModule {
       .apply(RequestLoggingMiddleware)
       .forRoutes('*')
       .apply(TenantMiddleware, RateLimiterMiddleware)
-      .forRoutes('chat', 'ai/agent', 'ai/v2', 'ai/employees');
+      .forRoutes('chat', 'ai/agent', 'ai/v2', 'ai/employees')
+      // 2026-10-04 P1-4 修复：/admin/* 此前不在任何租户中间件覆盖内，
+      // TenantContext 恒为空——依赖它的端点（审计/归档/记忆清理/E4）
+      // 全部 fail-closed。AdminContextMiddleware 与业务路由唯一差异：
+      // 平台身份允许无目标租户（跨租户管理台场景）。
+      .apply(AdminContextMiddleware)
+      .forRoutes('admin')
+      // 昂贵端点随迁限流（P1-5 防滥用）：训练/萃取/聚合/工具执行/外呼测试
+      .apply(RateLimiterMiddleware)
+      .forRoutes('admin/ai-db', 'admin/tools', 'admin/chat-test');
   }
 }

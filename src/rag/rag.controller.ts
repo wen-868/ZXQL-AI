@@ -28,9 +28,12 @@ import {
   Logger,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { AdminGuard } from '../tenant/admin-auth.guard';
+import { resolveAdminTenantId } from '../tenant/admin-tenant-scope';
 import { DocumentLoaderService } from './document-loader.service';
 import { TextSplitterService } from './text-splitter.service';
 import { EmbeddingService } from './embedding.service';
@@ -59,15 +62,22 @@ export class RagController {
    *
    * POST /api/rag/documents
    * body: { filename, content(base64), tenantId? }
+   *
+   * 2026-10-04 P1 修复：tenantId 由 JWT 身份解析（商户锁本租户、平台须
+   * 显式指定）——此前 body 自报可向任意租户知识库注入文档（RAG 投毒：
+   * 该租户后续问答被引导），且缺省静默落 'default'。
    */
   @Post('documents')
-  async uploadDocument(@Body() dto: UploadDocumentDto): Promise<{
+  async uploadDocument(
+    @Req() req: Request,
+    @Body() dto: UploadDocumentDto,
+  ): Promise<{
     success: boolean;
     docName: string;
     chunkCount: number;
     tenantId: string;
   }> {
-    const tenantId = dto.tenantId ?? 'default';
+    const tenantId = resolveAdminTenantId(req, dto.tenantId);
 
     // 大小校验（base64 解码后）
     const buffer = Buffer.from(dto.content, 'base64');
@@ -126,9 +136,11 @@ export class RagController {
    * 向量检索 Top-K
    *
    * GET /api/rag/search?query=xxx&tenantId=yyy&topK=3
+   * （2026-10-04 P1 修复：租户口径同上传——商户锁本租户，平台显式指定）
    */
   @Get('search')
   async search(
+    @Req() req: Request,
     @Query('query') query?: string,
     @Query('tenantId') tenantId?: string,
     @Query('topK') topK?: string,
@@ -140,12 +152,13 @@ export class RagController {
     if (!query || query.trim().length === 0) {
       throw new BadRequestException('query 不能为空');
     }
+    const scoped = resolveAdminTenantId(req, tenantId);
     const results = await this.retriever.search(
       query,
-      tenantId ?? 'default',
+      scoped,
       topK ? this.parseTopK(topK) : 3,
     );
-    return { query, results, tenantId: tenantId ?? 'default' };
+    return { query, results, tenantId: scoped };
   }
 
   /**
@@ -154,11 +167,14 @@ export class RagController {
    * GET /api/rag/knowledge?tenantId=yyy
    */
   @Get('knowledge')
-  listKnowledge(@Query('tenantId') tenantId?: string): {
+  listKnowledge(
+    @Req() req: Request,
+    @Query('tenantId') tenantId?: string,
+  ): {
     knowledge: unknown[];
     tenantId: string;
   } {
-    const tid = tenantId ?? 'default';
+    const tid = resolveAdminTenantId(req, tenantId);
     return { knowledge: this.vectorStore.listKnowledge(tid), tenantId: tid };
   }
 

@@ -18,9 +18,15 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { AdminGuard } from '../tenant/admin-auth.guard';
+import {
+  resolveAdminTenantId,
+  resolveOptionalAdminTenantId,
+} from '../tenant/admin-tenant-scope';
 import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { McpTokenService } from '../brain/mcp/mcp-token.service';
 import { McpTokenEntity } from '../database/entities/mcp-token.entity';
@@ -55,25 +61,33 @@ export class McpAdminController {
   constructor(private readonly tokenService: McpTokenService) {}
 
   /**
-   * 列表（总台全量，可按租户过滤）
+   * 列表（总台全量，可按租户过滤；商户身份强制本租户——2026-10-04 P1 修复：
+   * 此前 tenantId 由查询参数自报，商户管理员可枚举他人租户的全部 Token）
    */
   @Get()
   async list(
+    @Req() req: Request,
     @Query('tenantId') tenantId?: string,
   ): Promise<{ total: number; items: McpTokenEntity[] }> {
-    const items = await this.tokenService.list(tenantId);
+    const scopedTenantId = resolveOptionalAdminTenantId(req, tenantId);
+    const items = await this.tokenService.list(scopedTenantId);
     return { total: items.length, items };
   }
 
   /**
    * 生成 MCP Token（token 明文仅本次返回，请交付第三方后妥善保管；库中只存 SHA-256 哈希）
+   *
+   * 2026-10-04 P1 修复：商户身份只能为本租户签发（自报他人租户 → 403），
+   * 防止为他人租户铸造 Token 拿到其数据通道。
    */
   @Post()
   async create(
+    @Req() req: Request,
     @Body() dto: CreateMcpTokenDto,
   ): Promise<{ success: boolean; token?: string; message: string }> {
+    const tenantId = resolveAdminTenantId(req, dto.tenantId);
     const { plaintext } = await this.tokenService.create({
-      tenantId: dto.tenantId,
+      tenantId,
       name: dto.name,
       expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
     });
@@ -85,14 +99,16 @@ export class McpAdminController {
   }
 
   /**
-   * 启停 Token
+   * 启停 Token（商户身份仅限本租户的 Token，跨租户 id 落到"不存在"）
    */
   @Post(':id/enabled')
   async setEnabled(
+    @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: SetMcpTokenEnabledDto,
   ): Promise<{ success: boolean; message: string }> {
-    const ok = await this.tokenService.setEnabled(id, dto.enabled);
+    const tenantId = resolveOptionalAdminTenantId(req);
+    const ok = await this.tokenService.setEnabledFor(id, dto.enabled, tenantId);
     return ok
       ? {
           success: true,
@@ -102,13 +118,15 @@ export class McpAdminController {
   }
 
   /**
-   * 删除 Token
+   * 删除 Token（租户域语义同启停）
    */
   @Delete(':id')
   async remove(
+    @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ success: boolean; message: string }> {
-    const ok = await this.tokenService.remove(id);
+    const tenantId = resolveOptionalAdminTenantId(req);
+    const ok = await this.tokenService.removeFor(id, tenantId);
     return ok
       ? { success: true, message: '已删除' }
       : { success: false, message: 'Token 不存在' };

@@ -102,7 +102,7 @@ export class EmployeeController {
   /** 员工列表（=联系人列表数据源） */
   @Get()
   list() {
-    return this.employeeService.list(this.tenantContext.require().tenantId);
+    return this.employeeService.list(this.tenantContext.requireTenantId());
   }
 
   /** 新建员工（自动生成联系人列表项；管理角色） */
@@ -111,7 +111,7 @@ export class EmployeeController {
   create(@Body() dto: CreateEmployeeDto) {
     return this.employeeService.create({
       ...dto,
-      tenantId: this.tenantContext.require().tenantId,
+      tenantId: this.tenantContext.requireTenantId(),
     });
   }
 
@@ -121,7 +121,7 @@ export class EmployeeController {
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: AiEmployeeUpdate) {
     return this.employeeService.update(
       id,
-      this.tenantContext.require().tenantId,
+      this.tenantContext.requireTenantId(),
       dto,
     );
   }
@@ -129,7 +129,7 @@ export class EmployeeController {
   /** 员工任务列表（对话框工作台内容：任务下达→结果→回传） */
   @Get(':id/tasks')
   tasks(@Param('id', ParseIntPipe) id: number) {
-    const tenantId = this.tenantContext.require().tenantId;
+    const tenantId = this.tenantContext.requireTenantId();
     return this.employeeService
       .getById(id, tenantId)
       .then((e) => this.employeeService.listTasksFor(e.employeeUid, e.id));
@@ -147,7 +147,7 @@ export class EmployeeController {
       taskType?: string;
     },
   ) {
-    const tenantId = this.tenantContext.require().tenantId;
+    const tenantId = this.tenantContext.requireTenantId();
     return this.officeEvolution.rate({
       taskId,
       tenantId,

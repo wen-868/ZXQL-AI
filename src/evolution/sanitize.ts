@@ -46,18 +46,36 @@ const MONEY_KEYS = [
 ];
 
 /**
+ * 内容级 PII 遮蔽（2026-10-04 P1 修复）：裸字符串入参（用户消息/回复/
+ * 任务描述）此前只截断不脱敏，含客户名/手机号的明文会进入 ai_sample。
+ * 字段级遮蔽只对对象键生效，覆盖不到它们——这里对字符串本身做模式遮蔽。
+ *
+ * 当前覆盖：11 位手机号（含 138-0000-0000 带分隔符形态）→ 保留前3后4。
+ */
+export function maskStringContent(text: string): string {
+  // 前后环视防误伤：连续 12+ 位数字（订单号/单号等）中的 11 位子串不遮蔽
+  return text.replace(/(?<!\d)\d(?:[\s-]?\d){10}(?!\d)/g, (match) => {
+    const digits = match.replace(/\D/g, '');
+    return digits.length === 11
+      ? `${digits.slice(0, 3)}****${digits.slice(-4)}`
+      : match;
+  });
+}
+
+/**
  * 递归脱敏 JSON 值：
  * - 标识字段 → '***'
  * - 手机字段 → 138****0000
  * - 金额字段 → 保留量级（百/千位取整）
- * - 其他字符串 → 截断超长
+ * - 其他字符串 → 内容级 PII 遮蔽 + 截断超长
  */
 export function sanitizeJson(value: unknown, depth = 0): unknown {
   if (value === null || value === undefined) {
     return value;
   }
   if (typeof value === 'string') {
-    return value.length > 500 ? `${value.slice(0, 500)}…[截断]` : value;
+    const masked = maskStringContent(value);
+    return masked.length > 500 ? `${masked.slice(0, 500)}…[截断]` : masked;
   }
   if (typeof value === 'number') {
     return value;

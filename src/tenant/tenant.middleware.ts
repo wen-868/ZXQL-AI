@@ -158,29 +158,7 @@ export class TenantMiddleware implements NestMiddleware {
           this.jwtSecret,
           PLATFORM_JWT_VERIFY,
         ) as unknown as PlatformJwtPayload;
-        const body = req.body as Record<string, unknown> | undefined;
-        const bodyTenant =
-          typeof body?.tenantId === 'string' && body.tenantId
-            ? body.tenantId
-            : undefined;
-        const tenantId = payload.tenantId ?? bodyTenant;
-        if (!tenantId) {
-          return {
-            ok: false,
-            reason:
-              '平台身份缺少目标租户（payload.tenantId 或请求体 tenantId）',
-          };
-        }
-        return {
-          ok: true,
-          data: {
-            tenantId,
-            userId: String(payload.id),
-            role: 'platform',
-            authToken: token,
-            authType: 'platform',
-          },
-        };
+        return this.resolvePlatformContext(payload, token, req);
       } catch {
         return { ok: false, reason: 'JWT 无效或已过期' };
       }
@@ -224,6 +202,72 @@ export class TenantMiddleware implements NestMiddleware {
         typeof body.customerId === 'number'
           ? String(body.customerId)
           : undefined,
+    };
+  }
+
+  /**
+   * 平台身份上下文构造（protected：子类可覆盖口径）
+   *
+   * 业务路由口径：平台身份必须带目标租户（payload 或 body），否则 401——
+   * 业务执行必须有租户域。
+   */
+  protected resolvePlatformContext(
+    payload: PlatformJwtPayload,
+    token: string,
+    req: Request,
+  ): ResolveResult {
+    const body = req.body as Record<string, unknown> | undefined;
+    const bodyTenant =
+      typeof body?.tenantId === 'string' && body.tenantId
+        ? body.tenantId
+        : undefined;
+    const tenantId = payload.tenantId ?? bodyTenant;
+    if (!tenantId) {
+      return {
+        ok: false,
+        reason: '平台身份缺少目标租户（payload.tenantId 或请求体 tenantId）',
+      };
+    }
+    return {
+      ok: true,
+      data: {
+        tenantId,
+        userId: String(payload.id),
+        role: 'platform',
+        authToken: token,
+        authType: 'platform',
+      },
+    };
+  }
+}
+
+/**
+ * AdminContextMiddleware — 管理路由租户上下文中间件（2026-10-04 P1-4 修复）
+ *
+ * 与 TenantMiddleware 的唯一口径差异：**平台身份允许不带目标租户**进入
+ * 管理端点（总台管理员天然跨租户，管理台列表/看板请求没有租户上下文）。
+ * 此前 /admin/* 不在任何租户中间件覆盖内，TenantContext 恒为空——
+ * 依赖它的端点（审计/归档/记忆清理/E4 三端点）全部 fail-closed 损坏，
+ * 商户/平台一律拿不到上下文。
+ *
+ * 商户口径与业务路由一致：JWT 无 tenantId → 401（商户必有租户）。
+ * 无 token → 401（管理端点本就要求鉴权，AdminGuard 会再验角色）。
+ */
+@Injectable()
+export class AdminContextMiddleware extends TenantMiddleware {
+  protected resolvePlatformContext(
+    payload: PlatformJwtPayload,
+    token: string,
+  ): ResolveResult {
+    return {
+      ok: true,
+      data: {
+        tenantId: payload.tenantId,
+        userId: String(payload.id),
+        role: 'platform',
+        authToken: token,
+        authType: 'platform',
+      },
     };
   }
 }

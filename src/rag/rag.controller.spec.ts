@@ -17,6 +17,21 @@ import { RetrieverService } from './retriever.service';
 import { RagController } from './rag.controller';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 
+/** 商户身份 mock（本租户='default'：收口后"默认租户"语义由商户 JWT 承载） */
+const MERCHANT_REQ = {
+  adminIdentity: {
+    identityType: 'merchant',
+    tenantId: 'default',
+    userId: 1,
+    username: 'boss',
+  },
+} as never;
+
+/** 平台身份 mock（跨租户运维：显式指定目标租户） */
+const PLATFORM_REQ = {
+  adminIdentity: { identityType: 'platform', userId: 1, username: 'saas' },
+} as never;
+
 // 阻止真实加载 pdf-parse（其依赖 pdfjs-dist 在 Node 测试环境无 DOMMatrix 全局对象）
 jest.mock('pdf-parse', () => ({ PDFParse: jest.fn() }));
 
@@ -76,7 +91,7 @@ describe('R70-21 RagController', () => {
         .mockResolvedValueOnce([0, 1]);
       vectorStore.addChunks.mockResolvedValue(2);
 
-      const result = await controller.uploadDocument(buildDto());
+      const result = await controller.uploadDocument(MERCHANT_REQ, buildDto());
 
       expect(result).toEqual({
         success: true,
@@ -104,6 +119,7 @@ describe('R70-21 RagController', () => {
       vectorStore.addChunks.mockResolvedValue(1);
 
       const result = await controller.uploadDocument(
+        PLATFORM_REQ,
         buildDto({ tenantId: 'tenant-A' }),
       );
       expect(result.tenantId).toBe('tenant-A');
@@ -116,40 +132,40 @@ describe('R70-21 RagController', () => {
 
     it('base64 解码后为空应抛 400', async () => {
       await expect(
-        controller.uploadDocument(buildDto({ content: '' })),
+        controller.uploadDocument(MERCHANT_REQ, buildDto({ content: '' })),
       ).rejects.toThrow(BadRequestException);
       await expect(
-        controller.uploadDocument(buildDto({ content: '' })),
+        controller.uploadDocument(MERCHANT_REQ, buildDto({ content: '' })),
       ).rejects.toThrow('文件内容为空');
     });
 
     it('超过 10MB 应抛 400', async () => {
       const big = Buffer.alloc(MAX_FILE_BYTES + 1, 0).toString('base64');
       await expect(
-        controller.uploadDocument(buildDto({ content: big })),
+        controller.uploadDocument(MERCHANT_REQ, buildDto({ content: big })),
       ).rejects.toThrow(BadRequestException);
       await expect(
-        controller.uploadDocument(buildDto({ content: big })),
+        controller.uploadDocument(MERCHANT_REQ, buildDto({ content: big })),
       ).rejects.toThrow('文件大小超过限制');
     });
 
     it('embedding 未启用应抛 400（RAG 前置条件）', async () => {
       embedding.isEnabled.mockReturnValue(false);
-      await expect(controller.uploadDocument(buildDto())).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(controller.uploadDocument(buildDto())).rejects.toThrow(
-        'RAG 未启用',
-      );
+      await expect(
+        controller.uploadDocument(MERCHANT_REQ, buildDto()),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        controller.uploadDocument(MERCHANT_REQ, buildDto()),
+      ).rejects.toThrow('RAG 未启用');
       expect(loader.loadFromBuffer).not.toHaveBeenCalled();
     });
 
     it('文档未解析出文本应抛 400', async () => {
       embedding.isEnabled.mockReturnValue(true);
       loader.loadFromBuffer.mockResolvedValue('');
-      await expect(controller.uploadDocument(buildDto())).rejects.toThrow(
-        '未解析出任何文本内容',
-      );
+      await expect(
+        controller.uploadDocument(MERCHANT_REQ, buildDto()),
+      ).rejects.toThrow('未解析出任何文本内容');
     });
 
     it('embedding 调用失败应向上传播异常（不吞错）', async () => {
@@ -157,9 +173,9 @@ describe('R70-21 RagController', () => {
       loader.loadFromBuffer.mockResolvedValue('内容');
       splitter.split.mockReturnValue(['块一', '块二']);
       embedding.embed.mockRejectedValue(new Error('embedding 服务调用失败'));
-      await expect(controller.uploadDocument(buildDto())).rejects.toThrow(
-        'embedding 服务调用失败',
-      );
+      await expect(
+        controller.uploadDocument(MERCHANT_REQ, buildDto()),
+      ).rejects.toThrow('embedding 服务调用失败');
     });
 
     it('分块为空时仍应正常入库（0 块）', async () => {
@@ -167,7 +183,7 @@ describe('R70-21 RagController', () => {
       loader.loadFromBuffer.mockResolvedValue('内容');
       splitter.split.mockReturnValue([]);
       vectorStore.addChunks.mockResolvedValue(0);
-      const result = await controller.uploadDocument(buildDto());
+      const result = await controller.uploadDocument(MERCHANT_REQ, buildDto());
       expect(result.chunkCount).toBe(0);
       expect(vectorStore.addChunks).toHaveBeenCalledWith(
         'default',
@@ -179,12 +195,12 @@ describe('R70-21 RagController', () => {
 
   describe('search', () => {
     it('query 为空应抛 400', async () => {
-      await expect(controller.search('', 'default')).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(controller.search('   ', 'default')).rejects.toThrow(
-        'query 不能为空',
-      );
+      await expect(
+        controller.search(MERCHANT_REQ, '', 'default'),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        controller.search(MERCHANT_REQ, '   ', 'default'),
+      ).rejects.toThrow('query 不能为空');
       expect(retriever.search).not.toHaveBeenCalled();
     });
 
@@ -197,7 +213,7 @@ describe('R70-21 RagController', () => {
           chunkIndex: 0,
         },
       ]);
-      const result = await controller.search('五粮液多少钱');
+      const result = await controller.search(MERCHANT_REQ, '五粮液多少钱');
       expect(retriever.search).toHaveBeenCalledWith(
         '五粮液多少钱',
         'default',
@@ -219,25 +235,25 @@ describe('R70-21 RagController', () => {
 
     it('指定 tenantId 与合法 topK 应透传', async () => {
       retriever.search.mockResolvedValue([]);
-      await controller.search('查询', 'tenant-A', '5');
+      await controller.search(PLATFORM_REQ, '查询', 'tenant-A', '5');
       expect(retriever.search).toHaveBeenCalledWith('查询', 'tenant-A', 5);
     });
 
     it('非法 topK 应回退为 3', async () => {
       retriever.search.mockResolvedValue([]);
-      await controller.search('查询', 'default', 'abc');
+      await controller.search(MERCHANT_REQ, '查询', 'default', 'abc');
       expect(retriever.search).toHaveBeenCalledWith('查询', 'default', 3);
     });
 
     it('topK 超上限应收敛到 10', async () => {
       retriever.search.mockResolvedValue([]);
-      await controller.search('查询', 'default', '100');
+      await controller.search(MERCHANT_REQ, '查询', 'default', '100');
       expect(retriever.search).toHaveBeenCalledWith('查询', 'default', 10);
     });
 
     it('topK 低于下限应提升到 1', async () => {
       retriever.search.mockResolvedValue([]);
-      await controller.search('查询', 'default', '0');
+      await controller.search(MERCHANT_REQ, '查询', 'default', '0');
       expect(retriever.search).toHaveBeenCalledWith('查询', 'default', 1);
     });
   });
@@ -247,7 +263,7 @@ describe('R70-21 RagController', () => {
       vectorStore.listKnowledge.mockReturnValue([
         { docName: '手册.pdf', chunkCount: 2, createdAt: new Date() },
       ]);
-      const result = controller.listKnowledge();
+      const result = controller.listKnowledge(MERCHANT_REQ);
       expect(vectorStore.listKnowledge).toHaveBeenCalledWith('default');
       expect(result.tenantId).toBe('default');
       expect(result.knowledge).toHaveLength(1);
@@ -255,7 +271,7 @@ describe('R70-21 RagController', () => {
 
     it('指定租户应透传', () => {
       vectorStore.listKnowledge.mockReturnValue([]);
-      const result = controller.listKnowledge('tenant-A');
+      const result = controller.listKnowledge(PLATFORM_REQ, 'tenant-A');
       expect(vectorStore.listKnowledge).toHaveBeenCalledWith('tenant-A');
       expect(result.tenantId).toBe('tenant-A');
     });
