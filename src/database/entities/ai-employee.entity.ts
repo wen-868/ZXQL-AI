@@ -174,6 +174,26 @@ export class AiEmployeeTaskEntity {
   })
   status!: string;
 
+  /** 任务类型（派发时的意图业务域，如 inventory/report；评分回流按此归档样本） */
+  @Column({
+    name: 'task_type',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+    comment: '任务类型（派发时意图域）',
+  })
+  taskType!: string | null;
+
+  /** 评分回流结果：sample=已入样本池 / correction=已入纠错 */
+  @Column({
+    name: 'rating_result',
+    type: 'varchar',
+    length: 16,
+    nullable: true,
+    comment: '评分回流结果：sample/correction',
+  })
+  ratingResult!: string | null;
+
   @Column({
     name: 'created_at',
     type: 'datetime',

@@ -71,6 +71,10 @@ export interface AiCallAuditRecord {
   categories?: ToolCategory[];
   /** 用户消息原文 */
   userMessage?: string;
+  /** 意图分诊通道（rules/llm/chat/fallback） */
+  triageLane?: string;
+  /** 分诊业务域（逗号分隔） */
+  triageCategories?: string;
   /** 工具调用记录（JSON 数组，包含每次 tool_call 的 name/args/success/duration） */
   toolCalls?: Record<string, unknown>[];
   /** 提示 Token 数 */
@@ -197,6 +201,8 @@ export class AuditLogger {
         model: record.model ?? null,
         intent: record.intent ?? null,
         employeeUid: record.employeeUid ?? null,
+        triageLane: record.triageLane ?? null,
+        triageCategories: record.triageCategories ?? null,
         lane: record.lane ?? null,
         categories: record.categories?.length ? record.categories : null,
         userMessage,

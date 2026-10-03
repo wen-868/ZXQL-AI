@@ -126,6 +126,14 @@ export class AiAuditLogEntity {
   })
   userMessage!: string | null;
 
+  /** 分诊通道（rules/llm/chat/fallback） */
+  @Column({ name: 'triage_lane', type: 'varchar', length: 16, nullable: true, comment: '意图分诊通道' })
+  triageLane!: string | null;
+
+  /** 分诊业务域（逗号分隔，如 inventory,product） */
+  @Column({ name: 'triage_categories', type: 'varchar', length: 128, nullable: true, comment: '分诊业务域' })
+  triageCategories!: string | null;
+
   /** 工具调用记录（JSON数组） */
   @Column({
     name: 'tool_calls',
