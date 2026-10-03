@@ -42,6 +42,38 @@ export function stepsToPlanContext(steps: PlanStep[]): string | undefined {
 }
 
 /**
+ * 未完成步骤下标→ 应如实标记为 skipped 的步骤下标（plan_step 收尾兜底用）
+ *
+ * 背景（2026-10-03）：LLM 用计划外工具完成任务时，matchPlanStepsByTool 匹配不到
+ * 这些步骤，计划卡会卡在 N/M。循环结束后需把未匹配步骤标skipped，避免虚报完成。
+ *
+ * ⚠ 必须排除 type==='end' 的收尾步：planner 强制补末步（planner.service.ts:324-325）
+ * 且 newStep 从不设 tool ⇒ 精确匹配（需s.tool===toolName）永远不成立，
+ * 顺序兜底也到不了最后一个未完成项。若不过滤，每张计划卡最后一步"完成"
+ * 都会被误标成"已跳过"——那比原来的"含水的 N/N"更显眼。
+ *
+ * 另含两类应排除的情况：
+ * - 工具执行失败的步骤（未写入 doneIds）由这里兜底，语义上就是"未完成"，故不额外排除；
+ * - 无 type 字段的旧数据结构按tool 步处理。
+ *
+ * @param steps 计划步骤
+ * @param doneIds 已完成步骤 id 集合
+ * @returns 应标记 skipped 的步骤下标（升序）
+ */
+export function collectSkippedPlanStepIndexes(
+  steps: PlanStep[],
+  doneIds: Set<string>,
+): number[] {
+  if (!steps || steps.length === 0) return [];
+  const out: number[] = [];
+  for (let i = 0; i < steps.length; i++) {
+    if (steps[i].type === 'end') continue;
+    if (!doneIds.has(steps[i].id)) out.push(i);
+  }
+  return out;
+}
+
+/**
  * 工具名 → 命中的计划步骤下标列表（plan_step 进度事件用）
  *
  * 两级匹配：

@@ -7,6 +7,7 @@
  * 负责人: AI底座 | 创建日期: 2026-09-05
  */
 import {
+  collectSkippedPlanStepIndexes,
   isComplexGoal,
   matchPlanStepsByTool,
   stepsToPlanContext,
@@ -119,5 +120,82 @@ describe('G-A matchPlanStepsByTool（步骤进度）', () => {
     expect(matchPlanStepsByTool(STEPS, 'toolA', done)).toEqual([0]);
     expect(matchPlanStepsByTool(STEPS, 'toolB', done)).toEqual([1]);
     expect(matchPlanStepsByTool(STEPS, 'toolC', done)).toEqual([2]);
+  });
+});
+
+/**
+ * collectSkippedPlanStepIndexes —— plan_step 收尾兜底（2026-10-03）
+ *
+ * 存在原因：LLM 用计划外工具完成任务时，matchPlanStepsByTool 命中不了那些步骤，
+ * 计划卡会卡在 N/M。循环结束后把未匹配步骤标 skipped，避免虚报"N/N 完成"。
+ */
+describe('collectSkippedPlanStepIndexes', () => {
+  /** 真实计划形态：末尾必有 type:'end' 的收尾步（planner.service.ts:324-325 强制补） */
+  const PLAN_WITH_END: PlanStep[] = [
+    step({ id: 's1', label: '查询库存', type: 'tool', tool: 'queryInventory' }),
+    step({ id: 's2', label: '生成补货单', type: 'tool', tool: 'createOrder' }),
+    step({ id: 'end', label: '完成', type: 'end' }),
+  ];
+
+  it('end 收尾步永远不进skipped（P0 回归：否则每张卡最后一步都显示"已跳过"）', () => {
+    // 即便 s1/s2 全部完成、只剩 end 未匹配
+    const done = new Set<string>(['s1', 's2', 'end']);
+    expect(collectSkippedPlanStepIndexes(PLAN_WITH_END, done)).toEqual([]);
+  });
+
+  it('end 步不被匹配是必然的——反证：精确匹配与顺序兜底都碰不到它', () => {
+    const done = new Set<string>();
+    // 前两步依次被计划外工具推进
+    matchPlanStepsByTool(PLAN_WITH_END, 'unknownA', done);
+    matchPlanStepsByTool(PLAN_WITH_END, 'unknownB', done);
+    expect([...done]).toEqual(['s1', 's2']);
+    // end 步既没 tool 精确匹配、又是最后一个未完成项，顺序兜底也到不了
+    expect(done.has('end')).toBe(false);
+    // 所以兜底标记必须跳过它，否则用户永远看到"完成（已跳过）"
+    expect(collectSkippedPlanStepIndexes(PLAN_WITH_END, done)).toEqual([]);
+  });
+
+  it('工具失败未写入 doneIds → 该步被如实标 skipped（不虚报完成）', () => {
+    const done = new Set<string>(['s1']); // s2 的工具失败，未标 done
+    expect(collectSkippedPlanStepIndexes(PLAN_WITH_END, done)).toEqual([1]);
+  });
+
+  it('计划外工具完成任务 → 未匹配的真实步骤被标 skipped', () => {
+    const done = new Set<string>(['s1']); // s2 从未被任何工具命中
+    expect(collectSkippedPlanStepIndexes(PLAN_WITH_END, done)).toEqual([1]);
+  });
+
+  it('下标升序且对应原数组位置（前端按index 渲染）', () => {
+    const plan: PlanStep[] = [
+      step({ id: 'a', label: 'A', type: 'tool' }),
+      step({ id: 'b', label: 'B', type: 'tool' }),
+      step({ id: 'c', label: 'C', type: 'tool' }),
+      step({ id: 'end', label: '完成', type: 'end' }),
+    ];
+    expect(collectSkippedPlanStepIndexes(plan, new Set(['b']))).toEqual([0, 2]);
+  });
+
+  it('全部完成 → 无skipped（不产生多余事件）', () => {
+    const done = new Set<string>(['s1', 's2', 'end']);
+    expect(collectSkippedPlanStepIndexes(PLAN_WITH_END, done)).toEqual([]);
+  });
+
+  it('空计划 / 空数组 → 空结果，不抛异常', () => {
+    expect(collectSkippedPlanStepIndexes([], new Set())).toEqual([]);
+    expect(
+      collectSkippedPlanStepIndexes(
+        undefined as unknown as PlanStep[],
+        new Set(),
+      ),
+    ).toEqual([]);
+  });
+
+  it('无 type 字段的旧数据按普通步骤处理（不误排除）', () => {
+    const legacy = [
+      { id: 'x', label: '旧步骤' } as PlanStep,
+      { id: 'end', label: '完成' } as PlanStep,
+    ];
+    // 两步都没在 done 里 → 都应被标 skipped（含无 type 的 end 同名步）
+    expect(collectSkippedPlanStepIndexes(legacy, new Set())).toEqual([0, 1]);
   });
 });

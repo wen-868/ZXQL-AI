@@ -50,6 +50,7 @@ import {
   resolveEmployeeConversationId,
 } from './employee/employee-conversation';
 import {
+  collectSkippedPlanStepIndexes,
   isComplexGoal,
   matchPlanStepsByTool,
   stepsToPlanContext,
@@ -1052,7 +1053,10 @@ export class Orchestrator {
           }
 
           // ── G-A plan_step 进度：工具命中计划步骤 → 标记该步完成 ──
-          if (chatPlan.length > 0) {
+          // ⚠ 只在工具真正成功时标 done：工具失败（如缺参数/查无数据）时若也标
+          // done，计划卡会显示"完成"但用户什么都没拿到——那正是本次要消除的虚报。
+          // 失败步骤不写入 doneStepIds，交给 5.4 兜底如实标 skipped。
+          if (chatPlan.length > 0 && toolResult.success) {
             for (const idx of matchPlanStepsByTool(
               chatPlan,
               tc.function.name,
@@ -1102,16 +1106,17 @@ export class Orchestrator {
       // LLM 用计划外工具完成任务时，matchPlanStepsByTool 永远命中不了这些步骤，
       // 计划卡会卡在 N/M。循环结束后把未匹配步骤如实标记 skipped（不虚报完成），
       // 前端渲染为"已跳过"。
-      for (let i = 0; i < chatPlan.length; i++) {
-        if (!doneStepIds.has(chatPlan[i].id)) {
-          yield {
-            type: 'plan_step',
-            index: i,
-            total: chatPlan.length,
-            label: chatPlan[i].label,
-            status: 'skipped',
-          };
-        }
+      //
+      // ⚠ collectSkippedPlanStepIndexes 会排除 type==='end' 的收尾步：planner 强制
+      // 补末步且不设 tool，匹配永远不成立 ⇒ 不过滤则每张卡最后一步都被误标"已跳过"。
+      for (const i of collectSkippedPlanStepIndexes(chatPlan, doneStepIds)) {
+        yield {
+          type: 'plan_step',
+          index: i,
+          total: chatPlan.length,
+          label: chatPlan[i].label,
+          status: 'skipped',
+        };
       }
 
       // ── 5.5 兜底总结：模型未输出任何文本但执行过工具时，用工具结果生成摘要 ──
