@@ -687,8 +687,13 @@ async function go(t){
               cards.push(`📋 执行计划(${planTotal}步)：`+steps.map((s,i)=>`${i+1}.${s.label}`).join(' → '));
               break}
             case 'plan_step':{
-              planDone++;
-              if(planItem)tlDone(bd,planItem,true,`进度 ${planDone}/${planTotal} · 完成：${ev.label}`);
+              if(ev.status==='skipped'){
+                // 统一编排器：计划外步骤未匹配，如实显示跳过（不虚报完成）
+                if(planItem)tlDone(bd,planItem,true,`进度 ${planDone}/${planTotal} · 已跳过：${ev.label}`);
+              }else{
+                planDone++;
+                if(planItem)tlDone(bd,planItem,true,`进度 ${planDone}/${planTotal} · 完成：${ev.label}`);
+              }
               break}
             case 'reflection':{
               // G-C 自动重试：工具条目实时反映重试状态

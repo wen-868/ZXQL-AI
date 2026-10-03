@@ -11,18 +11,21 @@
  * 断言维度：工具序列、答案内容、终态事件。输出通过率矩阵。
  * 用法：node scripts/tool-bench.js [aiBase] [authBase]
  *
+ * 取 token：AI_BASE_USERNAME+AI_BASE_PASSWORD 走真实登录；AI_BASE_TOKEN 直传；
+ * 两者都不给时仅本地允许 demo-login（见 scripts/lib/bench-auth.js）。
+ *
  * 负责人: AI底座 | 创建日期: 2026-09-05
  */
+const { resolveAdminToken } = require('./lib/bench-auth');
+
 const AI_BASE = process.argv[2] || 'http://127.0.0.1:3016';
 const AUTH_BASE = process.argv[3] || 'http://127.0.0.1:8080';
 
 async function login() {
-  const r = await fetch(`${AUTH_BASE}/api/admin/auth/demo-login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  });
-  const j = await r.json();
-  return (j.data || j).token;
+  const { token, via } = await resolveAdminToken({ authBase: AUTH_BASE });
+  console.log(`鉴权方式：${via}`);
+  if (!token) throw new Error('未取到 token');
+  return token;
 }
 
 /** 单次对话：收集工具序列、答案、终态事件 */

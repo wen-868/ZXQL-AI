@@ -11,20 +11,20 @@
  * 用法：node scripts/perf-bench.js [aiBase] [authBase] [每场景次数]
  * 默认：http://127.0.0.1:3016  http://127.0.0.1:8080  3
  *
+ * 取 token：AI_BASE_USERNAME+AI_BASE_PASSWORD 走真实登录；AI_BASE_TOKEN 直传；
+ * 两者都不给时仅本地允许 demo-login（见 scripts/lib/bench-auth.js）。
+ *
  * 负责人: AI底座 | 创建日期: 2026-09-05
  */
+const { resolveAdminToken } = require('./lib/bench-auth');
+
 const AI_BASE = process.argv[2] || 'http://127.0.0.1:3016';
 const AUTH_BASE = process.argv[3] || 'http://127.0.0.1:8080';
 const RUNS = Number(process.argv[4] || 3);
 
 async function login() {
-  const r = await fetch(`${AUTH_BASE}/api/admin/auth/demo-login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  });
-  const j = await r.json();
-  const token = (j.data || j).token;
-  if (!token) throw new Error('登录失败: ' + JSON.stringify(j).slice(0, 120));
+  const { token, via } = await resolveAdminToken({ authBase: AUTH_BASE });
+  console.log(`鉴权方式：${via}`);
   return token;
 }
 

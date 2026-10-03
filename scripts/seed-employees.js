@@ -2,24 +2,23 @@
  * seed-employees — 数字员工 MVP 岗位种子（补货流水线，12.7）
  *
  * 建两个岗位：库管家（可调度：[采专员]）与 采专员（终端）。
- * 用法：node scripts/seed-employees.js [aiBase] [adminJwt]
- * （adminJwt 缺省时经本地 demo-login 获取）
+ * 用法：node scripts/seed-employees.js [aiBase] [authBase] [adminJwt]
+ * （adminJwt 缺省时：AI_BASE_TOKEN → AI_BASE_USERNAME+PASSWORD 真实登录 → 本地 demo-login）
  *
  * 负责人: AI底座 | 创建日期: 2026-09-05
  */
+const { resolveAdminToken } = require('./lib/bench-auth');
+
 const AI_BASE = process.argv[2] || 'http://127.0.0.1:3016';
 const AUTH_BASE = process.argv[3] || 'http://127.0.0.1:8080';
 
 async function adminToken() {
-  if (process.argv[4]) return process.argv[4];
-  const r = await fetch(`${AUTH_BASE}/api/admin/auth/demo-login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const { token, via } = await resolveAdminToken({
+    authBase: AUTH_BASE,
+    token: process.argv[4],
   });
-  const j = await r.json();
-  const t = (j.data || j).token;
-  if (!t) throw new Error('demo-login 失败');
-  return t;
+  console.log(`鉴权方式：${via}`);
+  return token;
 }
 
 async function create(token, body) {
