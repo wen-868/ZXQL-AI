@@ -28,6 +28,7 @@ import type { ToolContext, ToolResult } from '../../tools/tool.interface';
 import { CheckpointerService } from './checkpointer.service';
 import { ReviewTaskService } from '../review/review-task.service';
 import { EvidenceLedgerService } from '../evidence/evidence-ledger.service';
+import { KnowledgeRulesService } from '../knowledge-rules.service';
 import { BUILTIN_GRAPHS, GraphDefinition } from './graph.types';
 
 /** 图执行安全上限（防死循环） */
@@ -66,6 +67,7 @@ export class GraphExecutorService {
     private readonly registry: ToolRegistry,
     private readonly reviewTaskService: ReviewTaskService,
     private readonly evidence: EvidenceLedgerService,
+    private readonly knowledgeRules: KnowledgeRulesService,
   ) {}
 
   /**
@@ -314,10 +316,18 @@ export class GraphExecutorService {
             }
 
             // 1. 组装系统提示（域 Agent 职责 + 当前图状态产物）
-            const systemPrompt =
+            // 统一编排器（2026-10-03）：agent 节点系统提示追加图业务域规则，
+            // 与 chat/agent 通道同源（KnowledgeRulesService），三通道规则注入齐平。
+            const basePrompt =
               node.agent?.systemPrompt ??
               node.prompt ??
               `你是「${node.label}」域的专家 Agent。`;
+            const graphRules = this.knowledgeRules.getRulesContext(
+              graph.categories,
+            );
+            const systemPrompt = graphRules
+              ? `${basePrompt}\n\n以下是本业务域的权威规则，执行时必须遵守：\n${graphRules}`
+              : basePrompt;
             const agentMessages: ChatMessage[] = [
               {
                 role: 'system',

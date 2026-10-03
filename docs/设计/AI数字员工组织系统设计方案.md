@@ -711,11 +711,11 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 
 | 项 | 阻塞/触发条件 |
 |---|---|
-| E4 蒸馏本体 | 样本阈值：每类 quality≥4 样本 ≥50 条（readiness 端点可查进度）+ Ollama/训练设施 |
+| E4 蒸馏本体 | 🟡 **代码已就绪（2026-10-03），待训练设施**：`E4DistillationService.train(taskType, {force, baseModel})` 全链路已实现——就绪门控（`force` 可跳过，供试跑）→ 达标样本筛选 → Modelfile 生成 → Ollama create API 落模型；端点已暴露（`POST /api/ai-db/e4/train`、`GET /api/ai-db/e4/readiness` 就绪度看板）。**剩余前置**：每类 quality≥4 样本 ≥50 条（readiness 端点可查进度）+ Ollama 训练设施。样本达标前可用 `force=true` 试跑验收 |
 | MCP Client | 出现第一个真实 MCP 协议外部系统需求 |
 | ~~生产部署~~ | ✅ **已完成（2026-09-27 确认）**：由管理系统部署流水线自动触发（`auto-deploy.sh` → `deploy/ai-base-deploy.sh`），pm2 进程 `zhixiang-ai-base`、端口 3016、nginx 反代 `/ai-api/*`。**非人工操作项，此前误列为"需用户执行"** |
 | ~~ima 密钥作废~~ | ❌ **条目作废（2026-09-27）**：全仓核查（代码/配置/迁移/依赖/文档）**无任何 IMA 接入实现**，该条目为 12.8 初版（`6505487`）凭空写入的幽灵条目，已从清单移除 |
-| 生产性能/能力观测 | 前置（生产部署）已满足 → **可执行**；需生产可达地址与有效 JWT：跑 `scripts/perf-bench.js` / `scripts/tool-bench.js`（本仓脚本已存在） |
+| ~~生产性能/能力观测~~ | ✅ **已执行（2026-10-03），并升级为安全核查**：`/api/health` 返回 200，但真实链路仍不可用——`POST /api/chat` 报 `Unknown column 'PlatformAiConfigEntity.evolution_auto_activate'`（迁移 007 未执行）、`/api/ai/employees` 报 `Table 'liquor_inventory.t_ai_employee' doesn't exist`（008 未执行），与 2026-09-27 首次探测一致 → **迁移停滞 6 天**。同时查出 **[P0] 生产 `demo-login` 免密返回 `SUPER_ADMIN` JWT**。TTFB 数据不予采信（tokens/迭代/工具全 0，实为对错误响应计时）。详见 `docs/规范/生产安全核查.md`、踩坑日志 [43] |
 | ~~Jest 门禁本机不可用~~ | ✅ **已修复（2026-09-26）**：根因是 pnpm isolated 布局导致 jest 无法解析 transform 包，与 jest/ts-jest 版本无关。处置＝新增 `.npmrc`（`node-linker=hoisted`）+ 重建 node_modules + `test/setup-dom-matrix.js`（pdfjs-dist 需要 DOMMatrix）。结果：`npx jest` 106 套件 / 1016 用例全过。详见踩坑日志 [36] |
 
 **🔴 需决策/跨仓协作**
@@ -723,7 +723,7 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 | 项 | 阻塞 |
 |---|---|
 | 总台前端四页 | 跨仓 saas-admin + 页面交互规格需确认 |
-| agent 通道统一编排器重构 | 需立项规划（chat/agent/graph 三通道合一的大动作） |
+| agent 通道统一编排器重构 | 🟡 **改造进行中（2026-10-03）**，非"零起步"：① `graph.types.ts` 已为四个图声明 `categories` 业务域（order/inventory/customer、purchase/inventory、marketing、inventory），并经 `KnowledgeRulesService` 注入规则（`graph-executor.service.ts:326`）；② plan_step 兜底已补 `status: 'done' \| 'skipped'`——循环结束把未匹配步骤如实标 `skipped`（计划卡不再虚报 N/N 完成，见 12.12）。**剩余大动作**：chat/agent/graph 三通道执行器真正合一（共用调度骨架），仍需立项排期 |
 | 回滚映射其余 18 种写操作 | 需后端逐类型取消端点配合（跨仓）；**本仓侧已修掉撤销回滚的静默谎报**（失败不再报成功、保留重试入口），见 12.8.8 / 踩坑日志 [39] |
 | CSRF_SECRET 密钥复用 | 两仓同步改（策略仍需决策）；**本仓已消除静默失败**：缺失时启动告警 + 403 报错点名根因，见 12.8.8 / 踩坑日志 [41] |
 | ~~写全审核 TTL 24h 调整~~ | ✅ **代码阻塞已解除（2026-09-26）**：改为 `WRITE_TOKEN_TTL_HOURS` 环境变量可配，默认仍 24h；数值仍待产品拍板，但拍板后改 env 重启即可，无需改代码发版。见 12.8.8 / 踩坑日志 [40] |
@@ -945,3 +945,38 @@ employeeId 维度（贯穿 Orchestrator 单次执行）
 **真机验证**：默认会话发「查一下缺货的商品，给采购专员下补货任务」→ 79ms 返回「已自动分派给采专员（任务#N）」→ 采专员独立执行完成 → 回传消息（含低库存清单与补货建议）落在发起会话历史（Redis 实查）。审计埋点生效（audit_log: intent=auto_dispatch, triage_lane=rules, triage_categories=inventory,product,purchase——平分时终端岗位次级排序生效）。
 
 **待办**：桌面端用户会话打开时拉取服务端历史（回传消息当前在 Redis 会话历史，需历史拉取或 WS 实时推送才在桌面端立即可见）。
+
+### 12.12 迁移层幂等修复 + 脚本鉴权改造（2026-10-03）
+
+本轮把"全量问题清单逐项修复"落到迁移层与工具链两类硬问题上。
+
+**一、迁移层三个真缺陷（已修）**
+
+| 缺陷 | 根因 | 修法 |
+|---|---|---|
+| 007/008/009 用 `ADD COLUMN/INDEX IF NOT EXISTS` | 那是 **MariaDB 语法，MySQL 8.0 不支持**（本仓生产是 MySQL） | 全部改 `information_schema` 判定 + `PREPARE`/`EXECUTE` 动态 SQL 幂等写法 |
+| **两个 `009_rating_and_triage.sql` 序号冲突** | `009_audit_lane_categories.sql` 与评分迁移撞号，执行顺序决定谁生效 | 评分迁移 `git mv` 为 `010_rating_and_triage.sql` |
+| 010 重复声明 `lane`/`categories` 且类型为 `VARCHAR(255)` | 与实体 `type:'json'` 矛盾，两文件谁先跑决定最终类型 | 010 删除重复声明；**列归属约定**：`lane`/`categories` 只由 009 声明，010 只管 `task_type`/`rating_result`/`triage_*` |
+
+> 新增约束（写入 `migrations/README.md`）：幂等写法依赖**会话变量**，所以迁移必须**整文件执行**，不可逐句拆跑。
+
+**二、基准/种子脚本鉴权改造（`scripts/lib/bench-auth.js`）**
+
+`perf-bench` / `tool-bench` / `seed-employees` 原先各自复制 `demo-login` 调用——等于把 [P0] 免密超管登录固化成一条**自动化利用路径**。现统一走 `resolveAdminToken({ authBase })`：
+
+1. 显式 token（argv 或 `AI_BASE_TOKEN`）→ 直通；
+2. `AI_BASE_USERNAME` + `AI_BASE_PASSWORD` → `POST {authBase}/api/admin/auth/login` 真实登录；
+3. 都没有 → 演示登录，但**仅限本地/内网**；非本地地址在**发出任何请求前**抛错退出（应急可用 `ALLOW_DEMO_LOGIN=1` 放行）。
+
+实测生产参数已正确拦截：`node scripts/perf-bench.js https://saas.onepan.cn/ai-api https://api.onepan.cn` → 打印改用真实登录指引并 `EXIT=1`，**不再取走 SUPER_ADMIN JWT**。结论：**平台侧禁用 `demo-login` 后，本仓脚本照常可用**。
+
+**三、本轮门禁实测（四条全绿）**
+
+| 门禁 | 结果 |
+|---|---|
+| `tsc -p tsconfig.build.json` | EXIT=0 |
+| `tsc -p tsconfig.json`（含 spec） | EXIT=0，0 错误 |
+| `npx jest` | 111 套件 / 1072 用例全过 |
+| `npx eslint "{src,apps,libs,test}/**/*.ts"` | 0 error / 0 warning |
+
+> 本轮同时修掉未提交改动引入的 16 处 lint（`ConfigService.get()` 缺泛型 2 处、`jest.Mock.calls[0]` any 1 处、prettier 13 处）。

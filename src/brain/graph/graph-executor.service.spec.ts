@@ -13,6 +13,7 @@ import { GraphExecutorService } from './graph-executor.service';
 import { GraphDefinition, GraphState } from './graph.types';
 import { ReviewTaskService } from '../review/review-task.service';
 import { EvidenceLedgerService } from '../evidence/evidence-ledger.service';
+import { KnowledgeRulesService } from '../knowledge-rules.service';
 
 /** 内存版 Checkpointer（模拟 Redis 持久化，便于断点测试） */
 function makeCheckpointer() {
@@ -168,12 +169,16 @@ function makeExecutor(
     recordWrite: jest.fn(),
     verify: jest.fn().mockReturnValue({ ok: true, issues: [] }),
   };
+  const knowledgeRulesMock = {
+    getRulesContext: jest.fn(() => undefined),
+  };
   return new GraphExecutorService(
     executorMock as unknown as ToolExecutor,
     checkpointer as unknown as CheckpointerService,
     makeRegistryMock() as unknown as ToolRegistry,
     review as unknown as ReviewTaskService,
     evidence as unknown as EvidenceLedgerService,
+    knowledgeRulesMock as unknown as KnowledgeRulesService,
   );
 }
 
@@ -379,6 +384,60 @@ describe('GraphExecutorService', () => {
     ).toBe(true);
     // 完成后检查点清除（不残留脏状态）
     expect(checkpointer.clear).toHaveBeenCalled();
+  });
+
+  it('统一编排器：agent 节点系统提示按图业务域注入领域规则', async () => {
+    function makeChatResult(value: unknown) {
+      return {
+        next: () => Promise.resolve({ done: true as const, value }),
+        [Symbol.asyncIterator]() {
+          return this;
+        },
+      };
+    }
+    const chatMock = jest.fn().mockImplementation(() =>
+      makeChatResult({
+        content: '完成',
+        prompt_tokens: 5,
+        completion_tokens: 2,
+      }),
+    );
+    const provider = { chat: chatMock } as never;
+    const rulesGraph: GraphDefinition = {
+      ...AGENT_GRAPH,
+      categories: ['customer'],
+    };
+    const checkpointer = makeCheckpointer();
+    const rulesMock = {
+      getRulesContext: jest.fn(() => '【客户规则】禁止越权查询。'),
+    };
+    const wired = new GraphExecutorService(
+      { executeToolCalls: jest.fn().mockResolvedValue([]) } as never,
+      checkpointer as never,
+      makeRegistryMock() as never,
+      { create: jest.fn(), get: jest.fn().mockResolvedValue(null) } as never,
+      { recordWrite: jest.fn(), verify: jest.fn() } as never,
+      rulesMock as never,
+    );
+
+    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    for await (const e of wired.execute(
+      rulesGraph,
+      's1',
+      makeCtx(),
+      provider,
+    )) {
+      events.push(e);
+    }
+
+    expect(rulesMock.getRulesContext).toHaveBeenCalledWith(['customer']);
+    // 第一次 chat 调用的 system 消息应含注入的领域规则
+    // 定型后再取参，避免 any 传播（lint: no-unsafe-assignment / member-access）
+    const firstCall = chatMock.mock.calls[0] as
+      [Array<{ role: string; content: string }>, ...unknown[]] | undefined;
+    const systemMsg = firstCall?.[0].find((m) => m.role === 'system');
+    expect(systemMsg?.content).toContain('【客户规则】禁止越权查询。');
+    expect(events.some((e) => e.type === 'graph_done')).toBe(true);
   });
 
   it('高危工具节点触发人工闸：生成工单并暂停图', async () => {

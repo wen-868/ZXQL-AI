@@ -170,6 +170,22 @@ export class AiDbController {
     return this.extractor.extract(dto.taskType, dto.limit ?? 20);
   }
 
+  /** E4 提示词蒸馏：达标样本 → Ollama 专用模型（force 可跳过就绪门控） */
+  @Post('e4/train')
+  async e4Train(
+    @Body()
+    dto: {
+      taskType: string;
+      force?: boolean;
+      baseModel?: string;
+    },
+  ) {
+    return this.e4.train(dto.taskType ?? '', {
+      force: dto.force ?? false,
+      baseModel: dto.baseModel,
+    });
+  }
+
   /** E4 就绪度看板（各 taskType 的 quality≥4 样本量/平均质量/是否达训练阈值） */
   @Get('e4/readiness')
   e4Readiness() {

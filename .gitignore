@@ -37,3 +37,6 @@ Thumbs.db
 # 知识库临时文件
 knowledge/*.tmp
 knowledge/*_cache/
+
+# AI 助手本机工作态（会话记忆/缓存，随会话变动，不入库）
+.workbuddy/

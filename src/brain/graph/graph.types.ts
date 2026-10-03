@@ -8,6 +8,7 @@
  *
  * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-15
  */
+import type { ToolCategory } from '../../tools/tool.interface';
 
 /** 图节点类型 */
 export type GraphNodeType = 'agent' | 'tool' | 'condition' | 'end';
@@ -57,6 +58,12 @@ export interface GraphDefinition {
   entry: string;
   /** 全部节点 */
   nodes: GraphNode[];
+  /**
+   * 图业务域声明（统一编排器 2026-10-03）：graph 通道据此经
+   * KnowledgeRulesService 注入领域规则（与 chat/agent 通道同源），替代此前
+   * graph 节点无规则可依的缺口；agent 节点组装系统提示时追加。
+   */
+  categories?: ToolCategory[];
 }
 
 /** 图状态（Checkpointer 持久化） */
@@ -94,6 +101,7 @@ export const BUILTIN_GRAPHS: Record<string, GraphDefinition> = {
     id: 'sale_create_graph',
     name: '销售开单图',
     entry: 'search_customer',
+    categories: ['order', 'inventory', 'customer'],
     nodes: [
       {
         id: 'search_customer',
@@ -124,6 +132,7 @@ export const BUILTIN_GRAPHS: Record<string, GraphDefinition> = {
     id: 'purchase_plan_graph',
     name: '采购计划图',
     entry: 'analyze',
+    categories: ['purchase', 'inventory'],
     nodes: [
       {
         id: 'analyze',
@@ -171,6 +180,7 @@ export const BUILTIN_GRAPHS: Record<string, GraphDefinition> = {
     id: 'marketing_create_graph',
     name: '营销活动配置图',
     entry: 'understand',
+    categories: ['marketing'],
     nodes: [
       {
         id: 'understand',
@@ -230,6 +240,7 @@ export const BUILTIN_GRAPHS: Record<string, GraphDefinition> = {
     id: 'stock_check_graph',
     name: '库存盘点图',
     entry: 'analyze',
+    categories: ['inventory'],
     nodes: [
       {
         id: 'analyze',

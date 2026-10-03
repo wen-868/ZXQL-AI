@@ -215,7 +215,7 @@ export type OrchestratorBaseEvent =
       index: number;
       total: number;
       label: string;
-      status: 'done';
+      status: 'done' | 'skipped';
     }
   | {
       /**
@@ -523,7 +523,8 @@ export class Orchestrator {
               model: modelName,
               intent: 'auto_dispatch',
               triageLane: intent.lane,
-              triageCategories: (intent.categories ?? []).join(',') || undefined,
+              triageCategories:
+                (intent.categories ?? []).join(',') || undefined,
               userMessage: params.message,
               promptTokens: auxPromptTokens,
               completionTokens: auxCompletionTokens,
@@ -1095,6 +1096,22 @@ export class Orchestrator {
           code: 'AI_009',
           message: `Agent 循环超过 ${MAX_ITERATIONS} 轮上限，已强制终止；请简化请求或检查工具定义`,
         };
+      }
+
+      // ── 5.4 plan_step 兜底（统一编排器 2026-10-03）──
+      // LLM 用计划外工具完成任务时，matchPlanStepsByTool 永远命中不了这些步骤，
+      // 计划卡会卡在 N/M。循环结束后把未匹配步骤如实标记 skipped（不虚报完成），
+      // 前端渲染为"已跳过"。
+      for (let i = 0; i < chatPlan.length; i++) {
+        if (!doneStepIds.has(chatPlan[i].id)) {
+          yield {
+            type: 'plan_step',
+            index: i,
+            total: chatPlan.length,
+            label: chatPlan[i].label,
+            status: 'skipped',
+          };
+        }
       }
 
       // ── 5.5 兜底总结：模型未输出任何文本但执行过工具时，用工具结果生成摘要 ──

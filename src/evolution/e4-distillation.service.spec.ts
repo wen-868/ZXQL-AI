@@ -14,12 +14,18 @@ import {
   E4_MIN_SAMPLES,
 } from './e4-distillation.service';
 
-function createService() {
+function createService(configGet?: jest.Mock) {
   const sampleRepo = {
     createQueryBuilder: jest.fn(),
     find: jest.fn().mockResolvedValue([]),
   } as unknown as Repository<AiSampleEntity>;
-  return { service: new E4DistillationService(sampleRepo), sampleRepo };
+  const configService = {
+    get: configGet ?? jest.fn(),
+  } as never;
+  return {
+    service: new E4DistillationService(sampleRepo, configService),
+    sampleRepo,
+  };
 }
 
 describe('E4DistillationService', () => {
@@ -118,5 +124,56 @@ describe('E4DistillationService', () => {
     expect(sampleRepo.find).toHaveBeenCalledWith(
       expect.objectContaining({ take: 2000 }),
     );
+  });
+
+  it('train：就绪门控未通过 → 拒绝训练并给出积累指引', async () => {
+    const { service, sampleRepo } = createService(
+      jest.fn((_key: string, dflt?: unknown) => dflt),
+    );
+    sampleRepo.createQueryBuilder = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([]),
+    });
+
+    const out = await service.train('customer_create');
+    expect(out.ok).toBe(false);
+    expect(out.message).toContain('门控未通过');
+  });
+
+  it('train：门控通过但 Ollama 不可达 → 优雅失败不抛异常', async () => {
+    const { service, sampleRepo } = createService(
+      jest.fn((key: string, dflt?: unknown) =>
+        key === 'OLLAMA_BASE_URL' ? 'http://127.0.0.1:59999' : dflt,
+      ),
+    );
+    sampleRepo.createQueryBuilder = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([
+        {
+          taskType: 'customer_create',
+          total: 60,
+          qualified: 60,
+          avgQuality: '4.5',
+        },
+      ]),
+    });
+    sampleRepo.find = jest.fn().mockResolvedValue(
+      Array.from({ length: 12 }, (_, i) => ({
+        prompt: `新建客户测试样本第${i}号`,
+        completion: `{"customerName":"客户${i}"}`,
+      })),
+    );
+
+    const out = await service.train('customer_create', { force: true });
+    expect(out.ok).toBe(false);
+    expect(out.message).toContain('Ollama 不可达');
   });
 });
