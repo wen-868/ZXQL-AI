@@ -19,7 +19,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import jwt from 'jsonwebtoken';
-import { AdminGuard, JwtGuard } from './admin-auth.guard';
+import { AdminGuard, JwtGuard, getAdminIdentity } from './admin-auth.guard';
 
 const SECRET = 'test-jwt-secret-for-guard-spec';
 
@@ -163,6 +163,85 @@ describe('AdminGuard', () => {
   it('Bearer 以外任意 token → 401', () => {
     expect(() => guard.canActivate(makeContext('garbage-token'))).toThrow(
       UnauthorizedException,
+    );
+  });
+});
+
+/**
+ * 身份挂载（2026-10-04 P0 修复）：守卫验签通过后把归一身份挂到
+ * request.adminIdentity，控制器经 getAdminIdentity 做"商户锁本租户、
+ * 平台可跨租户"的归属判定；缺失即 403（防绕过守卫直调）。
+ */
+describe('AdminGuard/JwtGuard 身份挂载', () => {
+  let adminGuard: AdminGuard;
+  let jwtGuard: JwtGuard;
+
+  beforeAll(() => {
+    process.env.JWT_SECRET = SECRET;
+  });
+
+  afterAll(() => {
+    delete process.env.JWT_SECRET;
+  });
+
+  beforeEach(() => {
+    adminGuard = new AdminGuard();
+    jwtGuard = new JwtGuard();
+  });
+
+  function makeContextWithReq(authorization: string): {
+    ctx: ExecutionContext;
+    req: Record<string, unknown>;
+  } {
+    const req: Record<string, unknown> = { headers: { authorization } };
+    return {
+      ctx: {
+        switchToHttp: () => ({ getRequest: () => req }),
+      } as unknown as ExecutionContext,
+      req,
+    };
+  }
+
+  it('商家 JWT：放行并挂载 merchant 身份（tenantId + 角色）', () => {
+    const token = signMerchant({
+      id: 1,
+      username: 'boss',
+      tenantId: 't_001',
+      roles: ['SUPER_ADMIN'],
+    });
+    const { ctx, req } = makeContextWithReq(`Bearer ${token}`);
+    expect(adminGuard.canActivate(ctx)).toBe(true);
+
+    const identity = getAdminIdentity(req as never);
+    expect(identity.identityType).toBe('merchant');
+    expect(identity.tenantId).toBe('t_001');
+    expect(identity.roles).toContain('SUPER_ADMIN');
+  });
+
+  it('平台 JWT：放行并挂载 platform 身份（无租户）', () => {
+    const { ctx, req } = makeContextWithReq(`Bearer ${signPlatform()}`);
+    expect(adminGuard.canActivate(ctx)).toBe(true);
+
+    const identity = getAdminIdentity(req as never);
+    expect(identity.identityType).toBe('platform');
+    expect(identity.tenantId).toBeUndefined();
+  });
+
+  it('JwtGuard：普通商家 JWT 也挂载身份（供非管理端点取用）', () => {
+    const token = signMerchant({
+      id: 3,
+      username: 'cashier',
+      tenantId: 't_001',
+      roles: ['CASHIER'],
+    });
+    const { ctx, req } = makeContextWithReq(`Bearer ${token}`);
+    expect(jwtGuard.canActivate(ctx)).toBe(true);
+    expect(getAdminIdentity(req as never).identityType).toBe('merchant');
+  });
+
+  it('身份缺失（未经守卫直调）→ getAdminIdentity 抛 403', () => {
+    expect(() => getAdminIdentity({ headers: {} } as never)).toThrow(
+      ForbiddenException,
     );
   });
 });

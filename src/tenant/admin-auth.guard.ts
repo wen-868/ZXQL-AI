@@ -26,6 +26,7 @@ import {
   MERCHANT_JWT_VERIFY,
   PLATFORM_JWT_VERIFY,
   type MerchantJwtPayload,
+  type PlatformJwtPayload,
 } from './jwt-verify';
 
 /** 商家侧管理角色（与管理系统 ADMIN_ROLES 一致；门店/收银角色不开放管理端点） */
@@ -35,6 +36,58 @@ export const MERCHANT_ADMIN_ROLES = [
   'WAREHOUSE_ADMIN',
   'FINANCE_ADMIN',
 ] as const;
+
+/**
+ * 管理端身份（2026-10-04 P0 修复：AdminGuard 验签通过后挂到 request，
+ * 管理路由不在 TenantMiddleware 覆盖内，控制器以此做"商户锁本租户、
+ * 平台可跨租户"的租户归属判定，不再依赖调用方自报 tenantId）
+ */
+export interface AdminIdentity {
+  identityType: 'merchant' | 'platform';
+  /** 商户 JWT 必有；平台 JWT 通常无（跨租户） */
+  tenantId?: string;
+  userId: number;
+  username: string;
+  roles?: string[];
+}
+
+/** express Request 上的身份挂载键 */
+const IDENTITY_KEY = 'adminIdentity';
+
+/** 从 request 取守卫挂载的管理端身份（缺失即拒绝，防绕过守卫直调） */
+export function getAdminIdentity(req: Request): AdminIdentity {
+  const identity = (req as Request & { [IDENTITY_KEY]?: AdminIdentity })
+    .adminIdentity;
+  if (!identity) {
+    throw new ForbiddenException({
+      statusCode: 403,
+      ...aiError('AI_010', {
+        detail: '缺少管理端身份（须先经 AdminGuard/JwtGuard 鉴权）',
+      }),
+    });
+  }
+  return identity;
+}
+
+/** 验签成功后把 payload 归一为 AdminIdentity 挂到 request */
+function attachIdentity(
+  req: Request,
+  identityType: 'merchant' | 'platform',
+  payload: {
+    id: number;
+    username: string;
+    tenantId?: string;
+    roles?: string[];
+  },
+): void {
+  (req as Request & { [IDENTITY_KEY]?: AdminIdentity }).adminIdentity = {
+    identityType,
+    tenantId: payload.tenantId,
+    userId: payload.id,
+    username: payload.username,
+    roles: payload.roles,
+  };
+}
 
 @Injectable()
 export class AdminGuard implements CanActivate {
@@ -79,6 +132,7 @@ export class AdminGuard implements CanActivate {
           }),
         });
       }
+      attachIdentity(req, 'merchant', payload);
       return true;
     } catch (err) {
       if (err instanceof ForbiddenException) {
@@ -88,7 +142,12 @@ export class AdminGuard implements CanActivate {
     }
 
     try {
-      jwt.verify(token, secret, PLATFORM_JWT_VERIFY);
+      const payload = jwt.verify(
+        token,
+        secret,
+        PLATFORM_JWT_VERIFY,
+      ) as unknown as PlatformJwtPayload;
+      attachIdentity(req, 'platform', payload);
       return true;
     } catch {
       throw new UnauthorizedException({
@@ -128,14 +187,24 @@ export class JwtGuard implements CanActivate {
     }
 
     try {
-      jwt.verify(token, secret, MERCHANT_JWT_VERIFY);
+      const payload = jwt.verify(
+        token,
+        secret,
+        MERCHANT_JWT_VERIFY,
+      ) as unknown as MerchantJwtPayload;
+      attachIdentity(req, 'merchant', payload);
       return true;
     } catch {
       // 商家 JWT 无效 → 尝试平台 JWT
     }
 
     try {
-      jwt.verify(token, secret, PLATFORM_JWT_VERIFY);
+      const payload = jwt.verify(
+        token,
+        secret,
+        PLATFORM_JWT_VERIFY,
+      ) as unknown as PlatformJwtPayload;
+      attachIdentity(req, 'platform', payload);
       return true;
     } catch {
       throw new UnauthorizedException({

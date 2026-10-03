@@ -24,13 +24,17 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   Put,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
-import { AdminGuard } from '../tenant/admin-auth.guard';
+import type { Request } from 'express';
+import { AdminGuard, getAdminIdentity } from '../tenant/admin-auth.guard';
+import { aiError } from '../common/ai-errors';
 import { AiConfigAdminService } from '../tenant/ai-config-admin.service';
 import {
   UpdatePlatformAiConfigDto,
@@ -46,6 +50,44 @@ const DEFAULT_PAGE_SIZE = 20;
 export class AiConfigController {
   constructor(private readonly adminService: AiConfigAdminService) {}
 
+  // ── 租户归属收口（2026-10-04 P0 修复）──────────────────────────
+  // 此前本控制器仅挂 AdminGuard（只验角色），商户管理员可读写平台级
+  // 配置与任意租户的 AI 配置/计费（可把他人租户 provider 改到攻击者
+  // 端点，劫持其全部 AI 对话流）。口径：商户身份锁定本租户、平台级
+  // 端点仅限平台身份，与全项目"tenantId 一律只认 JWT payload"铁律一致。
+
+  /** 平台级端点守卫：商户身份访问平台资源 → 403 */
+  private requirePlatformIdentity(req: Request): void {
+    const identity = getAdminIdentity(req);
+    if (identity.identityType !== 'platform') {
+      throw new ForbiddenException({
+        statusCode: 403,
+        ...aiError('AI_010', {
+          detail: '平台级端点仅限总台平台身份访问',
+        }),
+      });
+    }
+  }
+
+  /**
+   * 租户资源守卫：商户身份锁定本租户（请求他人租户 → 403，不静默改写
+   * 以免误配出难排查的数据错位）；平台身份按请求参数放行。
+   */
+  private requireTenantAccess(req: Request, requestedTenantId: string): void {
+    const identity = getAdminIdentity(req);
+    if (identity.identityType === 'platform') {
+      return;
+    }
+    if (!identity.tenantId || requestedTenantId !== identity.tenantId) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        ...aiError('AI_010', {
+          detail: `无权访问租户 ${requestedTenantId} 的 AI 配置（仅限本租户）`,
+        }),
+      });
+    }
+  }
+
   // ── 平台默认配置 ──────────────────────────────────────────────
 
   /**
@@ -54,7 +96,8 @@ export class AiConfigController {
    * GET /api/admin/ai-config/platform
    */
   @Get('platform')
-  getPlatformConfig() {
+  getPlatformConfig(@Req() req: Request) {
+    this.requirePlatformIdentity(req);
     return this.adminService.getPlatformConfig();
   }
 
@@ -64,7 +107,11 @@ export class AiConfigController {
    * PUT /api/admin/ai-config/platform
    */
   @Put('platform')
-  updatePlatformConfig(@Body() dto: UpdatePlatformAiConfigDto) {
+  updatePlatformConfig(
+    @Req() req: Request,
+    @Body() dto: UpdatePlatformAiConfigDto,
+  ) {
+    this.requirePlatformIdentity(req);
     return this.adminService.updatePlatformConfig(dto);
   }
 
@@ -77,12 +124,17 @@ export class AiConfigController {
    */
   @Get('tenants')
   listTenants(
+    @Req() req: Request,
     @Query('tenantId') tenantId?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
+    // 商户身份：过滤条件锁定本租户（无过滤条件时也只看得到本租户）
+    const identity = getAdminIdentity(req);
+    const scopedTenantId =
+      identity.identityType === 'platform' ? tenantId : identity.tenantId;
     return this.adminService.listTenantConfigs({
-      tenantId,
+      tenantId: scopedTenantId,
       page: this.toInt(page, 1),
       pageSize: this.toInt(pageSize, DEFAULT_PAGE_SIZE),
     });
@@ -94,7 +146,8 @@ export class AiConfigController {
    * GET /api/admin/ai-config/tenants/:tenantId
    */
   @Get('tenants/:tenantId')
-  getTenant(@Param('tenantId') tenantId: string) {
+  getTenant(@Req() req: Request, @Param('tenantId') tenantId: string) {
+    this.requireTenantAccess(req, tenantId);
     return this.adminService.getTenantConfig(tenantId);
   }
 
@@ -105,9 +158,11 @@ export class AiConfigController {
    */
   @Put('tenants/:tenantId')
   updateTenant(
+    @Req() req: Request,
     @Param('tenantId') tenantId: string,
     @Body() dto: UpdateTenantAiConfigDto,
   ) {
+    this.requireTenantAccess(req, tenantId);
     return this.adminService.updateTenantConfig(tenantId, dto);
   }
 
@@ -120,11 +175,20 @@ export class AiConfigController {
    */
   @Get('usage')
   getUsage(
+    @Req() req: Request,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('tenantId') tenantId?: string,
   ) {
-    return this.adminService.getUsageStats({ startDate, endDate, tenantId });
+    // 商户身份锁定本租户用量；平台身份可按租户过滤（不传=全量）
+    const identity = getAdminIdentity(req);
+    const scopedTenantId =
+      identity.identityType === 'platform' ? tenantId : identity.tenantId;
+    return this.adminService.getUsageStats({
+      startDate,
+      endDate,
+      tenantId: scopedTenantId,
+    });
   }
 
   // ── 计费套餐 ─────────────────────────────────────────────────
@@ -136,12 +200,16 @@ export class AiConfigController {
    */
   @Get('billing')
   listBillings(
+    @Req() req: Request,
     @Query('tenantId') tenantId?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
+    const identity = getAdminIdentity(req);
+    const scopedTenantId =
+      identity.identityType === 'platform' ? tenantId : identity.tenantId;
     return this.adminService.listBillings({
-      tenantId,
+      tenantId: scopedTenantId,
       page: this.toInt(page, 1),
       pageSize: this.toInt(pageSize, DEFAULT_PAGE_SIZE),
     });
@@ -151,12 +219,15 @@ export class AiConfigController {
    * 更新租户计费套餐
    *
    * PUT /api/admin/ai-config/billing/:tenantId
+   * 平台级操作（套餐关系到平台计费），商户身份访问 → 403
    */
   @Put('billing/:tenantId')
   updateBilling(
+    @Req() req: Request,
     @Param('tenantId') tenantId: string,
     @Body() dto: UpdateTenantBillingDto,
   ) {
+    this.requirePlatformIdentity(req);
     return this.adminService.updateBilling(tenantId, dto);
   }
 

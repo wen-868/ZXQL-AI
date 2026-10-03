@@ -33,11 +33,14 @@ import {
   Param,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { aiError } from '../common/ai-errors';
 import { AdminGuard } from '../tenant/admin-auth.guard';
 import { TenantContext } from '../tenant/tenant-context';
+import { getAdminIdentity } from '../tenant/admin-auth.guard';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
@@ -127,11 +130,40 @@ export class AdminController {
    * 手动执行工具（测试/调试用）
    *
    * POST /api/admin/tools/execute
+   *
+   * 2026-10-04 P0 修复：执行租户一律以 JWT 身份为准——商户身份锁定本租户，
+   * 仅平台身份允许经 body 指定目标租户（此前 tenantId 取请求体自报，
+   * 商户管理员可伪造租户身份跨租户执行全部业务工具）。
    */
   @Post('tools/execute')
-  async executeTool(@Body() dto: ExecuteToolDto): Promise<ToolResult> {
+  async executeTool(
+    @Req() req: Request,
+    @Body() dto: ExecuteToolDto,
+  ): Promise<ToolResult> {
+    const identity = getAdminIdentity(req);
+    const effectiveTenantId =
+      identity.identityType === 'merchant'
+        ? identity.tenantId
+        : dto.context.tenantId || identity.tenantId || 'default';
+    if (!effectiveTenantId) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        ...aiError('AI_010', {
+          detail: '商户 JWT 缺少 tenantId，无法确定执行租户',
+        }),
+      });
+    }
+    if (
+      identity.identityType === 'platform' &&
+      dto.context.tenantId &&
+      dto.context.tenantId !== effectiveTenantId
+    ) {
+      this.logger.log(
+        `平台身份代执行：${identity.username} 指定租户 ${effectiveTenantId}`,
+      );
+    }
     this.logger.log(
-      `收到 tools/execute 请求：name="${dto.name}", tenantId="${dto.context.tenantId}"`,
+      `收到 tools/execute 请求：name="${dto.name}", tenantId="${effectiveTenantId}"`,
     );
 
     const toolCall: ToolCall = {
@@ -144,7 +176,7 @@ export class AdminController {
     };
 
     const context: ToolContext = {
-      tenantId: dto.context.tenantId,
+      tenantId: effectiveTenantId,
       userId: dto.context.userId,
       sessionId: dto.context.sessionId,
       requestId: dto.context.requestId,
