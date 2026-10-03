@@ -92,10 +92,13 @@ export class EmployeeTaskBridge implements OnModuleInit {
         // 必须带上 customerId：运营客户端的记忆 key 是
         // `ai:memory:{tenantId}:{customerId}:{sessionId}`，缺了它回传会写到
         // 无分区的另一个 key，用户在自己会话里永远看不到（任务事实失联）。
+        // P3 修复（2026-10-04）：role 用 assistant——此前以 user 角色入库，
+        // 回传文本若含"不对/错了/应该是"会误触下轮 S-G2 自动纠错捕获，
+        // 把正常回传当成"用户在纠正 AI 上次的回答"存进纠错池
         await this.memoryManager.saveHistory(
           input.tenantId,
           input.originConversationId,
-          [{ role: 'user', content: report }],
+          [{ role: 'assistant', content: report }],
           input.customerId,
         );
       } else if (input.dispatchedBy.startsWith('employee:')) {
@@ -104,7 +107,7 @@ export class EmployeeTaskBridge implements OnModuleInit {
         await this.memoryManager.saveHistory(
           input.tenantId,
           `emp_${callerUid}`,
-          [{ role: 'user', content: report }],
+          [{ role: 'assistant', content: report }],
         );
       } else {
         // 用户直接交办：写回下级会话本身（结果已在下级对话框可见）

@@ -39,14 +39,30 @@ export class DispatchEmployeeTaskTool implements ITool {
         type: 'string',
         description: '任务描述（需包含下级完成该任务所需的全部信息）',
       },
+      taskType: {
+        type: 'string',
+        description:
+          '任务业务域（可选，如 inventory/report/office_report），供任务归档与进化飞轮按域回流',
+      },
     },
     required: ['target', 'task'],
   };
 
   async execute(
-    args: { target: string; task: string },
+    args: { target: string; task: string; taskType?: string },
     context: ToolContext,
   ): Promise<ToolResult> {
+    // P2 修复（2026-10-04）：工具声明"仅数字员工可调用"此前无运行时强制——
+    // 普通会话在 fallback 车道（全量工具集）可见本工具，context.employeeUid
+    // 为 undefined 时 dispatchTask 视作"用户直接交办"跳过边表校验，LLM 可
+    // 把对话静默改写为任务派发。非员工身份一律拒绝。
+    if (!context.employeeUid) {
+      return {
+        success: false,
+        error:
+          '任务派发仅限数字员工身份使用。如需人工协作，请直接在对话中说明需求',
+      };
+    }
     const targetName =
       typeof args.target === 'string' ? args.target.trim() : '';
     const taskText = typeof args.task === 'string' ? args.task.trim() : '';
@@ -67,6 +83,12 @@ export class DispatchEmployeeTaskTool implements ITool {
       // 透传客户分区键：上级员工经工具派发时，回传也要写回发起会话的
       // 正确记忆分区（运营客户端 key 含 customerId，缺了就失联）
       customerId: context.customerId,
+      // P3 修复（2026-10-04）：工具路径派发透传 taskType——此前一律按
+      // office_document 归档，E3 few-shot 域匹配失真
+      taskType:
+        typeof args.taskType === 'string' && args.taskType.trim()
+          ? args.taskType.trim()
+          : undefined,
     });
 
     if (!result.accepted) {

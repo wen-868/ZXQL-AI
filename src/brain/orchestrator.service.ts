@@ -1099,6 +1099,25 @@ export class Orchestrator {
         // 工具执行完毕，继续下一轮 LLM 调用
       }
 
+      // ── 5.4 plan_step 兜底（统一编排器 2026-10-03）──
+      // LLM 用计划外工具完成任务时，matchPlanStepsByTool 永远命中不了这些步骤，
+      // 计划卡会卡在 N/M。循环结束后把未匹配步骤如实标记 skipped（不虚报完成），
+      // 前端渲染为"已跳过"。
+      //
+      // ⚠ collectSkippedPlanStepIndexes 会排除 type==='end' 的收尾步：planner 强制
+      // 补末步且不设 tool，匹配永远不成立 ⇒ 不过滤则每张卡最后一步都被误标"已跳过"。
+      // P3 修复（2026-10-04）：skipped 事件在 AI_009 error 之前发出——前端以
+      // error 事件终止渲染，error 先发则 skipped 丢失或乱序。
+      for (const i of collectSkippedPlanStepIndexes(chatPlan, doneStepIds)) {
+        yield {
+          type: 'plan_step',
+          index: i,
+          total: chatPlan.length,
+          label: chatPlan[i].label,
+          status: 'skipped',
+        };
+      }
+
       if (iteration >= MAX_ITERATIONS) {
         this.logger.warn(
           `Agent Loop 达到最大迭代次数 ${MAX_ITERATIONS}，强制终止`,
@@ -1108,23 +1127,6 @@ export class Orchestrator {
           type: 'error',
           code: 'AI_009',
           message: `Agent 循环超过 ${MAX_ITERATIONS} 轮上限，已强制终止；请简化请求或检查工具定义`,
-        };
-      }
-
-      // ── 5.4 plan_step 兜底（统一编排器 2026-10-03）──
-      // LLM 用计划外工具完成任务时，matchPlanStepsByTool 永远命中不了这些步骤，
-      // 计划卡会卡在 N/M。循环结束后把未匹配步骤如实标记 skipped（不虚报完成），
-      // 前端渲染为"已跳过"。
-      //
-      // ⚠ collectSkippedPlanStepIndexes 会排除 type==='end' 的收尾步：planner 强制
-      // 补末步且不设 tool，匹配永远不成立 ⇒ 不过滤则每张卡最后一步都被误标"已跳过"。
-      for (const i of collectSkippedPlanStepIndexes(chatPlan, doneStepIds)) {
-        yield {
-          type: 'plan_step',
-          index: i,
-          total: chatPlan.length,
-          label: chatPlan[i].label,
-          status: 'skipped',
         };
       }
 

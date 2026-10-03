@@ -21,6 +21,25 @@ function createService() {
     find: jest.fn().mockResolvedValue([]),
     createQueryBuilder: jest.fn(),
   } as unknown as Repository<AiEvolutionVersionEntity>;
+  // activate 事务化（P2 修复回归）：manager.transaction 把回调里的
+  // em.getRepository 指回带链式 QB mock 的 repo；条件更新默认成功（affected:1）
+  const updateQb = {
+    update: jest.fn().mockReturnThis(),
+    set: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    execute: jest.fn(async () => ({ affected: 1 })),
+  };
+  (repo as unknown as Record<string, unknown>).manager = {
+    transaction: jest.fn(
+      async (cb: (em: unknown) => Promise<unknown>): Promise<unknown> =>
+        cb({
+          getRepository: () => ({
+            ...repo,
+            createQueryBuilder: jest.fn(() => updateQb),
+          }),
+        }),
+    ),
+  };
   const sampleRepo = {
     find: jest.fn().mockResolvedValue([]),
   } as unknown as Repository<AiSampleEntity>;
@@ -32,6 +51,7 @@ function createService() {
     repo,
     sampleRepo,
     platformRepo,
+    updateQb,
   };
 }
 
@@ -99,43 +119,37 @@ describe('P1-1 EvolutionVersionService', () => {
     expect(entity.approvedBy).toBe('admin');
   });
 
-  it('activate：同 artifact 旧 active 自动退役（单活约束）', async () => {
-    const { service, repo } = createService();
-    // getOrThrow 按主键查；find 查旧 active
-    repo.findOne = jest.fn((opts?: { where?: Record<string, unknown> }) => {
-      const w = opts?.where ?? {};
-      if ('id' in w) {
-        return Promise.resolve({
-          id: 2,
-          artifact: 'write_schema.customer_create',
-          fromVersion: 'v1',
-          status: 'staged',
-        });
-      }
-      return Promise.resolve(null);
+  it('activate：同 artifact 旧 active 自动退役（单活约束，事务化条件更新）', async () => {
+    const { service, repo, updateQb } = createService();
+    // getOrThrow 按主键查；旧 active 退役已改为事务内条件 UPDATE（P2 修复），
+    // 不再走 find+save——通过 updateQb 的 set/where 断言退役与激活两条语句
+    repo.findOne = jest.fn().mockResolvedValue({
+      id: 2,
+      artifact: 'write_schema.customer_create',
+      fromVersion: 'v1',
+      status: 'staged',
     }) as never;
-    repo.find = jest.fn().mockResolvedValue([
-      {
-        id: 1,
-        artifact: 'write_schema.customer_create',
-        toVersion: 'v1',
-        status: 'active',
-        approvedBy: 'seed',
-      },
-    ]) as never;
 
     const entity = await service.activate(2, 'e5-auto');
     expect(entity.status).toBe('active');
-    // 旧 active 被退役
-    const saved = (repo.save as jest.Mock).mock.calls.map((c) => c[0]);
-    expect(
-      saved.some(
-        (e) =>
-          e.id === 1 &&
-          e.status === 'rolled_back' &&
-          e.approvedBy === 'e5-auto',
-      ),
-    ).toBe(true);
+    // 第一条 UPDATE：退役旧 active（排除自身 id=2）
+    expect(updateQb.where).toHaveBeenCalledWith(
+      'artifact = :artifact AND status = :status AND id != :id',
+      expect.objectContaining({
+        artifact: 'write_schema.customer_create',
+        status: 'active',
+        id: 2,
+      }),
+    );
+    expect(updateQb.set).toHaveBeenCalledWith({
+      status: 'rolled_back',
+      approvedBy: 'e5-auto',
+    });
+    // 第二条 UPDATE：staged → active
+    expect(updateQb.set).toHaveBeenCalledWith({
+      status: 'active',
+      approvedBy: 'e5-auto',
+    });
   });
 
   it('activate：非 staged 状态拒绝激活', async () => {
@@ -189,7 +203,7 @@ describe('P1-1 EvolutionVersionService', () => {
 
 describe('E5 自治闭环', () => {
   it('评测：达标（≥95%×基线）→ keep；策略开启 → 自动激活', async () => {
-    const { service, repo, platformRepo } = createService();
+    const { service, repo, platformRepo, updateQb } = createService();
     mockFindOne(
       repo,
       {
@@ -218,12 +232,13 @@ describe('E5 自治闭环', () => {
     expect(result.meetsE5Standard).toBe(true);
     expect(result.recommendation).toBe('keep');
     expect(result.action).toBe('auto_activated');
-    // 激活后实体状态落库
+    // 激活走事务化条件更新（P2 修复回归）：不再经 repo.save
+    expect(updateQb.set).toHaveBeenCalledWith({
+      status: 'active',
+      approvedBy: 'e5-auto',
+    });
+    // 评测结果写回版本行（仍经 save）
     const saved = (repo.save as jest.Mock).mock.calls.map((c) => c[0]);
-    expect(
-      saved.some((e) => e.status === 'active' && e.approvedBy === 'e5-auto'),
-    ).toBe(true);
-    // 评测结果写回版本行
     expect(
       saved.some((e) => e.regressionAccuracy === 1 && e.regressionEvaluatedAt),
     ).toBe(true);

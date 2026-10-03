@@ -71,7 +71,7 @@ describe('DispatchEmployeeTaskTool', () => {
   it('参数缺失（target 为空）→ 返回错误且不调用服务', async () => {
     const res: ToolResult = await tool.execute(
       { target: '  ', task: '补货' },
-      makeCtx(),
+      makeCtx({ employeeUid: 'emp_caller' }),
     );
     expect(res.success).toBe(false);
     expect(res.error).toContain('参数缺失');
@@ -79,7 +79,10 @@ describe('DispatchEmployeeTaskTool', () => {
   });
 
   it('参数缺失（task 为空）→ 返回错误', async () => {
-    const res = await tool.execute({ target: '采专员', task: '' }, makeCtx());
+    const res = await tool.execute(
+      { target: '采专员', task: '' },
+      makeCtx({ employeeUid: 'emp_caller' }),
+    );
     expect(res.success).toBe(false);
     expect(calls.length).toBe(0);
   });
@@ -99,11 +102,14 @@ describe('DispatchEmployeeTaskTool', () => {
     expect(calls[0].targetKeyword).toBe('采专员');
   });
 
-  it('用户直接调用（无 employeeUid）→ callerUid 为 undefined，depth 归零', async () => {
-    await tool.execute({ target: '采专员', task: '创建采购单' }, makeCtx());
-    expect(calls.length).toBe(1);
-    expect(calls[0].callerUid).toBeUndefined();
-    expect(calls[0].dispatchDepth).toBe(0);
+  it('用户直接调用（无 employeeUid）→ 拒绝（P2 修复：防普通会话 LLM 侧绕过边表）', async () => {
+    const res: ToolResult = await tool.execute(
+      { target: '采专员', task: '创建采购单' },
+      makeCtx(), // 无 employeeUid：普通会话身份
+    );
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('仅限数字员工身份');
+    expect(calls.length).toBe(0);
   });
 
   it('服务层拒绝（边表/深度）→ 工具返回失败并回传原因', async () => {

@@ -7,7 +7,13 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-09-05
  */
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
@@ -66,9 +72,12 @@ export type EmployeeTaskRunnerFn = (
 ) => Promise<{ summary: string; status: 'completed' | 'failed' }>;
 
 @Injectable()
-export class EmployeeService {
+export class EmployeeService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(EmployeeService.name);
   /** 任务执行回调（Brain 侧 bridge 注册） */
   private taskRunner: EmployeeTaskRunnerFn | null = null;
+  /** 孤儿 running 任务对账定时器 */
+  private sweepTimer?: NodeJS.Timeout;
 
   setTaskRunner(fn: EmployeeTaskRunnerFn): void {
     this.taskRunner = fn;
@@ -221,6 +230,11 @@ export class EmployeeService {
         return { accepted: false, message: '调用者员工不存在' };
       }
       dispatchedBy = `employee:${caller.employeeUid}`;
+      // P3 修复（2026-10-04）：自派守卫——员工档案配错把自己加进
+      // dispatchUids 时会自派自执行
+      if (caller.employeeUid === target.employeeUid) {
+        return { accepted: false, message: '不能把任务派给自己' };
+      }
       if (!(caller.dispatchUids ?? []).includes(target.employeeUid)) {
         return {
           accepted: false,
@@ -230,7 +244,14 @@ export class EmployeeService {
     }
 
     // 3. 深度上限（防无限派发链）
-    const maxDepth = Number(process.env.MAX_DISPATCH_DEPTH || 2);
+    // P2 修复（2026-10-04）：env 配成非数字时 Number 得 NaN，比较恒 false，
+    // 深度上限被完全绕过——非法配置回退默认 2
+    const parsedDepth = Number.parseInt(
+      String(process.env.MAX_DISPATCH_DEPTH ?? '2'),
+      10,
+    );
+    const maxDepth =
+      Number.isFinite(parsedDepth) && parsedDepth >= 1 ? parsedDepth : 2;
     if ((input.dispatchDepth ?? 0) + 1 > maxDepth) {
       return {
         accepted: false,
@@ -262,12 +283,20 @@ export class EmployeeService {
       originConversationId: input.originConversationId,
       customerId: input.customerId,
     }).catch((err: unknown) => {
-      void this.completeTask(
+      // P2 修复（2026-10-04）：落账本身再套一层保护——DB 抖动时
+      // completeTask 二次抛出会变成 unhandled rejection 直接崩进程
+      this.completeTask(
         record.id,
         `执行异常：${err instanceof Error ? err.message : String(err)}`,
         'failed',
         input.tenantId,
-      );
+      ).catch((sweepErr: unknown) => {
+        this.logger.error(
+          `任务失败落账也失败（任务#${record.id} 留待对账清理）：${
+            sweepErr instanceof Error ? sweepErr.message : String(sweepErr)
+          }`,
+        );
+      });
     });
 
     return {
@@ -338,6 +367,61 @@ export class EmployeeService {
   }
 
   /**
+   * 孤儿 running 任务对账（P2 修复 2026-10-04）
+   *
+   * 进程崩溃/重启发生在 recordTask 之后、completeTask 之前时，任务会永久
+   * 停留 running（工作台无限转圈）。启动时 + 每 10 分钟把 running 超过
+   * TASK_STALE_MINUTES（默认 15 分钟）的任务落 failed。
+   */
+  onModuleInit(): void {
+    void this.sweepStaleRunningTasks();
+    this.sweepTimer = setInterval(
+      () => void this.sweepStaleRunningTasks(),
+      10 * 60 * 1000,
+    );
+    this.sweepTimer.unref?.();
+  }
+
+  onModuleDestroy(): void {
+    if (this.sweepTimer) {
+      clearInterval(this.sweepTimer);
+    }
+  }
+
+  async sweepStaleRunningTasks(): Promise<number> {
+    const minutes = Number.parseInt(process.env.TASK_STALE_MINUTES ?? '15', 10);
+    const staleMinutes =
+      Number.isFinite(minutes) && minutes >= 1 ? minutes : 15;
+    const cutoff = new Date(Date.now() - staleMinutes * 60 * 1000);
+    try {
+      const result = await this.taskRepo
+        .createQueryBuilder()
+        .update(AiEmployeeTaskEntity)
+        .set({
+          status: 'failed',
+          resultSummary: `执行超时（超过 ${staleMinutes} 分钟无进展，疑似进程中断），已由系统对账落账`,
+        })
+        .where('status = :status AND created_at < :cutoff', {
+          status: 'running',
+          cutoff,
+        })
+        .execute();
+      const affected = result.affected ?? 0;
+      if (affected > 0) {
+        this.logger.warn(
+          `孤儿任务对账：${affected} 条超时 running 任务已落 failed`,
+        );
+      }
+      return affected;
+    } catch (err) {
+      this.logger.warn(
+        `孤儿任务对账失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
+      );
+      return 0;
+    }
+  }
+
+  /**
    * 自动分派目标匹配（2026-09-05 自动分派升级）：
    * 按意图业务域找能力最贴合的员工（toolCategories 交集最大者）。
    *
@@ -364,8 +448,13 @@ export class EmployeeService {
       ).length;
       const terminal = (e.dispatchUids?.length ?? 0) === 0 ? 1 : 0;
       // 主排序：交集数；次级：终端岗位优先（管理岗保留作协调）
+      // P3 修复（2026-10-04）：平分时按 id 小者优先——DB find 无 order by，
+      // 返回顺序不稳定会导致同一意图今天派 A 明天派 B
       const score = overlap * 2 + terminal;
-      if (overlap > 0 && score > bestScore) {
+      if (
+        overlap > 0 &&
+        (score > bestScore || (score === bestScore && best && e.id < best.id))
+      ) {
         best = e;
         bestScore = score;
       }

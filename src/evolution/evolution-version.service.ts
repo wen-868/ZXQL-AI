@@ -145,6 +145,12 @@ export class EvolutionVersionService {
 
   /**
    * 人工确认激活：staged → active
+   *
+   * P2 修复（2026-10-04）：事务 + 条件更新——此前"读旧 active → 逐个 save
+   * 退役 → save 自身激活"无任何原子性：①两个并发 activate 都能通过断言
+   * 各自落库 → 双 active；②旧版本已退役而自身 save 失败 → artifact 无 active
+   * 空窗。现以事务包裹，激活用条件更新（staged→active 仅一方成功），
+   * 并发冲突显式报错。
    */
   async activate(
     id: number,
@@ -152,25 +158,41 @@ export class EvolutionVersionService {
   ): Promise<AiEvolutionVersionEntity> {
     const entity = await this.getOrThrow(id);
     this.assertStatus(entity, ['staged']);
-    // 单活约束：同 artifact 的旧 active 自动退役（避免双活版本导致基线歧义）
-    const olds = await this.repo.find({
-      where: { artifact: entity.artifact, status: 'active' },
-    });
-    for (const old of olds) {
-      old.status = 'rolled_back';
-      old.approvedBy = approver;
-      await this.repo.save(old);
-      this.logger.log(
-        `旧版本已退役：id=${old.id} toVersion=${old.toVersion}（被 ${entity.toVersion} 取代）`,
-      );
-    }
-    entity.status = 'active';
-    entity.approvedBy = approver;
-    await this.repo.save(entity);
-    this.logger.log(
-      `版本已激活：id=${id} artifact=${entity.artifact} approver=${approver}`,
+    const activated = await this.repo.manager.transaction(
+      async (em): Promise<AiEvolutionVersionEntity> => {
+        const txRepo = em.getRepository(AiEvolutionVersionEntity);
+        // 单活约束：同 artifact 的旧 active 原子退役（避免双活版本导致基线歧义）
+        await txRepo
+          .createQueryBuilder()
+          .update(AiEvolutionVersionEntity)
+          .set({ status: 'rolled_back', approvedBy: approver })
+          .where('artifact = :artifact AND status = :status AND id != :id', {
+            artifact: entity.artifact,
+            status: 'active',
+            id,
+          })
+          .execute();
+        // 条件激活：并发 activate 只有一个能把 staged → active
+        const result = await txRepo
+          .createQueryBuilder()
+          .update(AiEvolutionVersionEntity)
+          .set({ status: 'active', approvedBy: approver })
+          .where('id = :id AND status = :status', { id, status: 'staged' })
+          .execute();
+        if ((result.affected ?? 0) === 0) {
+          throw new Error(
+            `版本激活冲突：id=${id} 已非 staged 状态（可能被并发操作抢先激活）`,
+          );
+        }
+        entity.status = 'active';
+        entity.approvedBy = approver;
+        this.logger.log(
+          `版本已激活：id=${id} artifact=${entity.artifact} approver=${approver}`,
+        );
+        return entity;
+      },
     );
-    return entity;
+    return activated;
   }
 
   /**
@@ -367,11 +389,17 @@ export class EvolutionVersionService {
       baselineAccuracy != null &&
       Number.isFinite(baselineAccuracy) &&
       baselineAccuracy > 0;
+    // P3 修复（2026-10-04）：整数化比较——0.95*0.8=0.7600000000000001 一类
+    // 浮点误差会让恰好压线的 0.76 被误判未达标（万分比整数比较无此问题）
     const meetsE5Standard =
-      hasUsableBaseline && newAccuracy >= 0.95 * baselineAccuracy;
+      hasUsableBaseline &&
+      Math.round(newAccuracy * 10000) >=
+        Math.round(0.95 * baselineAccuracy * 10000);
     const recommendation: E5RegressionReport['recommendation'] = meetsE5Standard
       ? 'keep'
-      : !hasUsableBaseline || newAccuracy >= 0.9 * baselineAccuracy
+      : !hasUsableBaseline ||
+          Math.round(newAccuracy * 10000) >=
+            Math.round(0.9 * baselineAccuracy * 10000)
         ? 'staged_further'
         : 'rollback';
 
