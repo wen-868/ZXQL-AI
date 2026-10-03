@@ -58,6 +58,7 @@ function createProvider(result?: Partial<ChatResult>): ProviderHarness {
 function createExtractor(
   harness: ProviderHarness,
   sampleRepo?: { find: jest.Mock },
+  tenantId?: string,
 ): {
   extractor: StructuredExtractor;
   chatSync: ChatSyncMock;
@@ -78,6 +79,12 @@ function createExtractor(
     } as never,
     {
       get: jest.fn().mockReturnValue('mgmt'),
+    } as never,
+    {
+      // TenantContext mock：tenantId 缺省模拟无租户上下文（如 E5 cron）
+      getData: jest.fn(() =>
+        tenantId === undefined ? undefined : { tenantId, userId: 'test' },
+      ),
     } as never,
     (sampleRepo ?? {
       find: jest.fn().mockResolvedValue([]),
@@ -460,6 +467,140 @@ describe('E3 样本回流 few-shot', () => {
     }>;
     const sysMsg = messages.find((m) => m.role === 'system');
     expect(sysMsg?.content).not.toContain('历史正确示例');
+  });
+
+  // ── 租户隔离（2026-10-04 P0 修复回归）：A 租户样本不得进 B 租户提示词 ──
+  it('租户上下文存在 → 样本查询强制带 tenantId（反测：去掉过滤则泄露）', async () => {
+    const harness = createProvider({
+      tool_calls: [
+        {
+          id: 'c3',
+          type: 'function',
+          function: {
+            name: 'extract_customer_create',
+            arguments: '{"customerName":"李四"}',
+          },
+        },
+      ],
+    } as never);
+    const sampleRepo = {
+      find: jest.fn().mockResolvedValue([]),
+    };
+    const { extractor } = createExtractor(harness, sampleRepo, 'tenant-A');
+
+    await extractor.extract({
+      docType: 'customer_create',
+      utterance: '新建客户李四',
+    });
+
+    expect(sampleRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: [
+          expect.objectContaining({ tenantId: 'tenant-A' }),
+          expect.objectContaining({ tenantId: 'tenant-A' }),
+        ],
+      }),
+    );
+  });
+
+  it('缓存按租户分片：同实例切换租户后重新查库，不串缓存', async () => {
+    const harness = createProvider({
+      tool_calls: [
+        {
+          id: 'c4',
+          type: 'function',
+          function: {
+            name: 'extract_customer_create',
+            arguments: '{"customerName":"李四"}',
+          },
+        },
+      ],
+    } as never);
+    const sampleRepo = {
+      find: jest.fn().mockResolvedValue([]),
+    };
+
+    // 可变租户上下文：同一 extractor 实例内先后以 A/B 两个租户身份抽取
+    const ctxStore: { current?: { tenantId: string; userId: string } } = {};
+    const extractor = new StructuredExtractor(
+      {
+        route: jest.fn().mockReturnValue({
+          providerName: 'glm',
+          provider: harness.provider,
+          reason: 'mock',
+        }),
+        getSystemScope: jest.fn().mockReturnValue('mgmt'),
+      } as never,
+      {
+        getResolvedConfig: jest
+          .fn()
+          .mockResolvedValue({ provider: 'glm', providerConfig: undefined }),
+      } as never,
+      {
+        get: jest.fn().mockReturnValue('mgmt'),
+      } as never,
+      { getData: () => ctxStore.current } as never,
+      sampleRepo as never,
+    );
+
+    const runExtract = () =>
+      extractor.extract({ docType: 'customer_create', utterance: '新建客户' });
+
+    ctxStore.current = { tenantId: 'tenant-A', userId: 'test' };
+    await runExtract();
+    ctxStore.current = { tenantId: 'tenant-B', userId: 'test' };
+    await runExtract();
+    // 同租户（B）第二次：命中缓存不再查库
+    await runExtract();
+
+    expect(sampleRepo.find).toHaveBeenCalledTimes(2);
+    const firstCall = (sampleRepo.find.mock.calls[0] as unknown[])[0] as {
+      where: Array<{ tenantId: string }>;
+    };
+    expect(firstCall.where.map((w) => w.tenantId)).toEqual([
+      'tenant-A',
+      'tenant-A',
+    ]);
+    const secondCall = (sampleRepo.find.mock.calls[1] as unknown[])[0] as {
+      where: Array<{ tenantId: string }>;
+    };
+    expect(secondCall.where.map((w) => w.tenantId)).toEqual([
+      'tenant-B',
+      'tenant-B',
+    ]);
+  });
+
+  it('无租户上下文（如 E5 自治巡检 cron）→ 归入 default 分片，不与其他租户混', async () => {
+    const harness = createProvider({
+      tool_calls: [
+        {
+          id: 'c5',
+          type: 'function',
+          function: {
+            name: 'extract_customer_create',
+            arguments: '{"customerName":"李四"}',
+          },
+        },
+      ],
+    } as never);
+    const sampleRepo = {
+      find: jest.fn().mockResolvedValue([]),
+    };
+    const { extractor } = createExtractor(harness, sampleRepo, undefined);
+
+    await extractor.extract({
+      docType: 'customer_create',
+      utterance: '新建客户李四',
+    });
+
+    expect(sampleRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: [
+          expect.objectContaining({ tenantId: 'default' }),
+          expect.objectContaining({ tenantId: 'default' }),
+        ],
+      }),
+    );
   });
 });
 

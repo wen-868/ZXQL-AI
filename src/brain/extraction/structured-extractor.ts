@@ -24,6 +24,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThanOrEqual, Repository } from 'typeorm';
 import { ProviderRouterService } from '../router/provider-router.service';
 import { AiConfigService } from '../../tenant/ai-config.service';
+import { TenantContext } from '../../tenant/tenant-context';
 import { coerceParam } from '../../nlp/param-coercer';
 import { parseQuantity } from '../../nlp/nl-parser';
 import { AiSampleEntity } from '../../database/entities/ai-sample.entity';
@@ -107,6 +108,7 @@ export class StructuredExtractor {
     private readonly router: ProviderRouterService,
     private readonly aiConfigService: AiConfigService,
     private readonly configService: ConfigService,
+    private readonly tenantContext: TenantContext,
     @InjectRepository(AiSampleEntity, AI_DB_CONNECTION)
     private readonly sampleRepo: Repository<AiSampleEntity>,
   ) {}
@@ -117,9 +119,16 @@ export class StructuredExtractor {
    * 来源：采集层对话样本（quality：成功路径=3、纠错路径=4），纠错样本优先；
    * 仅收 completion 可解析为非空 JSON 对象的样本（抽取器的标准答案形态）；
    * 读取失败静默降级为无示例（不阻断抽取）。
+   *
+   * 租户隔离（2026-10-04 P0 修复）：查询强制带 tenantId、缓存 key 按租户
+   * 分片——A 租户的用户话术/业务数据不得作为示例注入 B 租户的提示词
+   * （与 E4 readiness/exportDataset 同口径）；无租户上下文的调用
+   * （如 E5 自治巡检 cron）归入 default 分片，同样不与其他租户混。
    */
   private async fewShotBlockFor(docType: string): Promise<string> {
-    const cached = this.fewShotCache.get(docType);
+    const tenantId = this.tenantContext.getData()?.tenantId ?? 'default';
+    const cacheKey = `${tenantId}:${docType}`;
+    const cached = this.fewShotCache.get(cacheKey);
     if (
       cached &&
       Date.now() - cached.at < StructuredExtractor.FEW_SHOT_TTL_MS
@@ -132,8 +141,8 @@ export class StructuredExtractor {
       const base = docType.replace(/^write_schema\./, '');
       const samples = await this.sampleRepo.find({
         where: [
-          { taskType: base, quality: MoreThanOrEqual(4) },
-          { taskType: base, quality: MoreThanOrEqual(3) },
+          { tenantId, taskType: base, quality: MoreThanOrEqual(4) },
+          { tenantId, taskType: base, quality: MoreThanOrEqual(3) },
         ],
         order: { createdAt: 'DESC' },
         take: 8,
@@ -171,12 +180,12 @@ export class StructuredExtractor {
           `E3 样本回流：docType=${docType} 注入 ${shots.length} 条 few-shot`,
         );
       }
-      this.fewShotCache.set(docType, { text, at: Date.now() });
+      this.fewShotCache.set(cacheKey, { text, at: Date.now() });
     } catch (err) {
       this.logger.warn(
         `E3 样本回流读取失败（降级为无 few-shot）：${err instanceof Error ? err.message : String(err)}`,
       );
-      this.fewShotCache.set(docType, { text: '', at: Date.now() });
+      this.fewShotCache.set(cacheKey, { text: '', at: Date.now() });
     }
     return text;
   }
