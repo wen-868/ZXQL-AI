@@ -132,6 +132,26 @@ export class AiEmployeeTaskEntity {
   @PrimaryGeneratedColumn({ type: 'int', unsigned: true, comment: '主键ID' })
   id!: number;
 
+  /**
+   * 所属租户（2026-10-04 安全修复，迁移 011）
+   *
+   * 此前任务表**只有 employeeId、没有 tenantId**，而 `getTaskById` /
+   * `completeTask` / `markTaskRated` 都按自增 id 裸查裸改 —— 评分端点
+   * `office-evolution.rate()` 可枚举别家租户的任务，把其原文（task /
+   * resultSummary）写进自己的样本池：**既泄漏他人业务数据，又污染自己的
+   * 训练样本**（泄漏 + 投毒双重）。
+   * 现在任务归属租户，所有按 id 的操作强制带租户条件。
+   */
+  @Index('idx_emp_task_tenant')
+  @Column({
+    name: 'tenant_id',
+    type: 'varchar',
+    length: 32,
+    nullable: true,
+    comment: '所属租户（迁移 011 补齐；历史行回填后非空）',
+  })
+  tenantId!: string | null;
+
   /** 执行该任务的员工 */
   @Column({
     name: 'employee_id',

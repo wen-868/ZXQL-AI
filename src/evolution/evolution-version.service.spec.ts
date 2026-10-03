@@ -355,3 +355,148 @@ describe('E5 自治闭环', () => {
     expect(result.action).toBe('auto_activated');
   });
 });
+
+/**
+ * E5 评测门控回归（2026-10-04 审查修复）
+ *
+ * 这两条是"静默放行"类缺陷：评测结论永远偏向"通过"，配合自治策略
+ * （evolution_auto_activate=1）可自动激活一个实际未经任何验证的版本。
+ */
+describe('E5 评测门控（空 completion 与基线 0 不得恒真）', () => {
+  /** 基线 accurary 为 0 的上一 active 版本 */
+  const baselineZero = {
+    artifact: 'write_schema.customer_create',
+    status: 'active',
+    regressionAccuracy: 0,
+  };
+
+  it('空 completion 用例不得判通过（includes("" 恒真陷阱）', async () => {
+    const { service, repo, platformRepo } = createService();
+    mockFindOne(
+      repo,
+      {
+        artifact: 'write_schema.customer_create',
+        toVersion: 'v2',
+        status: 'staged',
+      },
+      {
+        artifact: 'write_schema.customer_create',
+        status: 'active',
+        regressionAccuracy: 1,
+      },
+    );
+    platformRepo.findOne = jest.fn().mockResolvedValue(null);
+
+    const result = await service.runAutoClosure(1, {
+      extract: okExtract,
+      // 标准答案为空：修复前 JSON.stringify(data).includes('') 恒真 → 判通过
+      cases: [{ prompt: '给张三建个客户档案', completion: '   ' }],
+    });
+
+    // 反测信号：修复前这里会是 1
+    expect(result.newAccuracy).toBe(0);
+    expect(result.details[0].correct).toBe(false);
+    expect(result.details[0].note).toContain('标准答案为空');
+  });
+
+  it('基线为 0 时达标线不得恒真（0.95×0 → >=0 恒真陷阱）', async () => {
+    const { service, repo, platformRepo } = createService();
+    mockFindOne(
+      repo,
+      {
+        artifact: 'write_schema.customer_create',
+        toVersion: 'v2',
+        status: 'staged',
+      },
+      baselineZero,
+    );
+    platformRepo.findOne = jest.fn().mockResolvedValue(null);
+
+    // 抽取全错 → 准确率 0%
+    const result = await service.runAutoClosure(1, {
+      extract: badExtract,
+      cases: CASES,
+    });
+
+    // 反测信号：修复前 0 >= 0.95*0 成立 → meetsE5Standard 为 true
+    expect(result.newAccuracy).toBe(0);
+    expect(result.meetsE5Standard).toBe(false);
+    expect(result.recommendation).toBe('staged_further');
+  });
+
+  it('基线为 0 且自治开启 → 不得自动激活（0% 准确率不能上线）', async () => {
+    const { service, repo, platformRepo } = createService();
+    mockFindOne(
+      repo,
+      {
+        artifact: 'write_schema.customer_create',
+        toVersion: 'v2',
+        status: 'staged',
+      },
+      baselineZero,
+    );
+    platformRepo.findOne = jest
+      .fn()
+      .mockResolvedValue({ id: 1, evolutionAutoActivate: 1 });
+
+    const result = await service.runAutoClosure(1, {
+      extract: badExtract,
+      cases: CASES,
+    });
+
+    // 反测信号：修复前会被 auto_activated
+    expect(result.newAccuracy).toBe(0);
+    expect(result.action).not.toBe('auto_activated');
+  });
+
+  it('基线有效（0.8）且准确率达标 → 仍可正常判达标（不误伤）', async () => {
+    const { service, repo, platformRepo } = createService();
+    mockFindOne(
+      repo,
+      {
+        artifact: 'write_schema.customer_create',
+        toVersion: 'v2',
+        status: 'staged',
+      },
+      {
+        artifact: 'write_schema.customer_create',
+        status: 'active',
+        regressionAccuracy: 0.8,
+      },
+    );
+    platformRepo.findOne = jest.fn().mockResolvedValue(null);
+
+    const result = await service.runAutoClosure(1, {
+      extract: okExtract,
+      cases: CASES,
+    });
+
+    expect(result.newAccuracy).toBe(1);
+    expect(result.meetsE5Standard).toBe(true);
+    expect(result.recommendation).toBe('keep');
+  });
+
+  it('基线为 0 但准确率确实高 → 仍不可判达标（无可信参照）', async () => {
+    const { service, repo, platformRepo } = createService();
+    mockFindOne(
+      repo,
+      {
+        artifact: 'write_schema.customer_create',
+        toVersion: 'v2',
+        status: 'staged',
+      },
+      baselineZero,
+    );
+    platformRepo.findOne = jest.fn().mockResolvedValue(null);
+
+    const result = await service.runAutoClosure(1, {
+      extract: okExtract, // 100% 准确率
+      cases: CASES,
+    });
+
+    expect(result.newAccuracy).toBe(1);
+    // 基线 0 说明上一版本评测全错/未评测，不存在可信参照 → 与"无基线"同等处理
+    expect(result.meetsE5Standard).toBe(false);
+    expect(result.recommendation).toBe('staged_further');
+  });
+});

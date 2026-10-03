@@ -64,7 +64,10 @@ export class OfficeEvolutionService {
   ): Promise<{ routedTo: 'sample' | 'correction' | 'experience' }> {
     const taskType = input.taskType ?? 'office_document';
     const score = Math.max(1, Math.min(5, Math.round(input.score)));
-    const task = await this.employeeService.getTaskById(input.taskId);
+    const task = await this.employeeService.getTaskById(
+      input.taskId,
+      input.tenantId,
+    );
     if (!task) {
       throw new Error(`任务不存在：id=${input.taskId}`);
     }
@@ -83,7 +86,11 @@ export class OfficeEvolutionService {
       this.logger.log(
         `办公任务评分采纳：task=${input.taskId} type=${taskType} score=${score} → ai_sample`,
       );
-      await this.employeeService.markTaskRated(input.taskId, 'sample');
+      await this.employeeService.markTaskRated(
+        input.taskId,
+        'sample',
+        input.tenantId,
+      );
       return { routedTo: 'sample' };
     }
 
@@ -101,7 +108,11 @@ export class OfficeEvolutionService {
       this.logger.log(
         `办公任务评分驳回：task=${input.taskId} score=${score} → ai_correction`,
       );
-      await this.employeeService.markTaskRated(input.taskId, 'correction');
+      await this.employeeService.markTaskRated(
+        input.taskId,
+        'correction',
+        input.tenantId,
+      );
       return { routedTo: 'correction' };
     }
 
@@ -115,7 +126,11 @@ export class OfficeEvolutionService {
       outcome: 'success',
     });
     this.logger.log(`办公任务中评记录：task=${input.taskId} score=${score}`);
-    await this.employeeService.markTaskRated(input.taskId, 'experience');
+    await this.employeeService.markTaskRated(
+      input.taskId,
+      'experience',
+      input.tenantId,
+    );
     return { routedTo: 'experience' };
   }
 }

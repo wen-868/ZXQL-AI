@@ -85,6 +85,8 @@ describe('EmployeeService', () => {
     summary: string;
     status: 'completed' | 'failed';
   }>;
+  /** 任务仓储（提升为模块级，供租户隔离用例断言调用参数） */
+  let taskRepo: Repository<AiEmployeeTaskEntity>;
 
   beforeEach(() => {
     savedTasks = [];
@@ -110,18 +112,43 @@ describe('EmployeeService', () => {
       createQueryBuilder: () => qbImpl(),
     } as unknown as Repository<AiEmployeeEntity>;
 
-    const taskRepo = {
+    taskRepo = {
       create: (e: Partial<AiEmployeeTaskEntity>) => e as AiEmployeeTaskEntity,
+      findOne: jest.fn(
+        (opt: { where?: Record<string, unknown> } | undefined = {}) => {
+          const w = (opt.where ?? {}) as { id?: number; tenantId?: string };
+          const row = savedTasks.find(
+            (t) =>
+              t.id === w.id &&
+              // 租户不匹配则查不到 —— 这正是本次修复要验证的隔离语义
+              (w.tenantId === undefined || t.tenantId === w.tenantId),
+          );
+          return Promise.resolve((row ?? null) as AiEmployeeTaskEntity | null);
+        },
+      ),
       save: (e: Partial<AiEmployeeTaskEntity>) => {
         const row = { ...e, id: savedTasks.length + 1 };
         savedTasks.push(row);
         return Promise.resolve(row as AiEmployeeTaskEntity);
       },
-      update: (id: number, patch: Partial<AiEmployeeTaskEntity>) => {
-        const row = savedTasks.find((t) => t.id === id);
-        if (row) Object.assign(row, patch);
-        return Promise.resolve({ affected: 1 });
-      },
+      update: jest.fn(
+        (
+          criteria: number | { id: number; tenantId?: string },
+          patch: Partial<AiEmployeeTaskEntity>,
+        ) => {
+          // 兼容两种形态：修复前 update(id, patch)，修复后 update({id,tenantId}, patch)
+          const id = typeof criteria === 'number' ? criteria : criteria.id;
+          const tenantId =
+            typeof criteria === 'object' ? criteria.tenantId : undefined;
+          const row = savedTasks.find(
+            (t) =>
+              t.id === id &&
+              (tenantId === undefined || t.tenantId === tenantId),
+          );
+          if (row) Object.assign(row, patch);
+          return Promise.resolve({ affected: row ? 1 : 0 });
+        },
+      ),
       createQueryBuilder: () => qbImpl(),
     } as unknown as Repository<AiEmployeeTaskEntity>;
 
@@ -324,12 +351,92 @@ describe('EmployeeService', () => {
   it('completeTask：结果摘要截断到 4000 字符', async () => {
     await service.recordTask({
       employeeId: 1,
+      tenantId: 't1',
       task: 't',
       dispatchedBy: 'user',
     });
-    await service.completeTask(1, 'x'.repeat(5000), 'completed');
+    await service.completeTask(1, 'x'.repeat(5000), 'completed', 't1');
     expect(savedTasks[0].resultSummary?.length).toBe(4000);
     expect(savedTasks[0].status).toBe('completed');
+  });
+
+  // ── 租户隔离（2026-10-04 审查 P1-5）────────────────────────────
+  // 任务表此前无 tenant_id，getTaskById/completeTask/markTaskRated 均按自增 id
+  // 裸查裸改 —— 评分端点可枚举别家租户任务并读走原文（泄漏+投毒双重）。
+
+  it('recordTask：写入租户归属（迁移 011）', async () => {
+    await service.recordTask({
+      employeeId: 1,
+      tenantId: 't_real',
+      task: 't',
+      dispatchedBy: 'user',
+    });
+    expect(savedTasks[0].tenantId).toBe('t_real');
+  });
+
+  it('getTaskById：查询带租户条件（不得只按 id）', async () => {
+    await service.getTaskById(1, 't_a');
+    const findOneCalls = (taskRepo.findOne as jest.Mock).mock.calls as Array<
+      [{ where?: Record<string, unknown> }]
+    >;
+    const where = findOneCalls.at(-1)?.[0]?.where ?? {};
+    // 反测信号：若仍是 { id: 1 }，这里拿不到 tenantId
+    expect(where.id).toBe(1);
+    expect(where.tenantId).toBe('t_a');
+  });
+
+  it('completeTask：更新带租户条件（不得按 id 裸改）', async () => {
+    await service.completeTask(1, 'done', 'completed', 't_a');
+    const calls = (taskRepo.update as jest.Mock).mock.calls as Array<
+      [Record<string, unknown>, unknown]
+    >;
+    expect(calls.at(-1)?.[0]).toEqual({ id: 1, tenantId: 't_a' });
+  });
+
+  it('markTaskRated：更新带租户条件（防给别家任务打标记）', async () => {
+    await service.markTaskRated(1, 'sample', 't_a');
+    const calls = (taskRepo.update as jest.Mock).mock.calls as Array<
+      [Record<string, unknown>, unknown]
+    >;
+    expect(calls.at(-1)?.[0]).toEqual({ id: 1, tenantId: 't_a' });
+  });
+
+  it('端到端：别家租户按 id 读取任务 → 拿不到（枚举攻击失效）', async () => {
+    await service.recordTask({
+      employeeId: 1,
+      tenantId: 't_a',
+      task: 'A 租户的机密采购任务',
+      dispatchedBy: 'user',
+    });
+    const id = savedTasks[0].id;
+
+    // 本租户能读到
+    const own = await service.getTaskById(id, 't_a');
+    expect(own?.task).toBe('A 租户的机密采购任务');
+
+    // 别家租户按同一个 id 读 → null（修复前会返回该任务原文）
+    const other = await service.getTaskById(id, 't_b');
+    expect(other).toBeNull();
+  });
+
+  it('端到端：别家租户按 id 改任务状态 → 改不动（防篡改）', async () => {
+    await service.recordTask({
+      employeeId: 1,
+      tenantId: 't_a',
+      task: 't',
+      dispatchedBy: 'user',
+    });
+    const id = savedTasks[0].id;
+
+    // 别家租户尝试篡改状态
+    await service.completeTask(id, '恶意覆盖结果', 'completed', 't_b');
+    expect(savedTasks[0].status).toBe('running');
+    expect(savedTasks[0].resultSummary).toBeUndefined();
+
+    // 本租户正常完成
+    await service.completeTask(id, '正常结果', 'completed', 't_a');
+    expect(savedTasks[0].status).toBe('completed');
+    expect(savedTasks[0].resultSummary).toBe('正常结果');
   });
 
   it('list：回显 dispatchUids 边表，有下级标记为管理岗', async () => {

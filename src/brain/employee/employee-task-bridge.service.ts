@@ -74,7 +74,12 @@ export class EmployeeTaskBridge implements OnModuleInit {
     }
 
     // 任务状态落库（completed/failed）
-    await this.employeeService.completeTask(input.taskId, summary, status);
+    await this.employeeService.completeTask(
+      input.taskId,
+      summary,
+      status,
+      input.tenantId,
+    );
 
     // 3. 结果回传：优先写发起会话（originConversationId——自动分派场景
     //    由 Orchestrator 传入，回传直接出现在用户当前对话）；
@@ -84,13 +89,18 @@ export class EmployeeTaskBridge implements OnModuleInit {
         status === 'completed' ? '任务已完成' : '任务执行失败'
       }\n${summary.slice(0, 800)}`;
       if (input.originConversationId) {
+        // 必须带上 customerId：运营客户端的记忆 key 是
+        // `ai:memory:{tenantId}:{customerId}:{sessionId}`，缺了它回传会写到
+        // 无分区的另一个 key，用户在自己会话里永远看不到（任务事实失联）。
         await this.memoryManager.saveHistory(
           input.tenantId,
           input.originConversationId,
           [{ role: 'user', content: report }],
+          input.customerId,
         );
       } else if (input.dispatchedBy.startsWith('employee:')) {
         const callerUid = input.dispatchedBy.slice('employee:'.length);
+        // 上级员工会话属管理端命名空间（emp_ 前缀），不带 customerId 分区
         await this.memoryManager.saveHistory(
           input.tenantId,
           `emp_${callerUid}`,

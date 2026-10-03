@@ -23,9 +23,15 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { AdminGuard } from '../tenant/admin-auth.guard';
+import {
+  resolveAdminTenantId,
+  resolveOptionalAdminTenantId,
+} from '../tenant/admin-tenant-scope';
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { CaptureService } from '../evolution/capture.service';
 import { AggregatorService } from '../evolution/aggregator.service';
@@ -69,38 +75,58 @@ export class AiDbController {
     private readonly tenantContext: TenantContext,
   ) {}
 
+  // ── 样本读取（2026-10-04 一并收口）────────────────────────────
+  // 同型问题（报告未列，审查时发现）：这三个列表端点此前直接把查询参数
+  // tenantId 透给服务层 —— 商户身份不传租户即返回**全部租户**的样本
+  // （比越权读更糟，等于一份跨租户语料全量导出）。现：商户锁本租户，
+  // 平台不传才表示"查全部"（传了就按指定租户过滤）。
+
   /** 经验样本列表 */
   @Get('experiences')
   listExperiences(
+    @Req() req: Request,
     @Query('tenantId') tenantId?: string,
     @Query('limit') limit = '50',
   ) {
-    return this.capture.listExperiences(tenantId, Number(limit) || 50);
+    return this.capture.listExperiences(
+      resolveOptionalAdminTenantId(req, tenantId),
+      Number(limit) || 50,
+    );
   }
 
   /** 纠正样本列表 */
   @Get('corrections')
   listCorrections(
+    @Req() req: Request,
     @Query('tenantId') tenantId?: string,
     @Query('limit') limit = '50',
   ) {
-    return this.capture.listCorrections(tenantId, Number(limit) || 50);
+    return this.capture.listCorrections(
+      resolveOptionalAdminTenantId(req, tenantId),
+      Number(limit) || 50,
+    );
   }
 
   /** 训练样本池列表 */
   @Get('samples')
   listSamples(
+    @Req() req: Request,
     @Query('tenantId') tenantId?: string,
     @Query('limit') limit = '50',
   ) {
-    return this.capture.listSamples(tenantId, Number(limit) || 50);
+    return this.capture.listSamples(
+      resolveOptionalAdminTenantId(req, tenantId),
+      Number(limit) || 50,
+    );
   }
 
   /** 手动提交纠正（审核驳回/人工补正入口） */
   @Post('corrections')
-  createCorrection(@Body() dto: CreateCorrectionDto) {
+  createCorrection(@Req() req: Request, @Body() dto: CreateCorrectionDto) {
+    // tenantId 此前取请求体自报，商户可把纠正样本写进任意租户的样本池
+    // （污染他人训练数据）。现按 JWT 身份收口。
     return this.capture.captureCorrection({
-      tenantId: dto.tenantId,
+      tenantId: resolveAdminTenantId(req, dto.tenantId),
       taskType: dto.taskType,
       wrongPayload: dto.wrongPayload,
       rightPayload: dto.rightPayload,
@@ -143,17 +169,21 @@ export class AiDbController {
    */
   @Post('versions/:id/auto-close')
   async autoCloseVersion(
+    @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
     @Body()
     dto: {
       cases?: Array<{ prompt: string; completion: string }>;
       actor?: string;
+      tenantId?: string;
     },
   ) {
-    // E5 评测的抽取调用需租户上下文（aiConfig 解析），管理路由不在
-    // TenantMiddleware 内——用 TenantContext.run 显式包一层；
-    // 平台管理员无租户 → synthetic default（评测走平台默认/环境配置）
-    const tenantId = this.tenantContext.getData()?.tenantId ?? 'default';
+    // E5 评测的抽取调用需租户上下文（aiConfig 解析），而管理路由不在
+    // TenantMiddleware 覆盖内 —— 此前用 `getData()?.tenantId ?? 'default'`
+    // 导致**真实租户永远取不到**（一律 'default'，评测按平台默认配置跑，
+    // 结论对真实租户无效）。现改为从 AdminGuard 挂载的 JWT 身份解析：
+    // 商户锁本租户、平台须显式指定目标租户（见 admin-tenant-scope.ts）。
+    const tenantId = resolveAdminTenantId(req, dto.tenantId);
     return await this.tenantContext.run({ tenantId, userId: 'e5-eval' }, () =>
       this.versions.runAutoClosure(id, {
         extract: async (docType, utterance) =>
@@ -173,6 +203,7 @@ export class AiDbController {
   /** E4 提示词蒸馏：达标样本 → Ollama 专用模型（force 可跳过就绪门控） */
   @Post('e4/train')
   async e4Train(
+    @Req() req: Request,
     @Body()
     dto: {
       taskType: string;
@@ -180,32 +211,34 @@ export class AiDbController {
       baseModel?: string;
     },
   ) {
-    // tenantId 由上下文取，不接受请求体传入——否则可伪造读取/训练他人样本
+    // 租户从 JWT 身份解析（此前 `getData()?.tenantId ?? 'default'` 在管理路由下
+    // 恒为 'default'：真实租户的样本永远训练不到，且多租户会共用一份 'default'
+    // 样本池互相污染）。商户锁本租户，平台须显式指定目标租户。
+    const tenantId = resolveAdminTenantId(req);
     return this.e4.train(dto.taskType ?? '', {
       force: dto.force ?? false,
       baseModel: dto.baseModel,
-      tenantId: this.tenantContext.getData()?.tenantId ?? 'default',
+      tenantId,
     });
   }
 
   /** E4 就绪度看板（各 taskType 的 quality≥4 样本量/平均质量/是否达训练阈值） */
   @Get('e4/readiness')
-  e4Readiness() {
-    return this.e4.readiness(
-      this.tenantContext.getData()?.tenantId ?? 'default',
-    );
+  e4Readiness(@Req() req: Request) {
+    return this.e4.readiness(resolveAdminTenantId(req));
   }
 
   /** E4 训练集导出（JSONL messages 格式，quality≥4，供离线微调管线） */
   @Get('e4/dataset')
   e4Dataset(
+    @Req() req: Request,
     @Query('taskType') taskType: string,
     @Query('limit') limit?: string,
   ) {
     return this.e4.exportDataset(
       taskType ?? '',
       limit ? Number(limit) : 500,
-      this.tenantContext.getData()?.tenantId ?? 'default',
+      resolveAdminTenantId(req),
     );
   }
 

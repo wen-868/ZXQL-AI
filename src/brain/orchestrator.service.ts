@@ -503,14 +503,23 @@ export class Orchestrator {
             dispatchDepth: 0,
             originConversationId: conversationId,
             taskType: (intent.categories ?? [])[0],
+            // 透传客户分区键：任务回传与下方通知都要写回**同一个**记忆分区，
+            // 运营客户端（key 含 customerId）否则会写进无分区的另一个 key
+            // —— 用户看不到回传，任务事实失联（2026-10-04 修复）。
+            customerId,
           });
           if (dr.accepted) {
             const notice = `已自动分派给「${dr.employeeName}」（任务#${dr.taskId}）执行。任务完成后结果将回传本会话；你也可以在左侧员工列表中查看其工作进度。`;
             yield { type: 'text', content: notice };
-            await this.memoryManager.saveHistory(tenantId, conversationId, [
-              { role: 'user', content: params.message },
-              { role: 'assistant', content: notice },
-            ]);
+            await this.memoryManager.saveHistory(
+              tenantId,
+              conversationId,
+              [
+                { role: 'user', content: params.message },
+                { role: 'assistant', content: notice },
+              ],
+              customerId,
+            );
             this.logger.log(
               `自动分派：任务#${dr.taskId} → ${dr.employeeName}（lane=${intent.lane}）`,
             );

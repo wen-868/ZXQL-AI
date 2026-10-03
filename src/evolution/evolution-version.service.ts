@@ -339,6 +339,13 @@ export class EvolutionVersionService {
           keys.every((k) => fmt(data[k]).trim() === fmt(expected[k]).trim());
         if (!ok)
           note = `字段与标准答案不匹配（实际抽取：${JSON.stringify(data).slice(0, 200)}）`;
+      } else if (trimmed === '') {
+        // 标准答案为空：此前落到下方 `includes('')` **恒真**（空串是任何字符串的
+        // 子串），导致空 completion 用例自动判"通过"、准确率虚高 —— 配合 E5
+        // 自治策略可自动激活一个实际未经任何验证的版本。
+        // 没有标准答案就不可能判定命中，一律判不通过并留痕，倒逼清理脏样本。
+        ok = false;
+        note = '标准答案为空，用例无效（不计通过）';
       } else {
         // groundTruth 非 JSON：退化为包含判定（历史样本兜底）
         ok = JSON.stringify(r.data ?? {}).includes(trimmed);
@@ -350,11 +357,21 @@ export class EvolutionVersionService {
     const newAccuracy = correct / cases.length;
 
     // 4/5. 达标线与结论（权威文档 26 章：≥95%×baseline 且无基线不可判）
+    //
+    // 基线必须 **>0** 才可判（2026-10-04 修复）：此前只判 `!= null`，
+    // 基线为 0 时门槛变成 `newAccuracy >= 0`（0.95×0）—— **恒真**，
+    // 于是 0% 准确率的版本也能"达标"，配合自治策略会被自动激活。
+    // 基线 0 说明上一 active 版本评测全错/未评测过，此时不存在可信参照，
+    // 与"无基线"同等处理：不可判。
+    const hasUsableBaseline =
+      baselineAccuracy != null &&
+      Number.isFinite(baselineAccuracy) &&
+      baselineAccuracy > 0;
     const meetsE5Standard =
-      baselineAccuracy != null && newAccuracy >= 0.95 * baselineAccuracy;
+      hasUsableBaseline && newAccuracy >= 0.95 * baselineAccuracy;
     const recommendation: E5RegressionReport['recommendation'] = meetsE5Standard
       ? 'keep'
-      : baselineAccuracy == null || newAccuracy >= 0.9 * baselineAccuracy
+      : !hasUsableBaseline || newAccuracy >= 0.9 * baselineAccuracy
         ? 'staged_further'
         : 'rollback';
 

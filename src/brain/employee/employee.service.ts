@@ -49,6 +49,15 @@ export interface EmployeeTaskRunInput {
   dispatchedBy: string;
   /** 发起会话 ID（有值时结果回传到该会话——自动分派/上级派发场景） */
   originConversationId?: string;
+  /**
+   * 发起会话所属客户（运营客户端分区键，2026-10-04 修复）
+   *
+   * 运营客户端的记忆 key 是 `ai:memory:{tenantId}:{customerId}:{sessionId}`
+   * （见 memory-manager.buildMemoryKey，文档 10.1 第 4 条数据边界）。
+   * 此前回传只带 (tenantId, sessionId)，写进的是**无 customerId 分区**的
+   * 另一个 key —— 用户在自己会话里永远看不到回传，任务事实失联。
+   */
+  customerId?: string;
 }
 
 /** 任务执行回调签名（Brain 侧 bridge 注册，避免 EmployeeModule↔BrainModule 循环依赖） */
@@ -183,6 +192,8 @@ export class EmployeeService {
     originConversationId?: string;
     /** 任务类型（派发时的意图业务域，评分回流按此归档样本） */
     taskType?: string;
+    /** 发起会话所属客户（运营客户端记忆分区键，随任务一路透传到回传） */
+    customerId?: string;
   }): Promise<{
     accepted: boolean;
     taskId?: number;
@@ -236,6 +247,7 @@ export class EmployeeService {
     // 5. 建任务记录 + 异步触发执行（派发即返回；异常由 catch 落 failed）
     const record = await this.recordTask({
       employeeId: target.id,
+      tenantId: input.tenantId,
       task: input.task,
       dispatchedBy,
       taskType: input.taskType,
@@ -248,11 +260,13 @@ export class EmployeeService {
       tenantId: input.tenantId,
       dispatchedBy,
       originConversationId: input.originConversationId,
+      customerId: input.customerId,
     }).catch((err: unknown) => {
       void this.completeTask(
         record.id,
         `执行异常：${err instanceof Error ? err.message : String(err)}`,
         'failed',
+        input.tenantId,
       );
     });
 
@@ -271,10 +285,13 @@ export class EmployeeService {
     task: string;
     dispatchedBy: string;
     taskType?: string;
+    /** 所属租户（迁移 011 起必填：任务归属是后续所有按 id 操作的隔离依据） */
+    tenantId: string;
   }): Promise<AiEmployeeTaskEntity> {
     return this.taskRepo.save(
       this.taskRepo.create({
         employeeId: input.employeeId,
+        tenantId: input.tenantId,
         task: input.task,
         dispatchedBy: input.dispatchedBy,
         taskType: input.taskType ?? null,
@@ -283,20 +300,41 @@ export class EmployeeService {
     );
   }
 
+  /**
+   * 任务完成/失败落库
+   *
+   * 2026-10-04 安全修复：必须带 tenantId —— 此前 `update(taskId, ...)` 无租户条件，
+   * 拿到自增 id 即可**篡改别家租户任务**的结果与状态。
+   */
   async completeTask(
     taskId: number,
     resultSummary: string,
     status: 'completed' | 'failed',
+    tenantId: string,
   ): Promise<void> {
-    await this.taskRepo.update(taskId, {
-      resultSummary: resultSummary.slice(0, 4000),
-      status,
-    });
+    await this.taskRepo.update(
+      { id: taskId, tenantId },
+      {
+        resultSummary: resultSummary.slice(0, 4000),
+        status,
+      },
+    );
   }
 
-  /** 评分回流结果落任务记录（sample/correction） */
-  async markTaskRated(taskId: number, result: string): Promise<void> {
-    await this.taskRepo.update(taskId, { ratingResult: result });
+  /**
+   * 评分回流结果落任务记录（sample/correction）
+   *
+   * 同 completeTask：必须带 tenantId，否则可给别家任务打上"已回流"标记。
+   */
+  async markTaskRated(
+    taskId: number,
+    result: string,
+    tenantId: string,
+  ): Promise<void> {
+    await this.taskRepo.update(
+      { id: taskId, tenantId },
+      { ratingResult: result },
+    );
   }
 
   /**
@@ -335,9 +373,17 @@ export class EmployeeService {
     return best;
   }
 
-  /** 按 ID 直查任务（评分回流用） */
-  async getTaskById(taskId: number): Promise<AiEmployeeTaskEntity | null> {
-    return this.taskRepo.findOne({ where: { id: taskId } });
+  /**
+   * 按 ID 直查任务（评分回流用）
+   *
+   * 2026-10-04 安全修复：强制带 tenantId —— 此前只按自增 id 查，
+   * 评分端点可枚举别家租户的任务并读走其 task/resultSummary 原文。
+   */
+  async getTaskById(
+    taskId: number,
+    tenantId: string,
+  ): Promise<AiEmployeeTaskEntity | null> {
+    return this.taskRepo.findOne({ where: { id: taskId, tenantId } });
   }
 
   /** 员工任务列表（对话框工作台：执行的任务 + 派发出的任务） */

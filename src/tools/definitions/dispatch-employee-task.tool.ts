@@ -64,6 +64,9 @@ export class DispatchEmployeeTaskTool implements ITool {
       task: taskText,
       dispatchDepth: context.dispatchDepth ?? 0,
       originConversationId: context.sessionId,
+      // 透传客户分区键：上级员工经工具派发时，回传也要写回发起会话的
+      // 正确记忆分区（运营客户端 key 含 customerId，缺了就失联）
+      customerId: context.customerId,
     });
 
     if (!result.accepted) {
