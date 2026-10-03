@@ -16,6 +16,7 @@ import { ProactiveModule } from './brain/proactive/proactive.module';
 import { RagModule } from './rag/rag.module';
 import { OpsModule } from './ops/ops.module';
 import { EvolutionModule } from './evolution/evolution.module';
+import { ReadinessService } from './ops/readiness.service';
 
 /**
  * 应用根模块
@@ -66,6 +67,10 @@ import { EvolutionModule } from './evolution/evolution.module';
   controllers: [AppController],
   providers: [
     AppService,
+    // 就绪探针（2026-10-03）：/api/health/ready 校验数据库表结构与实体期望是否一致，
+    // 发现"部署完成但迁移没跑"的静默故障。依赖两个 @Global 的 TypeORM DataSource
+    // （业务主库 + ai_db），故在根模块注册而非 OpsModule。
+    ReadinessService,
     // 全局异常过滤器：AI_001~013 错误码体系接线（2026-09-05 审查 P2）
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],

@@ -116,12 +116,51 @@ curl https://saas.onepan.cn/ai-api/api/health                 # 应 200
 
 > 当前采取的是「B 的雏形 + C 的操作手册」：README 本节即操作手册，脚本侧改造（本仓可做）见下。
 
-## 七、本仓侧可立即落地的改进：迁移状态自检端点
+## 七、已落地：迁移状态自检端点 `GET /api/health/ready`（2026-10-04）
 
-由于部署脚本跨仓，本仓先把"**迁移是否已应用**"变成**可观测的**（而不是靠人去想）：
+由于部署脚本跨仓，本仓先把"**迁移是否已应用**"变成**可观测的**（而不是靠人去想）。方案 B 已实现：
 
-- `GET /api/health/ready` —— 探测关键表/列是否存在，返回 `ready` / `degraded` + 缺失清单；
-  `degraded` **不返回 5xx**（避免健康检查失败导致容器被重启），但可通过 `X-AI-Readiness: degraded` 响应头与 `ready` 字段区分。
-- 这样外部监控（或流水线自检）只要检查这个端点，就能在"部署完但迁移没跑"时立刻发现。
+```
+GET /api/health/ready
+→ { status: "ready" | "degraded",
+    databases: [{ scope, expectedTables, expectedColumns, missingTables, missingColumns, ... }],
+    summary: { missingTables, missingColumns },
+    message?: "修复指引（degraded 时）" }
+响应头：X-AI-Readiness: ready | degraded
+```
 
-> 待确认：是否需要把 `/api/health` 也切成按`ready` 返回状态（会影响现有监控与 pm2 判定，需你确认后再改）。
+**实现要点**（`src/ops/readiness.service.ts`）：
+
+| 设计 | 做法 | 为什么 |
+|---|---|---|
+| 期望清单 | 从 `DataSource.entityMetadatas` **自动派生**（表名 + `columns[].databaseName`） | 新增实体/加字段后自动纳入检查，无需维护任何清单——从根上消除"清单与代码脱节"（内联 DTO 失效、迁移与实体不一致都是同一类病根） |
+| 采集方式 | 每个库**一条** `information_schema.COLUMNS` + `TABLE_SCHEMA = DATABASE()` | 20 张表只 1 次往返（不是 20 次 `SHOW COLUMNS`）；`DATABASE()` 天然限定自身库，主库与 `ai_db` 互不误判 |
+| 缺失计数 | `summary` 用**真实总数**，明细超 50 条才截断 | 报警数字必须可信——否则 60 个缺列被报成 50，运维会低估故障范围 |
+| 状态码 | `degraded` **仍返 200** | 5xx 会被容器编排/pm2 判为进程故障而重启，而重启补不上缺失的列，只会把"数据层不完整"放大成"服务不可用" |
+| 结果缓存 | **默认不缓存**（`AI_READINESS_TTL_MS=0`），只保留 inFlight 并发去重 | 见下方"踩过的坑" |
+| 不可达 | DataSource 未注入/未初始化/查询失败 → 明确 `degraded` + error | 探针绝不能谎报 ready |
+
+**踩过的坑（真实降级验证发现，单测无法暴露）**：
+
+用"临时 DROP 一列 → 立即探测"的真实破坏性验证（而非只跑单测）才发现：
+
+1. **v1 结果 TTL 缓存 30s** → 删列后立即探测**仍报 ready**，故障后 30 秒内完全静默，恰好在最需要报警的时刻丢掉信号。
+2. **v2 改成"只缓存 ready、不缓存 degraded"** → 单测全绿，但**实测依旧漏报**：ready 缓存生效期间根本不进探测逻辑，删列后照样直接返回旧结论。
+   （教训：**单测证明不了缓存期内的行为**，必须有真实降级验证。）
+3. **定案：默认不缓存**。理由是**缓存与本探针的职责本质矛盾**——探针存在的意义就是"立刻发现结构漂移"，任何 TTL 都必然制造盲区；而实测单次全量探测仅 **27~45ms**，远低于漏报一次迁移事故的代价。
+   仅保留 inFlight 并发去重：并发请求共享同一次探测，省掉 N 倍 DB 负载且**不引入任何陈旧数据**。
+
+**实测验收结果**（本地真实 MySQL，默认配置）：
+
+| 场景 | 结果 |
+|---|---|
+| 结构完整 | `ready`，主库 17 表/188 列 + `ai_db` 4 表/36 列，耗时 27ms |
+| 连续探测 | `cached=false`（默认不缓存） |
+| DROP `t_ai_audit_log.triage_lane` 后立即探测 | `degraded`，精确报出 `t_ai_audit_log.triage_lane`，`summary.missingColumns=1` |
+| 恢复该列后 | 自动回 `ready` |
+
+**代码**：`src/ops/readiness.service.ts` + 21 条单测（`readiness.service.spec.ts`）+ 端点 `src/app.controller.ts`。
+**接入方式**：外部监控或流水线自检检查此端点，读 `status` 字段或 `X-AI-Readiness` 响应头。
+
+> 仍待你决策：是否需要把 `/api/health` 也切成按 `ready` 返回状态？**目前刻意未改** —— `/api/health` 保持"仅表示进程存活"的原语义，避免影响现有监控与 pm2 判定；两个端点职责分离（存活 vs 就绪）也是 Kubernetes 惯例。
+
