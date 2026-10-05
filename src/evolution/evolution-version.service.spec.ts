@@ -162,6 +162,49 @@ describe('P1-1 EvolutionVersionService', () => {
     await expect(service.activate(1, 'admin')).rejects.toThrow('仅 staged');
   });
 
+  // 以下两条为 P2 修复（2026-10-04）的反测用例：证明"并发双激活被封堵"
+  // 依赖的是条件更新 affected 判定，而非恰好走顺。原实现无此断言时，
+  // 即便把条件更新 where 去掉退回 save()，测试仍会全绿。
+  it('activate：条件更新 affected=0（并发抢先）→ 必须抛激活冲突，不得静默成功', async () => {
+    const { service, repo, updateQb } = createService();
+    repo.findOne = jest.fn().mockResolvedValue({
+      id: 1,
+      artifact: 'write_schema.customer_create',
+      fromVersion: 'v1',
+      status: 'staged',
+    });
+    // 第 1 次 execute = 退役旧 active（成功）；第 2 次 = 条件激活（affected 0）
+    (updateQb.execute as jest.Mock)
+      .mockResolvedValueOnce({ affected: 1 })
+      .mockResolvedValueOnce({ affected: 0 });
+    await expect(service.activate(1, 'admin')).rejects.toThrow(
+      /激活冲突|已非 staged/,
+    );
+  });
+
+  it('activate：条件更新必须带 status=staged 约束（防并发双写 active）', async () => {
+    const { service, repo, updateQb } = createService();
+    repo.findOne = jest.fn().mockResolvedValue({
+      id: 1,
+      artifact: 'write_schema.customer_create',
+      fromVersion: 'v1',
+      status: 'staged',
+    });
+    await service.activate(1, 'admin');
+    // 激活自身那条 where 必须带 status = 'staged' 条件。
+    // 实现用 SQL 片段 + 参数对象形式（where('id = :id AND status = :status', {...})），
+    // 故同时检查 SQL 文本含 status 判定、参数含 staged。
+    const whereCalls = updateQb.where.mock.calls;
+    const hasStatusGuard = whereCalls.some(
+      ([sql, params]) =>
+        typeof sql === 'string' &&
+        /status\s*=/i.test(sql) &&
+        params &&
+        params.status === 'staged',
+    );
+    expect(hasStatusGuard).toBe(true);
+  });
+
   it('rollback：active → rolled_back', async () => {
     const { service, repo } = createService();
     repo.findOne = jest.fn().mockResolvedValue({
