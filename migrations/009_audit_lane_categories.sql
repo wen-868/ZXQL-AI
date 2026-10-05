@@ -6,7 +6,7 @@
 --
 -- ⚠️ 幂等写法（2026-09-27 修正）：MySQL 8.0 **不支持** `ADD COLUMN IF NOT EXISTS`
 -- 与 `ADD INDEX IF NOT EXISTS`（那是 MariaDB 语法）。本仓数据库为 MySQL
---（见 src/database/database.module.ts 的 `type: 'mysql'`），此前按 MariaDB 语法
+-- （见 src/database/database.module.ts 的 `type: 'mysql'`），此前按 MariaDB 语法
 -- 写的版本在生产执行会直接语法报错。改用 information_schema 判定 + PREPARE
 -- 动态 SQL：既幂等、又兼容 MySQL，可安全重复执行。
 

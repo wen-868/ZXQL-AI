@@ -4,7 +4,7 @@
 --
 -- ⚠️ 幂等改写（2026-09-27）：原脚本直接 `ALTER TABLE ... ADD COLUMN`（无 IF NOT EXISTS），
 -- 重复执行会报 duplicate column。MySQL 8.0 也不支持 `ADD COLUMN IF NOT EXISTS`
---（MariaDB 语法），故统一改为 information_schema 判定 + PREPARE 动态 SQL，
+-- （MariaDB 语法），故统一改为 information_schema 判定 + PREPARE 动态 SQL，
 -- 兼容 MySQL 且可安全重跑。
 
 SET @ai_db := DATABASE();
