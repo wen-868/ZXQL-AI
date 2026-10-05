@@ -44,45 +44,77 @@
 > `triage_lane` / `triage_categories` 只由 010 声明。两文件**不得重复声明同一列**——
 > 重复且类型不一致时，谁先执行决定最终列类型（2026-10-03 已修正，见 010 文件头）。
 
-## 五、生产补齐（2026-09-27 首次，2026-10-03 复测仍未执行）
+## 五、生产补齐（2026-09-27 首次，2026-10-05 仍未执行 —— 已第 3 次复测）
 
-**探测结论（对生产实测，非推断）**：生产 AI 底座进程健康，但**迁移只执行到 006**，007 及之后全部未应用 —— 导致的后果：
+**探测结论（对生产实测，非推断）**：生产 AI 底座进程健康，但**迁移只执行到 006**，007 及之后全部未应用。
+
+**2026-10-05 第三次复测**（改用就绪探针 `/api/health/ready` 自动化枚举，不再靠逐接口试）：
+
+```json
+{"status":"degraded","summary":{"missingTables":2,"missingColumns":32}}
+```
+
+| 库 | 缺失 |
+|---|---|
+| main（`liquor_inventory`） | 缺表 2：`t_ai_employee`、`t_ai_employee_task`；缺列 30 |
+| `ai_db` | 缺列 2：`ai_evolution_version.regression_accuracy` / `regression_evaluated_at` |
+
+缺失项100% 对应 007/008/009/010/011 声明的列，**逐一核对无遗漏、无多余**：
+
+| 迁移 | 生产缺失 |
+|---|---|
+| 007 | `t_platform_ai_config.evolution_auto_activate`、`ai_evolution_version.regression_accuracy` / `regression_evaluated_at` |
+| 008 | `t_ai_employee`、`t_ai_employee_task` 两张表 + `t_ai_audit_log.employee_uid` |
+| 009 | `t_ai_audit_log.lane` / `categories` |
+| 010 | `t_ai_employee_task.task_type` / `rating_result`、`t_ai_audit_log.triage_lane` / `triage_categories` |
+| 011 | `t_ai_employee_task.tenant_id` |
+
+**历史探测记录**：
 
 | 端点 | 生产实测 | 根因 |
 |---|---|---|
 | `GET /ai-api/api/health` | ✅ 200 `{"status":"ok","service":"zhixiang-ai-base"}` | 进程正常 |
-| `POST /api/chat`（任意对话） | ❌ 500 `Unknown column 'PlatformAiConfigEntity.evolution_auto_activate' in 'field list'` | **007 未执行**，走 AiConfigService 即崩，**所有对话全挂** |
-| `GET /api/ai/employees` | ❌ 500 `Table 'liquor_inventory.t_ai_employee' doesn't exist` | **008 未执行**，数字员工功能生产完全不可用 |
+| `GET /ai-api/api/health/ready` | ⚠️200但 `status: degraded`（缺 2 表 32 列） | 探针已上线，结构未跟上 |
+| `POST /api/chat`（持有效 JWT） | ❌ 500 `Unknown column 'PlatformAiConfigEntity.evolution_auto_activate' in 'field list'` | **007 未执行**，走 AiConfigService 即崩，**所有对话全挂** |
+| `GET /api/ai/employees`（持有效 JWT） | ❌ 500 `Table 'liquor_inventory.t_ai_employee' doesn't exist` | **008 未执行**，数字员工功能生产完全不可用 |
 | `GET /api/chat/models`、`/api/chat/confirmations`、`/api/ai/agent/plans` | ✅ 200 | 依赖 001–006，已应用 |
 | `POST /api/admin/auth/demo-login` | ⚠️ 200（空 body 即返回 `SUPER_ADMIN` 令牌） | **P0 安全问题**，见 `docs/规范/生产安全核查.md` |
 
-> **2026-10-03 复测**：上述状态与 2026-09-27 首次探测**完全一致**，期间无人执行补齐。
+> **2026-10-05 复测结论**：状态与 2026-09-27 首次、2026-10-03 第二次**完全一致**，期间无人执行补齐。
+> 根因是部署流水线（`deploy/ai-base-deploy.sh`）**只拉代码构建、不跑迁移**，属流程缺口而非遗漏。
+> 治本方案：把迁移纳入部署流水线（需跨仓改管理系统 `deploy/ai-base-deploy.sh`）。
 
 即：**部署（代码）已完成，但数据库结构没跟上，服务实际不可用**。
 
 **补齐命令**（在数据库所在机器执行，业务库为 `liquor_inventory`，AI 私有库为 `ai_db`）：
 
 ```bash
-# 业务库：007 的 t_platform_ai_config 段 + 008 + 009 + 010
+# 业务库：007 的 t_platform_ai_config 段 + 008 + 009 + 010 + 011（严格按序）
 mysql -u<user> -p liquor_inventory < migrations/007_e5_auto_close.sql
 mysql -u<user> -p liquor_inventory < migrations/008_digital_employee.sql
 mysql -u<user> -p liquor_inventory < migrations/009_audit_lane_categories.sql
 mysql -u<user> -p liquor_inventory < migrations/010_rating_and_triage.sql
+mysql -u<user> -p liquor_inventory < migrations/011_employee_task_tenant.sql
 ```
 
 > 007 分两段：`t_platform_ai_config` 在业务库，另一段脚本内已显式写成 `ai_db.ai_evolution_version`，
 > 因此对业务库执行一次即可（前提是 MySQL 账号对 `ai_db` 也有权限；如无权限则单独对 ai_db 执行该段）。
-> 四个脚本均已改为幂等（information_schema 判定），**可安全重复执行**，重复跑只会输出"已存在，跳过"。
+> 五个脚本均已改为幂等（information_schema 判定），**可安全重复执行**，重复跑只会输出"已存在，跳过"。
 
-> ⚠️ 执行顺序：009 必须早于 010（`lane`/`categories` 由 009 声明为 JSON，与实体一致；
-> 010 不再声明这两列，故顺序不会影响最终类型）。
+> ⚠️ **执行顺序（2026-10-05 补充）**：必须严格按**007 → 008 → 009 → 010 → 011** 顺序。
+> 010 依赖 008 建的 `t_ai_employee_task`；011 同样依赖 008（按 `employee_id` 关联 `t_ai_employee` 回填历史行）。
+> 009 必须早于 010（`lane`/`categories` 由 009 声明为 JSON，与实体一致；010 不再声明这两列）。
+
+> ⚠️ **MySQL 8.0 语法红线**：加列/加索引**不能用** `ADD COLUMN IF NOT EXISTS` / `ADD INDEX IF NOT EXISTS`
+> —— 那是 MariaDB 语法，MySQL 8.0 会直接语法报错。正确写法见 007 / 008 末段 / 009 现行版本
+> （`information_schema` 判定 + `PREPARE` 动态 SQL）。
 
 **验证**：
 
 ```bash
-curl https://saas.onepan.cn/ai-api/api/health                 # 应 200
-# 对话不再报 Unknown column
-# GET /api/ai/employees 不再报 Table doesn't exist
+# 一键核验（推荐）：就绪探针会自动枚举缺失表/列，status 变ready 即补齐完成
+curl -s https://saas.onepan.cn/ai-api/api/health/ready
+# 关注 summary.missingTables / summary.missingColumns 归零，status 从 degraded 转 ok
 ```
 
 补齐后再跑性能/能力基准（`scripts/perf-bench.js`、`tool-bench.js`）才有意义 —— 未补齐时 bench 拿到的全是错误响应
