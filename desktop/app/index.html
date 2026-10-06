@@ -454,7 +454,7 @@ function renderEmployees(){
   const list=document.querySelector('#empList');
   if(!list)return;
   list.innerHTML=EMPLOYEES.map(e=>
-    `<div class="sess ${curEmployee&&curEmployee.employeeUid===e.employeeUid?'on':''}" data-uid="${e.employeeUid}">`+
+    `<div class="sess ${curEmployee&&curEmployee.employeeUid===e.employeeUid?'on':''}" data-uid="${esc(e.employeeUid)}">`+
     `<i></i><div><div style="font-size:12px;font-weight:600">👤 ${esc(e.name)}</div>`+
     `<div style="font-size:10px;color:var(--sub)">${esc(e.post)} · ${esc(e.status)}${(e.dispatchUids&&e.dispatchUids.length)?' · 可调度 '+e.dispatchUids.length+' 人':''}</div></div></div>`
   ).join('');

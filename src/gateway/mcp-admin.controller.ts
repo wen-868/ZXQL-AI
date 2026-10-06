@@ -44,7 +44,7 @@ export class CreateMcpTokenDto {
   @IsString()
   name?: string;
 
-  /** 过期时间（ISO 字符串，不传=永不过期） */
+  /** 过期时间（ISO 字符串，不传则按 MCP_TOKEN_TTL_DAYS 默认兜底，默认 90 天） */
   @IsOptional()
   @IsString()
   expiresAt?: string;

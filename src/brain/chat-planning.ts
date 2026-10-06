@@ -77,7 +77,10 @@ export function collectSkippedPlanStepIndexes(
  * 工具名 → 命中的计划步骤下标列表（plan_step 进度事件用）
  *
  * 两级匹配：
- * 1. 精确命中：步骤声明的 tool 与本次调用同名（跨工具去重）；
+ * 1. 精确命中：步骤声明的 tool 与本次调用同名（跨工具去重）。
+ *    **一次调用只推进最早一个未完成的同名步骤**（P2 2026-10-06 修正）——
+ *    计划内声明多个同名工具时（"查杭州库存，再查北京库存"），每次调用对应
+ *    一步，逐步推进；若全量标 done 会造成进度虚报（做一步显示N/N 完成）。
  * 2. 顺序推进兜底（2026-09-26）：该工具不在计划内且仍有未完成步骤时，
  *    把最早一个未完成步骤标记为完成，保证进度单调前进。
  *
@@ -98,17 +101,22 @@ export function matchPlanStepsByTool(
   toolName: string,
   doneIds: Set<string>,
 ): number[] {
-  // 1. 精确命中
-  const hits: number[] = [];
-  steps.forEach((s, i) => {
-    if (s.tool === toolName && !doneIds.has(s.id)) {
-      doneIds.add(s.id);
-      hits.push(i);
-    }
-  });
-  if (hits.length > 0) return hits;
+  // 1. 精确命中：一次调用只推进最早一个未完成的同名步骤
+  //
+  // P2 修复（2026-10-06）：此前用 forEach 全量遍历，计划内声明了 N 个同名
+  // 工具步骤时（如"先查杭州仓库存，再查北京仓库存"被 planner 拆成两步同
+  // queryInventory），一次调用就把 N 步全部标 done —— 计划卡瞬间显示
+  // N/N 完成而业务动作只做了一半，属进度虚报，与本函数"避免虚报完成"
+  // 的设计目标直接冲突。改为命中第一个即break。
+  const hitIdx = steps.findIndex(
+    (s) => s.tool === toolName && !doneIds.has(s.id),
+  );
+  if (hitIdx >= 0) {
+    doneIds.add(steps[hitIdx].id);
+    return [hitIdx];
+  }
 
-  // 计划内已声明该工具 → 重复调用，不算推进
+  // 该工具已无未完成步骤（计划内已声明过） → 重复调用，不算推进
   if (steps.some((s) => s.tool === toolName)) return [];
 
   // 2. 顺序推进兜底：全部已完成时不再前进（findIndex 返回 -1）

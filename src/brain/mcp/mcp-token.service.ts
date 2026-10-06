@@ -9,7 +9,8 @@
  * 1. 生成 Token（mcp_ 前缀，32 字节随机，唯一；库中只存 SHA-256 哈希，明文仅创建时返回一次）
  * 2. 列表（总台全量 / 按租户；返回前脱敏）
  * 3. 启停 / 删除
- * 4. 校验：enabled=1 且未过期（expires_at 为 NULL 表示永不过期）
+ * 4. 校验：enabled=1 且未过期（expires_at 为 NULL 仅可能来自历史存量数据，
+ *    新签发一律写入 MCP_TOKEN_TTL_DAYS 默认兜底，见 create()）
  *
  * 安全（2026-09-05 全面审查 H2 修复）：
  * - 存储改为 SHA-256 哈希（此前明文入库，DB 泄露即得全部租户凭证）
@@ -30,7 +31,7 @@ export interface CreateMcpTokenInput {
   tenantId: string;
   /** 标识名称（如"WorkBuddy对接"） */
   name?: string;
-  /** 过期时间（不传=永不过期） */
+  /** 过期时间（不传则按 MCP_TOKEN_TTL_DAYS 默认兜底，默认 90 天） */
   expiresAt?: Date;
 }
 

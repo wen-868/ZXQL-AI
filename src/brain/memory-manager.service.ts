@@ -36,6 +36,14 @@ const MAX_MESSAGE_LENGTH = 800;
 /** TTL 1 小时（秒） */
 const TTL_SECONDS = 3600;
 
+/**
+ * saveHistory 乐观锁冲突重试上限（P2 2026-10-06）
+ *
+ * 同会话并发写入时 WATCH 会检测到冲突并整次重试；3 次足以覆盖
+ * "用户连发 2~3 轮"的真实并发，超限则按最后一次快照写入并 warn。
+ */
+const WATCH_CONFLICT_MAX_RETRIES = 3;
+
 @Injectable()
 export class MemoryManager implements OnModuleInit {
   private readonly logger = new Logger(MemoryManager.name);
@@ -189,36 +197,66 @@ export class MemoryManager implements OnModuleInit {
     }
 
     const key = this.buildKey(tenantId, sessionId, customerId);
-    try {
-      // P2 修复（2026-10-04）：读原始历史而非截断版 loadHistory——此前每轮
-      // 保存把 Redis 里的旧消息永久截断到 800 字符（存储层不可逆降级）；
-      // 截断只应发生在组装 prompt 的消费端
-      const raw = await this.redis.get(key);
-      let existing: ChatMessage[] = [];
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw) as ChatMessage[];
-          existing = Array.isArray(parsed) ? parsed : [];
-        } catch {
-          this.logger.warn(
-            `对话历史格式异常（非数组），按空历史覆盖：key=${key}`,
-          );
+    // P2 修复（2026-10-06）：乐观锁 WATCH/MULTI/EXEC 消除读改写竞态——
+    // 此前 get → 拼 → setex 三步分离，同会话并发请求（用户快速连发、
+    // 或前端重试）后写覆盖前写，整轮对话丢失。
+    // WATCH 在 EXEC 前检测到 key 被他人改动则整次重试；重试上限
+    // WATCH_CONFLICT_MAX_RETRIES，超限则按最后一次读到的快照写入
+    // （降级：可能丢最新一轮，但绝不抛错打断对话）。
+    for (let attempt = 0; attempt <= WATCH_CONFLICT_MAX_RETRIES; attempt++) {
+      try {
+        await this.redis.watch(key);
+        const raw = await this.redis.get(key);
+        let existing: ChatMessage[] = [];
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw) as ChatMessage[];
+            existing = Array.isArray(parsed) ? parsed : [];
+          } catch {
+            this.logger.warn(
+              `对话历史格式异常（非数组），按空历史覆盖：key=${key}`,
+            );
+          }
         }
+        const combined = [...existing, ...newMessages];
+
+        // 截断：保留最近 MAX_MESSAGES 条
+        const truncated =
+          combined.length > MAX_MESSAGES
+            ? combined.slice(-MAX_MESSAGES)
+            : combined;
+
+        const tx = this.redis
+          .multi()
+          .setex(key, TTL_SECONDS, JSON.stringify(truncated));
+        const res = await tx.exec();
+        // exec() 返回 null 表示 WATCH 检测到冲突（key 在 get 与 exec 之间被改）
+        if (res === null) {
+          continue;
+        }
+        return;
+      } catch (err) {
+        this.logger.warn(
+          `保存对话历史失败（非致命）：${err instanceof Error ? err.message : String(err)}`,
+        );
+        this.unwatchQuietly();
+        return;
+      } finally {
+        this.unwatchQuietly();
       }
-      const combined = [...existing, ...newMessages];
+    }
+    this.logger.warn(
+      `对话历史并发冲突重试超限（可能丢失最新一轮）：key=${key}`,
+    );
+  }
 
-      // 截断：保留最近 MAX_MESSAGES 条
-      const truncated =
-        combined.length > MAX_MESSAGES
-          ? combined.slice(-MAX_MESSAGES)
-          : combined;
-
-      // 写入 Redis + 刷新 TTL
-      await this.redis.setex(key, TTL_SECONDS, JSON.stringify(truncated));
-    } catch (err) {
-      this.logger.warn(
-        `保存对话历史失败（非致命）：${err instanceof Error ? err.message : String(err)}`,
-      );
+  /** 清理 WATCH 状态（失败降级：Redis 不可用时忽略） */
+  private unwatchQuietly(): void {
+    try {
+      // fire-and-forget：清理是尽力而为，不能因失败影响主流程
+      void this.redis?.unwatch()?.catch(() => undefined);
+    } catch {
+      // 忽略
     }
   }
 

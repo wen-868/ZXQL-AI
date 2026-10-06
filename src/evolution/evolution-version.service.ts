@@ -180,7 +180,11 @@ export class EvolutionVersionService {
           .where('id = :id AND status = :status', { id, status: 'staged' })
           .execute();
         if ((result.affected ?? 0) === 0) {
-          throw new Error(
+          // P2 收口（2026-10-06）：改抛ConflictException（409）——
+          // 并发激活属状态冲突，此前抛通用 Error 被全局过滤器兜成500，
+          // 前端无法区分"真的服务端故障"与"有人抢先激活了"
+          // （口径与本文件 assertStatus 一致）
+          throw new ConflictException(
             `版本激活冲突：id=${id} 已非 staged 状态（可能被并发操作抢先激活）`,
           );
         }

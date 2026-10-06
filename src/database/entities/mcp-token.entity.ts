@@ -53,12 +53,19 @@ export class McpTokenEntity {
   })
   enabled!: number;
 
-  /** 过期时间（NULL=永不过期） */
+  /**
+   * 过期时间
+   *
+   * P2 修正（2026-10-06）：原注释「NULL=永不过期」与实现不符——新签发
+   * Token 一律写入 MCP_TOKEN_TTL_DAYS 默认兜底（默认 90 天）。
+   * NULL 仅可能来自该策略上线前（2026-10-04 之前）的存量数据；
+   * 校验侧对 NULL 仍按"未过期"处理，属已知历史欠账（需数据迁移回填）。
+   */
   @Column({
     name: 'expires_at',
     type: 'datetime',
     nullable: true,
-    comment: '过期时间（NULL=永不过期）',
+    comment: '过期时间（NULL=历史存量数据，新签发一律写入默认兜底）',
   })
   expiresAt!: Date | null;
 

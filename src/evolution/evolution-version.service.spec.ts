@@ -8,6 +8,7 @@
  */
 /* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/require-await -- 测试断言直接引用 jest mock 方法及其调用参数；mock 抽取器无需真实异步 */
 import { Repository } from 'typeorm';
+import { ConflictException } from '@nestjs/common';
 import { AiEvolutionVersionEntity } from '../database/entities/ai-evolution-version.entity';
 import { AiSampleEntity } from '../database/entities/ai-sample.entity';
 import { PlatformAiConfigEntity } from '../database/entities/platform-ai-config.entity';
@@ -180,6 +181,30 @@ describe('P1-1 EvolutionVersionService', () => {
     await expect(service.activate(1, 'admin')).rejects.toThrow(
       /激活冲突|已非 staged/,
     );
+  });
+
+  // P2 收口回归（2026-10-06）：并发冲突此前抛通用 Error 被全局过滤器
+  // 兜成 500，前端无法区分"服务端真故障"与"有人抢先激活了"。
+  // 上一条用例只断言消息文本 —— 抛任何 Error 都绿，故必须显式断言
+  // 异常类型与 HTTP 状态码，否则改回通用 Error 用例照样全绿。
+  it('activate：并发冲突必须是 ConflictException（409），不是通用 Error（500）', async () => {
+    const { service, repo, updateQb } = createService();
+    repo.findOne = jest.fn().mockResolvedValue({
+      id: 1,
+      artifact: 'write_schema.customer_create',
+      fromVersion: 'v1',
+      status: 'staged',
+    });
+    (updateQb.execute as jest.Mock)
+      .mockResolvedValueOnce({ affected: 1 })
+      .mockResolvedValueOnce({ affected: 0 });
+
+    // 断言异常类型（不能只断言消息——通用 Error 消息也匹配）
+    const err = await service.activate(1, 'admin').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ConflictException);
+    // Nest 的 ConflictException 会带 status 字段=409（全局过滤器据此出HTTP 409）
+    expect((err as ConflictException).getStatus?.()).toBe(409);
+    expect((err as Error).message).toMatch(/激活冲突|已非 staged/);
   });
 
   it('activate：条件更新必须带 status=staged 约束（防并发双写 active）', async () => {

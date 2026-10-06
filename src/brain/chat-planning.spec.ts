@@ -96,6 +96,54 @@ describe('G-A matchPlanStepsByTool（步骤进度）', () => {
     expect(done.has('s2')).toBe(false);
   });
 
+  // P2 修复回归（2026-10-06）：此前精确命中用 forEach 全量遍历，
+  // 计划内多个同名工具步骤会一次全标 done —— "查杭州库存，再查北京库存"
+  // 做完第 1 步就显示 2/2 完成（进度虚报）
+  it('计划内多步同名工具 → 一次调用只推进最早一步（不虚报完成）', () => {
+    const multi = [
+      {
+        id: 'q1',
+        type: 'tool' as const,
+        tool: 'queryInventory',
+        label: '查杭州仓库存',
+      },
+      {
+        id: 'q2',
+        type: 'tool' as const,
+        tool: 'queryInventory',
+        label: '查北京仓库存',
+      },
+    ];
+    const done = new Set<string>();
+
+    // 第 1 次调用：只推进 q1
+    expect(matchPlanStepsByTool(multi, 'queryInventory', done)).toEqual([0]);
+    expect(done.has('q1')).toBe(true);
+    expect(done.has('q2')).toBe(false);
+
+    // 第 2 次调用：推进 q2（不能因"工具已声明过"直接返回空）
+    expect(matchPlanStepsByTool(multi, 'queryInventory', done)).toEqual([1]);
+    expect(done.has('q2')).toBe(true);
+  });
+
+  it('计划内多步同名工具 → 每次调用返回长度恒为 1（防全量标 done）', () => {
+    const three = [
+      { id: 't1', type: 'tool' as const, tool: 'queryStock', label: '步骤1' },
+      { id: 't2', type: 'tool' as const, tool: 'queryStock', label: '步骤2' },
+      { id: 't3', type: 'tool' as const, tool: 'queryStock', label: '步骤3' },
+    ];
+    const done = new Set<string>();
+    const lens = [
+      matchPlanStepsByTool(three, 'queryStock', done).length,
+      matchPlanStepsByTool(three, 'queryStock', done).length,
+      matchPlanStepsByTool(three, 'queryStock', done).length,
+    ];
+    expect(lens).toEqual([1, 1, 1]);
+    expect(done.size).toBe(3);
+    // 第 4 次：无未完成同名步骤 → 不推进
+    expect(matchPlanStepsByTool(three, 'queryStock', done)).toEqual([]);
+  });
+
   it('计划外工具 → 兜底推进最早未完成步骤（进度条不卡死）', () => {
     const done = new Set<string>();
     // unknownTool 不在计划内，按"严格按序推进"语义补一步
