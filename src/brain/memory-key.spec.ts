@@ -28,4 +28,17 @@ describe('buildMemoryKey', () => {
     const customer = buildMemoryKey('t1', 'sess_1', 'c1');
     expect(staff).not.toBe(customer);
   });
+
+  // P2 返工回归（验收意见）：编码前，staff 端传含 ':' 的 sessionId 与
+  // 运营端 customerId+sessionId 可拼出完全相同的 key（跨端串记忆）
+  it('碰撞封堵：staff sessionId 含 ":" 时与 customer 分区 key 不再相同（分段编码）', () => {
+    const staff = buildMemoryKey('t1', 'custA:sessX');
+    const customer = buildMemoryKey('t1', 'sessX', 'custA');
+    expect(staff).not.toBe(customer);
+    // 编码可逆性 sanity：常规 key（字母数字下划线连字符）不被改变
+    expect(buildMemoryKey('t_1', 'sess_1')).toBe('ai:memory:t_1:sess_1');
+    expect(buildMemoryKey('t_1', 'sess_1', 'c_1')).toBe(
+      'ai:memory:t_1:c_1:sess_1',
+    );
+  });
 });

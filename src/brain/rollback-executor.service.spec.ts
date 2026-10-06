@@ -8,6 +8,8 @@ import type { ExecutedOperation } from './confirmation.service';
 describe('RollbackExecutorService', () => {
   let service: RollbackExecutorService;
   let registry: ToolRegistry;
+  /** 熔断开关（测试用：canProceed 依据此返回） */
+  let breakerOpen = false;
 
   const makeOperation = (
     overrides: Partial<ExecutedOperation> = {},
@@ -32,7 +34,9 @@ describe('RollbackExecutorService', () => {
       registry,
       { logToolExecution: jest.fn() } as never,
       {
-        canProceed: jest.fn(() => ({ ok: true })),
+        canProceed: jest.fn(() =>
+          breakerOpen ? { ok: false, reason: '熔断 open' } : { ok: true },
+        ),
         recordSuccess: jest.fn(),
         recordFailure: jest.fn(),
       } as never,
@@ -155,5 +159,22 @@ describe('RollbackExecutorService', () => {
     });
     expect(res.success).toBe(false);
     expect(res.message).toContain('自动回滚失败');
+  });
+
+  // P2 返工回归（验收意见）：回滚受熔断管辖的副作用须有区别化提示
+  it('回滚工具被熔断拦截 → 提示可重试语义（区别于普通失败）', async () => {
+    breakerOpen = true;
+    registry.register({
+      name: 'cancelPurchaseOrder',
+      execute: jest.fn(),
+    } as unknown as ITool);
+
+    const res = await service.executeRollback(makeOperation(), {
+      tenantId: 't1',
+    });
+    expect(res.handled).toBe(true);
+    expect(res.success).toBe(false);
+    expect(res.message).toContain('熔断');
+    expect(res.message).toContain('稍后重试');
   });
 });

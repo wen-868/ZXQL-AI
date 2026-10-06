@@ -188,31 +188,54 @@ export class WriteGuardService {
    * 封堵并发双击穿透高危二次确认/双重取消。Redis NX 原子占锁，5s 自动
    * 释放（进程崩溃不留死锁）；内存降级模式单实例本就串行，直接放行。
    */
-  private async acquireTokenLock(token: string): Promise<boolean> {
+  /**
+   * 令牌级互斥锁（P2 修复 + P1 返工 2026-10-06）：confirm/cancel 读-改-写
+   * 期间加锁，封堵并发双击穿透高危二次确认/双重取消。
+   *
+   * 返工修正（验收意见）：锁值存随机 owner，释放走 Lua CAS 比对——
+   * 此前无条件 del，单次 confirm 超过锁 TTL(5s) 时锁已过期并被他人重新
+   * 获取，先前的持有者会误删他人的锁 ⇒ 互斥退化为无锁。
+   * 内存降级模式单实例本就串行：owner='memory' 直接放行、释放跳过。
+   *
+   * @returns ok=true 时携带 owner（释放时必须回传）；ok=false 表示锁被占用
+   */
+  private async acquireTokenLock(
+    token: string,
+  ): Promise<{ ok: true; owner: string } | { ok: false }> {
     if (!this.redisAvailable || !this.redis) {
-      return true;
+      return { ok: true, owner: 'memory' };
     }
+    const owner = randomUUID();
     try {
       const ok = await this.redis.set(
         `ai:wg:lock:${token}`,
-        '1',
+        owner,
         'PX',
         5000,
         'NX',
       );
-      return ok === 'OK';
+      return ok === 'OK' ? { ok: true, owner } : { ok: false };
     } catch {
       // 锁不可用不应阻断确认主流程（降级为无锁，与记忆降级同口径）
-      return true;
+      return { ok: true, owner: 'memory' };
     }
   }
 
-  private async releaseTokenLock(token: string): Promise<void> {
-    if (!this.redisAvailable || !this.redis) {
+  /** Lua CAS：锁值等于自己的 owner 才删（防误删他人的锁） */
+  private static readonly LOCK_RELEASE_LUA =
+    "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+
+  private async releaseTokenLock(token: string, owner: string): Promise<void> {
+    if (owner === 'memory' || !this.redisAvailable || !this.redis) {
       return;
     }
     try {
-      await this.redis.del(`ai:wg:lock:${token}`);
+      await this.redis.eval(
+        WriteGuardService.LOCK_RELEASE_LUA,
+        1,
+        `ai:wg:lock:${token}`,
+        owner,
+      );
     } catch {
       // 忽略：锁 5s 后自动过期
     }
@@ -377,8 +400,8 @@ export class WriteGuardService {
   ): Promise<WriteGuardConfirmResult> {
     // P2 修复（2026-10-04）：状态迁移加互斥锁——并发双击下两个请求都能
     // 读到 first_confirmed 并各自执行，高危二次确认形同虚设
-    const locked = await this.acquireTokenLock(token);
-    if (!locked) {
+    const lock = await this.acquireTokenLock(token);
+    if (!lock.ok) {
       return {
         success: false,
         error: '该操作正在处理中，请稍后重试',
@@ -387,7 +410,7 @@ export class WriteGuardService {
     try {
       return await this.doConfirm(token, tenantId, customerId);
     } finally {
-      await this.releaseTokenLock(token);
+      await this.releaseTokenLock(token, lock.owner);
     }
   }
 
@@ -474,15 +497,15 @@ export class WriteGuardService {
    * @returns 是否取消成功
    */
   async cancel(token: string, tenantId: string): Promise<boolean> {
-    const locked = await this.acquireTokenLock(token);
-    if (!locked) {
+    const lock = await this.acquireTokenLock(token);
+    if (!lock.ok) {
       this.logger.warn(`令牌取消冲突（正在被其他请求处理）：token=${token}`);
       return false;
     }
     try {
       return await this.doCancel(token, tenantId);
     } finally {
-      await this.releaseTokenLock(token);
+      await this.releaseTokenLock(token, lock.owner);
     }
   }
 

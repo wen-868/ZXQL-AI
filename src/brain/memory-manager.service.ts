@@ -79,30 +79,40 @@ export class MemoryManager implements OnModuleInit {
         `Redis 连接成功：${host}:${port} db=${db}（对话记忆服务就绪）`,
       );
 
-      // 监听错误
-      this.redis.on('error', (err) => {
-        this.logger.warn(`Redis 错误（降级为无记忆模式）：${err.message}`);
-        this.redisAvailable = false;
-      });
-
-      this.redis.on('reconnecting', () => {
-        this.logger.debug('Redis 重连中...');
-      });
-
-      // P2 修复（2026-10-04）：恢复钩子——error 置 false 后必须在 ready 时
-      // 置回 true，否则一次网络抖动后记忆永久失效（即使 ioredis 已重连成功）
-      this.redis.on('ready', () => {
-        if (!this.redisAvailable) {
-          this.logger.log('Redis 连接恢复，记忆服务重新可用');
-        }
-        this.redisAvailable = true;
-      });
+      this.bindRedisEvents();
     } catch (err) {
       this.logger.warn(
         `Redis 连接失败，降级为无记忆模式：${err instanceof Error ? err.message : String(err)}`,
       );
       this.redisAvailable = false;
     }
+  }
+
+  /**
+   * 绑定 Redis 连接事件（onModuleInit 内调用；独立成方法便于测试注入桩后直调）
+   */
+  private bindRedisEvents(): void {
+    if (!this.redis) {
+      return;
+    }
+    // 监听错误
+    this.redis.on('error', (err: Error) => {
+      this.logger.warn(`Redis 错误（降级为无记忆模式）：${err.message}`);
+      this.redisAvailable = false;
+    });
+
+    this.redis.on('reconnecting', () => {
+      this.logger.debug('Redis 重连中...');
+    });
+
+    // P2 修复（2026-10-04）：恢复钩子——error 置 false 后必须在 ready 时
+    // 置回 true，否则一次网络抖动后记忆永久失效（即使 ioredis 已重连成功）
+    this.redis.on('ready', () => {
+      if (!this.redisAvailable) {
+        this.logger.log('Redis 连接恢复，记忆服务重新可用');
+      }
+      this.redisAvailable = true;
+    });
   }
 
   /**

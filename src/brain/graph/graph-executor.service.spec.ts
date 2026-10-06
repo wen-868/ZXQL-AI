@@ -801,3 +801,84 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
     );
   });
 });
+
+// P0 返工回归（验收意见）：TOOL_TIMEOUT_MS 配成非数字/空串时不得即时超时
+// （防护失效 = Number("60s")=NaN → setTimeout 1ms → 工具必然超时报错）
+describe('TOOL_TIMEOUT_MS env 防护', () => {
+  const SLOW_GRAPH: GraphDefinition = {
+    id: 'test_slow',
+    name: '慢工具图',
+    entry: 'step',
+    nodes: [
+      {
+        id: 'step',
+        label: '慢步骤',
+        type: 'tool',
+        tool: 'searchCustomer',
+        next: 'end',
+      },
+      { id: 'end', label: '完成', type: 'end' },
+    ],
+  };
+
+  afterEach(() => {
+    delete process.env.TOOL_TIMEOUT_MS;
+  });
+
+  async function runWithEnv(envVal: string): Promise<{
+    timedOut: boolean;
+    done: boolean;
+  }> {
+    process.env.TOOL_TIMEOUT_MS = envVal;
+    const checkpointer = makeCheckpointer();
+    // 工具 50ms 后才完成：若防护失效（1ms 超时），会得到超时错误
+    const executorMock = {
+      executeToolCall: jest.fn(
+        () =>
+          new Promise<{ success: boolean; data: unknown }>((resolve) =>
+            setTimeout(() => resolve({ success: true, data: {} }), 50),
+          ),
+      ),
+    };
+    const service = new GraphExecutorService(
+      executorMock as never,
+      checkpointer as never,
+      {
+        toToolDefinitions: jest.fn(() => []),
+        has: jest.fn(() => true),
+        get: jest.fn(() => ({ name: 'searchCustomer', risk: 'low' })),
+      } as never,
+      { create: jest.fn(), get: jest.fn().mockResolvedValue(null) } as never,
+      {
+        recordWrite: jest.fn(),
+        verify: jest.fn(() => ({ ok: true, issues: [] })),
+      } as never,
+      { getRulesContext: jest.fn(() => undefined) } as never,
+      {
+        create: jest.fn(),
+        getByTenant: jest.fn().mockResolvedValue(null),
+        getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+      } as never,
+    );
+
+    let timedOut = false;
+    let done = false;
+    for await (const e of service.execute(SLOW_GRAPH, 's1', makeCtx())) {
+      if (e.type === 'tool_result' && e.success === false) timedOut = true;
+      if (e.type === 'graph_done') done = true;
+    }
+    return { timedOut, done };
+  }
+
+  it('env="60s"（NaN）→ 不即时超时，工具正常完成', async () => {
+    const { timedOut, done } = await runWithEnv('60s');
+    expect(timedOut).toBe(false);
+    expect(done).toBe(true);
+  });
+
+  it('env=""（空串，?? 不兜）→ 不即时超时，工具正常完成', async () => {
+    const { timedOut, done } = await runWithEnv('');
+    expect(timedOut).toBe(false);
+    expect(done).toBe(true);
+  });
+});

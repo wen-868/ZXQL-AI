@@ -310,3 +310,70 @@ describe('P0-1 WriteGuardService', () => {
     });
   });
 });
+
+// P2 返工回归（验收意见）：NX 锁与 owner CAS 的直接信号
+describe('WriteGuardService 令牌锁（NX + owner CAS）', () => {
+  interface LockApi {
+    acquireTokenLock: (t: string) => Promise<{ ok: boolean; owner?: string }>;
+    releaseTokenLock: (t: string, o: string) => Promise<void>;
+  }
+  function createRedisBackedService(): {
+    svc: LockApi;
+    store: Map<string, string>;
+  } {
+    const svc = createService();
+    const store = new Map<string, string>();
+    const redis = {
+      set: jest.fn((key: string, val: string): Promise<string | null> => {
+        if (store.has(key)) return Promise.resolve(null); // NX：已存在即失败
+        store.set(key, val);
+        return Promise.resolve('OK');
+      }),
+      eval: jest.fn(
+        (
+          _lua: string,
+          _n: number,
+          key: string,
+          owner: string,
+        ): Promise<number> => {
+          if (store.get(key) === owner) {
+            store.delete(key);
+            return Promise.resolve(1);
+          }
+          return Promise.resolve(0);
+        },
+      ),
+    };
+    const slot = svc as unknown as Record<string, unknown>;
+    slot.redis = redis;
+    slot.redisAvailable = true;
+    return { svc: svc as unknown as LockApi, store };
+  }
+
+  it('互斥：未释放前第二次获取失败', async () => {
+    const { svc } = createRedisBackedService();
+
+    const first = await svc.acquireTokenLock('wg_tok');
+    expect(first.ok).toBe(true);
+
+    const second = await svc.acquireTokenLock('wg_tok');
+    expect(second.ok).toBe(false);
+  });
+
+  it('owner CAS：错误 owner 释放不删锁，正确 owner 释放后可重新获取', async () => {
+    const { svc, store } = createRedisBackedService();
+
+    const first = await svc.acquireTokenLock('wg_tok');
+    expect(first.ok).toBe(true);
+
+    // 误删防护（此前无条件 del 的缺陷）：错误 owner 释放后锁仍在
+    await svc.releaseTokenLock('wg_tok', 'not-the-owner');
+    expect(store.get('ai:wg:lock:wg_tok')).toBeDefined();
+
+    // 正确 owner 释放 → 可再次获取
+    await svc.releaseTokenLock('wg_tok', first.owner!);
+    expect(store.has('ai:wg:lock:wg_tok')).toBe(false);
+    const again = await svc.acquireTokenLock('wg_tok');
+    expect(again.ok).toBe(true);
+  });
+});

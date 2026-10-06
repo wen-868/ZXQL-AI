@@ -207,6 +207,61 @@ describe('AuditLogger', () => {
     }
   });
 
+  // P2 返工回归（验收意见）：默认值本身必须有信号——此前仅测"显式开启时
+  // 生效"，默认关闭时掩码整体失效而无任何用例变红
+  it('logAiCall：AUDIT_MASK_MESSAGE 未设置时掩码默认生效（默认开）', async () => {
+    const prev = process.env.AUDIT_MASK_MESSAGE;
+    delete process.env.AUDIT_MASK_MESSAGE;
+    try {
+      const { logger, saved } = createHarness();
+
+      logger.logAiCall({
+        tenantId: 't1',
+        lane: 'chat',
+        userMessage: '联系 13812345678',
+        promptTokens: 0,
+        completionTokens: 0,
+        success: true,
+      });
+      await flush();
+
+      expect(saved[0].userMessage).toContain('138****78');
+      expect(saved[0].userMessage).not.toContain('13812345678');
+    } finally {
+      if (prev === undefined) {
+        delete process.env.AUDIT_MASK_MESSAGE;
+      } else {
+        process.env.AUDIT_MASK_MESSAGE = prev;
+      }
+    }
+  });
+
+  it('logAiCall：AUDIT_MASK_MESSAGE=false 显式关闭时不掩码（保留排障口）', async () => {
+    const prev = process.env.AUDIT_MASK_MESSAGE;
+    process.env.AUDIT_MASK_MESSAGE = 'false';
+    try {
+      const { logger, saved } = createHarness();
+
+      logger.logAiCall({
+        tenantId: 't1',
+        lane: 'chat',
+        userMessage: '联系 13812345678',
+        promptTokens: 0,
+        completionTokens: 0,
+        success: true,
+      });
+      await flush();
+
+      expect(saved[0].userMessage).toContain('13812345678');
+    } finally {
+      if (prev === undefined) {
+        delete process.env.AUDIT_MASK_MESSAGE;
+      } else {
+        process.env.AUDIT_MASK_MESSAGE = prev;
+      }
+    }
+  });
+
   it('best-effort：落库失败不向调用方抛出，且中断后续日用量汇总', async () => {
     const { logger, saved, usageParams } = createHarness();
     saved.length = 0; // 仅作对照基线

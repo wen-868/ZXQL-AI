@@ -130,13 +130,19 @@ export class RollbackExecutorService {
       `自动回滚：op=${operation.operationId} tool=${operation.toolName} → ${config.rollbackTool} orderNo=${orderNo} success=${result.success}`,
     );
 
+    // P2 修复（2026-10-06 验收意见）：回滚现受熔断管辖——cancelOrder 等
+    // 回滚工具熔断 open 时撤销会失效，提示须与普通失败区别（可重试语义）
+    const breakerBlocked =
+      !result.success && (result.error ?? '').includes('熔断');
     return {
       handled: true,
       success: result.success,
       data: result.data,
       message: result.success
         ? `已自动回滚：${result.data && typeof result.data === 'object' && 'message' in result.data ? String((result.data as { message: string }).message) : '单据已取消'}`
-        : `自动回滚失败：${result.error ?? '未知错误'}，请通过业务流程处理`,
+        : breakerBlocked
+          ? `回滚工具被熔断暂时拦截：${result.error ?? ''}。单据仍在执行态，请稍后重试撤销，或通过业务流程取消`
+          : `自动回滚失败：${result.error ?? '未知错误'}，请通过业务流程处理`,
     };
   }
 }

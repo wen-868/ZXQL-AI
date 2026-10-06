@@ -453,4 +453,120 @@ describe('R70-15 + P0-1 ConfirmationService', () => {
       expect(service.cleanupExpired()).toBe(0);
     });
   });
+
+  // P2 返工回归（验收意见）：执行失败后的重试入口必须有测试信号
+  describe('resetToPending（失败令牌回滚）', () => {
+    it('confirmed 令牌回滚 pending 后可再次确认（medium 单次确认口径）', async () => {
+      const created = await service.create(baseInput);
+      const token = created.confirmationId;
+      const tenantId = baseInput.tenantId;
+
+      // 第一次确认：pending → confirmed（medium 非高危单次放行）
+      const first = await service.confirm(token, tenantId);
+      if (!first.success || !first.confirmation) {
+        throw new Error('首次确认失败（测试前置）');
+      }
+      expect(first.confirmation.status).toBe('confirmed');
+
+      // 模拟确认执行失败：回滚 pending
+      const reset = await service.resetToPending(token, tenantId);
+      expect(reset).toBe(true);
+      const afterReset = await service.getByTenant(token, tenantId);
+      expect(afterReset?.status).toBe('pending');
+
+      // 再次确认放行（重试入口恢复）
+      const retry = await service.confirm(token, tenantId);
+      if (!retry.success || !retry.confirmation) {
+        throw new Error('重试确认失败（测试前置）');
+      }
+      expect(retry.confirmation.status).toBe('confirmed');
+    });
+
+    it('pending/不存在的令牌 → resetToPending 返回 false（幂等防御）', async () => {
+      const created = await service.create(baseInput);
+      expect(
+        await service.resetToPending(
+          created.confirmationId,
+          baseInput.tenantId,
+        ),
+      ).toBe(false);
+      expect(
+        await service.resetToPending('wg_not_exist', baseInput.tenantId),
+      ).toBe(false);
+    });
+  });
+
+  // P2 返工回归（验收意见）：确认执行主路径的证据台账 + 失败回滚的信号
+  describe('executeConfirmed 证据台账与失败回滚', () => {
+    function createWiredService(executorResult: {
+      success: boolean;
+      data?: unknown;
+      error?: string;
+    }) {
+      const evidence = { recordWrite: jest.fn() };
+      const executor = {
+        executeToolCall: jest.fn().mockResolvedValue(executorResult),
+      };
+      const svc = new ConfirmationService(
+        undefined,
+        executor as never,
+        evidence as never,
+      );
+      return { svc, evidence, executor };
+    }
+
+    it('执行成功 → evidence.recordWrite 记账（主路径证据链）', async () => {
+      const { svc, evidence } = createWiredService({
+        success: true,
+        data: { orderNo: 'SO-1' },
+      });
+      const created = await svc.create(baseInput);
+      const confirmed = await svc.confirm(
+        created.confirmationId,
+        baseInput.tenantId,
+      );
+      if (!confirmed.success || !confirmed.confirmation) {
+        throw new Error('确认失败（测试前置）');
+      }
+
+      const out = await svc.executeConfirmed(confirmed.confirmation, {
+        tenantId: baseInput.tenantId,
+        userId: 'u1',
+      });
+      expect(out.success).toBe(true);
+      expect(evidence.recordWrite).toHaveBeenCalledWith(
+        expect.objectContaining({ tenantId: baseInput.tenantId }),
+        'createSalesOrder',
+        expect.objectContaining({ confirm: true }),
+        expect.objectContaining({ success: true }),
+      );
+    });
+
+    it('执行失败 → 令牌回滚 pending（可再次确认），且不记台账', async () => {
+      const { svc, evidence } = createWiredService({
+        success: false,
+        error: '后端 500',
+      });
+      const created = await svc.create(baseInput);
+      const confirmed = await svc.confirm(
+        created.confirmationId,
+        baseInput.tenantId,
+      );
+      if (!confirmed.success || !confirmed.confirmation) {
+        throw new Error('确认失败（测试前置）');
+      }
+
+      const out = await svc.executeConfirmed(confirmed.confirmation, {
+        tenantId: baseInput.tenantId,
+      });
+      expect(out.success).toBe(false);
+      expect(evidence.recordWrite).not.toHaveBeenCalled();
+
+      const after = await svc.getByTenant(
+        created.confirmationId,
+        baseInput.tenantId,
+      );
+      expect(after?.status).toBe('pending');
+    });
+  });
 });

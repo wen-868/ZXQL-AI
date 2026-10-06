@@ -492,6 +492,16 @@ export class ConfirmationService {
   }
 
   /**
+   * 令牌回滚到 pending（确认执行失败后的重试入口，P2 修复 2026-10-04）
+   */
+  async resetToPending(
+    confirmationId: string,
+    tenantId: string,
+  ): Promise<boolean> {
+    return this.writeGuardService.resetToPending(confirmationId, tenantId);
+  }
+
+  /**
    * 清理过期记录（WriteGuard 内存模式 + 本服务撤销窗口）
    *
    * @returns 清理数量

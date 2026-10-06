@@ -629,7 +629,18 @@ export class GraphExecutorService implements OnModuleInit {
     toolCall: ToolCall,
     toolContext: ToolContext,
   ): Promise<ToolResult> {
-    const timeoutMs = Number(process.env.TOOL_TIMEOUT_MS ?? 60000);
+    // P0 修复（2026-10-06 验收返工）：env 非数字/空串三重守卫——
+    // `Number("60s")=NaN` 时 setTimeout 按 1ms 触发（全站工具即时超时）；
+    // 空串更隐蔽（`?? 60000` 只兜 null/undefined，`Number("")=0` 同样归零）。
+    // 模式与 employee.service.ts 的 MAX_DISPATCH_DEPTH 守卫一致。
+    const parsedTimeout = Number.parseInt(
+      String(process.env.TOOL_TIMEOUT_MS ?? '60000').trim(),
+      10,
+    );
+    const timeoutMs =
+      Number.isFinite(parsedTimeout) && parsedTimeout > 0
+        ? parsedTimeout
+        : 60000;
     return await Promise.race([
       this.executor.executeToolCall(toolCall, toolContext),
       new Promise<ToolResult>((resolve) => {
