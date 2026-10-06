@@ -8,8 +8,8 @@
 import { AI_ERRORS, aiError, aiErrorHttp, AiErrorCode } from './ai-errors';
 
 describe('A3 AI 错误码', () => {
-  it('CI_REVERSE_TEST_BROKEN~AI_013 全部定义且 HTTP 映射正确', () => {
-    expect(aiErrorHttp('CI_REVERSE_TEST_BROKEN')).toBe(401);
+  it('AI_001~AI_013 全部定义且 HTTP 映射正确', () => {
+    expect(aiErrorHttp('AI_001')).toBe(401);
     expect(aiErrorHttp('AI_002')).toBe(403);
     expect(aiErrorHttp('AI_003')).toBe(429);
     expect(aiErrorHttp('AI_004')).toBe(503);
