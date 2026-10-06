@@ -246,6 +246,7 @@ describe('AdminController.clearMemory 多租户隔离', () => {
     expect(h.memoryManager.clearHistory).toHaveBeenCalledWith(
       'tenant-A',
       'sess-1',
+      undefined,
     );
   });
 
@@ -281,6 +282,7 @@ describe('AdminController.clearMemory 多租户隔离', () => {
     expect(h.memoryManager.clearHistory).toHaveBeenCalledWith(
       'tenant-B',
       'sess-9',
+      undefined,
     );
   });
 

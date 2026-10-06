@@ -97,9 +97,12 @@ export class TenantModule implements NestModule {
       // 平台身份允许无目标租户（跨租户管理台场景）。
       .apply(AdminContextMiddleware)
       .forRoutes('admin')
-      // P2-1 补全（2026-10-04）：管理面与其余管理端路由全部纳入限流
-      // （此前仅 chat/agent/v2/employees 四条业务路由有限流，/admin/chat-test
-      // 等外呼端点可被合法持有者高频滥用）
+      // P2 修复（2026-10-04）：review/rag/voice 同为管理端路由，先注入
+      // 租户上下文再限流——否则限流 key 退化为 IP 桶，办公 NAT 后多名
+      // 员工共享 60 次/分钟互相挤占（429 误伤）
+      .apply(AdminContextMiddleware)
+      .forRoutes('review', 'rag', 'voice')
+      // 限流覆盖管理面与其余管理端路由（此前仅 4 条业务路由有限流）
       .apply(RateLimiterMiddleware)
       .forRoutes('admin', 'review', 'rag', 'voice');
   }

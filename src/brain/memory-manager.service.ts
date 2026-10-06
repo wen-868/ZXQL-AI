@@ -66,15 +66,9 @@ export class MemoryManager implements OnModuleInit {
         port,
         password,
         db,
-        retryStrategy: (times) => {
-          if (times > 3) {
-            this.logger.warn(
-              `Redis 重连次数超过 3 次，降级为无记忆模式（对话历史不会持久化）`,
-            );
-            return null; // 停止重连
-          }
-          return Math.min(times * 500, 2000);
-        },
+        // P2 修复（2026-10-04）：不再放弃重连——此前 3 次失败即永久停摆，
+        // 网络恢复后记忆静默失效直到进程重启；指数退避封顶 5s 持续重试
+        retryStrategy: (times) => Math.min(times * 500, 5000),
         maxRetriesPerRequest: 1,
       });
 
@@ -93,6 +87,15 @@ export class MemoryManager implements OnModuleInit {
 
       this.redis.on('reconnecting', () => {
         this.logger.debug('Redis 重连中...');
+      });
+
+      // P2 修复（2026-10-04）：恢复钩子——error 置 false 后必须在 ready 时
+      // 置回 true，否则一次网络抖动后记忆永久失效（即使 ioredis 已重连成功）
+      this.redis.on('ready', () => {
+        if (!this.redisAvailable) {
+          this.logger.log('Redis 连接恢复，记忆服务重新可用');
+        }
+        this.redisAvailable = true;
       });
     } catch (err) {
       this.logger.warn(
@@ -177,8 +180,21 @@ export class MemoryManager implements OnModuleInit {
 
     const key = this.buildKey(tenantId, sessionId, customerId);
     try {
-      // 读取现有历史
-      const existing = await this.loadHistory(tenantId, sessionId, customerId);
+      // P2 修复（2026-10-04）：读原始历史而非截断版 loadHistory——此前每轮
+      // 保存把 Redis 里的旧消息永久截断到 800 字符（存储层不可逆降级）；
+      // 截断只应发生在组装 prompt 的消费端
+      const raw = await this.redis.get(key);
+      let existing: ChatMessage[] = [];
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as ChatMessage[];
+          existing = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          this.logger.warn(
+            `对话历史格式异常（非数组），按空历史覆盖：key=${key}`,
+          );
+        }
+      }
       const combined = [...existing, ...newMessages];
 
       // 截断：保留最近 MAX_MESSAGES 条
@@ -202,12 +218,18 @@ export class MemoryManager implements OnModuleInit {
    * @param tenantId 租户 ID
    * @param sessionId 会话 ID
    */
-  async clearHistory(tenantId: string, sessionId: string): Promise<void> {
+  async clearHistory(
+    tenantId: string,
+    sessionId: string,
+    customerId?: string,
+  ): Promise<void> {
     if (!this.redisAvailable || !this.redis) {
       return;
     }
 
-    const key = this.buildKey(tenantId, sessionId);
+    // P2 修复（2026-10-04）：透传 customerId——运营客户端记忆 key 含客户
+    // 分区，缺了它 clear 删的是不存在的 key（静默无效）
+    const key = this.buildKey(tenantId, sessionId, customerId);
     try {
       await this.redis.del(key);
       this.logger.debug(
@@ -298,7 +320,12 @@ export function buildMemoryKey(
   sessionId: string,
   customerId?: string,
 ): string {
+  // P2 修复（2026-10-04）：分段 encodeURIComponent——此前 staff 端传含 ':'
+  // 的 sessionId 可与 customer 分区 key 拼出完全相同的字符串（同租户跨端
+  // 串记忆）。编码只影响含特殊字符的段（常规 sess_/emp_ 前缀不变），
+  // 存量 key TTL 仅 1 小时，切换窗口可忽略。
+  const enc = (v: string) => encodeURIComponent(v);
   return customerId
-    ? `ai:memory:${tenantId}:${customerId}:${sessionId}`
-    : `ai:memory:${tenantId}:${sessionId}`;
+    ? `ai:memory:${enc(tenantId)}:${enc(customerId)}:${enc(sessionId)}`
+    : `ai:memory:${enc(tenantId)}:${enc(sessionId)}`;
 }

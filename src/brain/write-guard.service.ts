@@ -184,6 +184,41 @@ export class WriteGuardService {
   }
 
   /**
+   * 令牌级互斥锁（P2 修复 2026-10-04）：confirm/cancel 读-改-写期间加锁，
+   * 封堵并发双击穿透高危二次确认/双重取消。Redis NX 原子占锁，5s 自动
+   * 释放（进程崩溃不留死锁）；内存降级模式单实例本就串行，直接放行。
+   */
+  private async acquireTokenLock(token: string): Promise<boolean> {
+    if (!this.redisAvailable || !this.redis) {
+      return true;
+    }
+    try {
+      const ok = await this.redis.set(
+        `ai:wg:lock:${token}`,
+        '1',
+        'PX',
+        5000,
+        'NX',
+      );
+      return ok === 'OK';
+    } catch {
+      // 锁不可用不应阻断确认主流程（降级为无锁，与记忆降级同口径）
+      return true;
+    }
+  }
+
+  private async releaseTokenLock(token: string): Promise<void> {
+    if (!this.redisAvailable || !this.redis) {
+      return;
+    }
+    try {
+      await this.redis.del(`ai:wg:lock:${token}`);
+    } catch {
+      // 忽略：锁 5s 后自动过期
+    }
+  }
+
+  /**
    * 当前写审核令牌 TTL（毫秒）
    *
    * 供 ConfirmationService / TaskRunner 等需要对齐同一过期口径的调用方取用，
@@ -340,6 +375,27 @@ export class WriteGuardService {
     tenantId: string,
     customerId?: string,
   ): Promise<WriteGuardConfirmResult> {
+    // P2 修复（2026-10-04）：状态迁移加互斥锁——并发双击下两个请求都能
+    // 读到 first_confirmed 并各自执行，高危二次确认形同虚设
+    const locked = await this.acquireTokenLock(token);
+    if (!locked) {
+      return {
+        success: false,
+        error: '该操作正在处理中，请稍后重试',
+      };
+    }
+    try {
+      return await this.doConfirm(token, tenantId, customerId);
+    } finally {
+      await this.releaseTokenLock(token);
+    }
+  }
+
+  private async doConfirm(
+    token: string,
+    tenantId: string,
+    customerId?: string,
+  ): Promise<WriteGuardConfirmResult> {
     const write = await this.get(token, tenantId);
     if (!write) {
       return {
@@ -392,6 +448,25 @@ export class WriteGuardService {
   }
 
   /**
+   * 令牌回滚到 pending（P2 修复 2026-10-04）：确认执行失败时由
+   * executeConfirmed 调用——此前令牌滞留 confirmed，再确认被拒、取消也被拒，
+   * 用户失去重试入口只能重新发起整个写意图。
+   */
+  async resetToPending(token: string, tenantId: string): Promise<boolean> {
+    const write = await this.get(token, tenantId);
+    if (!write || write.status !== 'confirmed') {
+      return false;
+    }
+    write.status = 'pending';
+    await this.save(write);
+    this.audit(write, 'pending');
+    this.logger.warn(
+      `确认执行失败，令牌已回滚 pending（可重试）：token=${token.slice(0, 12)}… tool=${write.toolName}`,
+    );
+    return true;
+  }
+
+  /**
    * 取消令牌（pending / first_confirmed 可取消；已确认不可取消）
    *
    * @param token    令牌
@@ -399,6 +474,19 @@ export class WriteGuardService {
    * @returns 是否取消成功
    */
   async cancel(token: string, tenantId: string): Promise<boolean> {
+    const locked = await this.acquireTokenLock(token);
+    if (!locked) {
+      this.logger.warn(`令牌取消冲突（正在被其他请求处理）：token=${token}`);
+      return false;
+    }
+    try {
+      return await this.doCancel(token, tenantId);
+    } finally {
+      await this.releaseTokenLock(token);
+    }
+  }
+
+  private async doCancel(token: string, tenantId: string): Promise<boolean> {
     const write = await this.get(token, tenantId);
     if (!write) {
       return false;

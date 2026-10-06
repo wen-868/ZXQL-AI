@@ -52,6 +52,9 @@ function buildController(
     UNUSED_EXTERNAL_MODEL,
     UNUSED_AI_CONFIG,
     UNUSED_VISION,
+    {
+      logAiCall: jest.fn(),
+    } as never,
   );
 }
 

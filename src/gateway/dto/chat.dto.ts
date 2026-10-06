@@ -13,6 +13,7 @@ import {
   IsOptional,
   IsString,
   IsNotEmpty,
+  Matches,
   MaxLength,
 } from 'class-validator';
 
@@ -30,6 +31,12 @@ export class ChatDto {
    */
   @IsOptional()
   @IsString()
+  // P2 修复（2026-10-04）：长度与字符约束——防超长 Redis key，及防含 ':'
+  // 的值与 customer 分区 key 拼接碰撞（配合 buildMemoryKey 编码双保险）
+  @MaxLength(128)
+  @Matches(/^[A-Za-z0-9_:-]*$/, {
+    message: 'conversationId 仅允许字母/数字/下划线/冒号/连字符',
+  })
   conversationId?: string;
 
   /** 租户 ID（可选，R70-07 后由 JWT 自动解析）

@@ -11,6 +11,7 @@
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { ToolRegistry } from '../tools/tool-registry';
+import { ToolExecutor } from '../tools/tool-executor';
 import { ToolContext, ToolResult } from '../tools/tool.interface';
 import type { ExecutedOperation } from './confirmation.service';
 
@@ -69,7 +70,10 @@ const ROLLBACK_MAP: Record<string, RollbackConfig> = {
 export class RollbackExecutorService {
   private readonly logger = new Logger(RollbackExecutorService.name);
 
-  constructor(private readonly toolRegistry: ToolRegistry) {}
+  constructor(
+    private readonly toolRegistry: ToolRegistry,
+    private readonly toolExecutor: ToolExecutor,
+  ) {}
 
   /**
    * 执行自动回滚（撤销已执行操作）
@@ -107,8 +111,18 @@ export class RollbackExecutorService {
       };
     }
 
-    const result: ToolResult = await tool.execute(
-      { orderNo, reason: 'AI 助手撤销操作' },
+    // P2 修复（2026-10-04）：回滚经 ToolExecutor 执行——此前直接
+    // tool.execute 绕过确认门/审计链/熔断/指标，回滚这类写操作
+    // 在 t_ai_audit_log 里是空白的
+    const result: ToolResult = await this.toolExecutor.executeToolCall(
+      {
+        id: `rollback_${operation.operationId}`,
+        type: 'function',
+        function: {
+          name: config.rollbackTool,
+          arguments: JSON.stringify({ orderNo, reason: 'AI 助手撤销操作' }),
+        },
+      },
       context,
     );
 

@@ -110,6 +110,7 @@ function makeService(overrides: Record<string, unknown> = {}) {
     executor as never,
     router as never,
     aiConfigService as never,
+    { logAiCall: jest.fn() } as never,
   );
   return {
     service,

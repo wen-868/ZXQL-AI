@@ -409,6 +409,7 @@ export class AdminController {
   async clearMemory(
     @Param('tenantId') tenantId: string,
     @Param('sessionId') sessionId: string,
+    @Query('customerId') customerId?: string,
   ): Promise<{ success: boolean; message: string }> {
     // 与 audit-logs 同一租户口径：商家 JWT 只能清自己租户的记忆，
     // 平台身份才可跨租户运维。tenantId 只认 JWT payload，不接受路径自报。
@@ -432,9 +433,14 @@ export class AdminController {
       ? tenantId
       : ctx.tenantId;
 
-    await this.memoryManager.clearHistory(scopedTenantId, sessionId);
+    // P2 修复（2026-10-04）：透传 customerId——运营客户端记忆 key 含客户分区
+    await this.memoryManager.clearHistory(
+      scopedTenantId,
+      sessionId,
+      customerId,
+    );
     this.logger.log(
-      `会话记忆已清除：tenant=${scopedTenantId} session=${sessionId}`,
+      `会话记忆已清除：tenant=${scopedTenantId} session=${sessionId}${customerId ? ` customer=${customerId}` : ''}`,
     );
     return { success: true, message: '会话记忆已清除' };
   }

@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { RollbackExecutorService } from './rollback-executor.service';
 import { ToolRegistry } from '../tools/tool-registry';
+import { ToolExecutor } from '../tools/tool-executor';
 import type { ITool } from '../tools/tool.interface';
 import type { ExecutedOperation } from './confirmation.service';
 
@@ -25,10 +26,23 @@ describe('RollbackExecutorService', () => {
 
   beforeEach(async () => {
     registry = new ToolRegistry();
+    // P2 修复（2026-10-04）：回滚改经 ToolExecutor 执行（进审计/熔断/指标链），
+    // 用真实 ToolExecutor + 桩审计/熔断/指标，registry 仍是测试桩
+    const toolExecutor = new ToolExecutor(
+      registry,
+      { logToolExecution: jest.fn() } as never,
+      {
+        canProceed: jest.fn(() => ({ ok: true })),
+        recordSuccess: jest.fn(),
+        recordFailure: jest.fn(),
+      } as never,
+      { recordToolCall: jest.fn(), recordToolDuration: jest.fn() } as never,
+    );
     const moduleRef = await Test.createTestingModule({
       providers: [
         RollbackExecutorService,
         { provide: ToolRegistry, useValue: registry },
+        { provide: ToolExecutor, useValue: toolExecutor },
       ],
     }).compile();
     service = moduleRef.get(RollbackExecutorService);

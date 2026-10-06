@@ -27,6 +27,7 @@ import type {
   ToolRisk,
 } from '../tools/tool.interface';
 import { ToolExecutor } from '../tools/tool-executor';
+import { EvidenceLedgerService } from './evidence/evidence-ledger.service';
 import {
   PendingWrite,
   WriteGuardService,
@@ -230,6 +231,7 @@ export class ConfirmationService {
   constructor(
     @Optional() writeGuard?: WriteGuardService,
     @Optional() private readonly executor?: ToolExecutor,
+    @Optional() private readonly evidence?: EvidenceLedgerService,
   ) {
     // 未注入（单测/独立使用）时创建内存降级实例
     this.writeGuardService =
@@ -419,6 +421,20 @@ export class ConfirmationService {
       this.logger.warn(
         `确认执行失败：id=${record.confirmationId} tool=${record.toolName} error=${result.error ?? '未知'}`,
       );
+      // P2 修复（2026-10-04）：令牌回滚 pending——此前滞留 confirmed，
+      // 再确认被拒、取消也被拒，用户失去重试入口
+      try {
+        await this.writeGuardService.resetToPending(
+          record.confirmationId,
+          record.tenantId,
+        );
+      } catch (resetErr) {
+        this.logger.warn(
+          `失败令牌回滚异常（忽略）：${
+            resetErr instanceof Error ? resetErr.message : String(resetErr)
+          }`,
+        );
+      }
       return {
         success: false,
         error: result.error ?? '工具执行失败',
@@ -426,7 +442,22 @@ export class ConfirmationService {
       };
     }
 
-    // 执行成功 → 注册 3 分钟撤销窗口
+    // 执行成功 → 证据台账（P2 修复 2026-10-04：确认执行是写操作真正落地
+    // 的主路径，此前只记撤销窗口不进台账，证据链对"已确认的写"是空白的）
+    try {
+      this.evidence?.recordWrite(toolContext, record.toolName, execArgs, {
+        success: true,
+        data: result.data,
+      });
+    } catch (evErr) {
+      this.logger.warn(
+        `确认执行证据台账写入失败（忽略）：${
+          evErr instanceof Error ? evErr.message : String(evErr)
+        }`,
+      );
+    }
+
+    // 注册 3 分钟撤销窗口
     const operation = this.registerExecuted({
       tenantId: record.tenantId,
       conversationId: record.conversationId,

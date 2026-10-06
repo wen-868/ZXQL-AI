@@ -184,9 +184,11 @@ export class AuditLogger {
       // 合规脱敏（2026-09-05 找茬审计 #4）：AUDIT_MASK_MESSAGE=true 时对
       // 对话原文做 PII 掩码（手机号/连续证件号），审计仍可排障但不存明文 PII
       let userMessage = record.userMessage ?? null;
+      // P2 修复（2026-10-04）：掩码默认开启（此前默认 false，手机号/证件号
+      // 明文入库）；需关闭时显式设 AUDIT_MASK_MESSAGE=false
       if (
         userMessage &&
-        (process.env.AUDIT_MASK_MESSAGE || 'false') === 'true'
+        (process.env.AUDIT_MASK_MESSAGE || 'true') === 'true'
       ) {
         userMessage = userMessage
           .replace(/1[3-9]\d{9}/g, (m) => m.slice(0, 3) + '****' + m.slice(-2))
@@ -449,8 +451,15 @@ export class AuditLogger {
         continue;
       }
 
-      if (typeof value === 'string' && value.length > 500) {
-        sanitized[key] = value.slice(0, 500) + '...（截断）';
+      if (typeof value === 'string') {
+        // P2 修复（2026-10-04）：字符串参数做内容级 PII 遮蔽（手机号/长号段）
+        let masked = value
+          .replace(/1[3-9]\d{9}/g, (m) => m.slice(0, 3) + '****' + m.slice(-2))
+          .replace(/\d{15,18}/g, (m) => m.slice(0, 4) + '****' + m.slice(-3));
+        if (masked.length > 500) {
+          masked = masked.slice(0, 500) + '...（截断）';
+        }
+        sanitized[key] = masked;
       } else if (typeof value === 'object' && value !== null) {
         try {
           const jsonStr = JSON.stringify(value);

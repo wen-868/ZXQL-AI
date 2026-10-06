@@ -29,6 +29,7 @@ import {
 import type { Response } from 'express';
 import { Orchestrator } from '../brain/orchestrator.service';
 import { ConfirmationService } from '../brain/confirmation.service';
+import { AuditLogger } from '../bridge/audit-logger';
 import { TaskRunnerService } from '../brain/agent/task-runner.service';
 import { RollbackExecutorService } from '../brain/rollback-executor.service';
 import { TenantContext } from '../tenant/tenant-context';
@@ -58,6 +59,7 @@ export class ChatController {
     private readonly externalModelService: ExternalModelService,
     private readonly aiConfigService: AiConfigService,
     private readonly visionService: VisionService,
+    private readonly auditLogger: AuditLogger,
   ) {}
 
   /**
@@ -368,6 +370,16 @@ export class ChatController {
 
     const check = this.confirmationService.canRevoke(operationId, tenantId);
     if (!check.ok) {
+      // P2 修复（2026-10-04）：撤销动作全程入审计（此前撤销链路零审计留痕）
+      this.auditLogger.logAiCall({
+        tenantId,
+        intent: 'revoke',
+        userMessage: `撤销操作 ${operationId}：${check.reason ?? '无法撤销'}`,
+        promptTokens: 0,
+        completionTokens: 0,
+        success: false,
+        errorMessage: check.reason ?? '无法撤销',
+      });
       return { success: false, error: check.reason ?? '无法撤销' };
     }
 
@@ -397,6 +409,15 @@ export class ChatController {
         this.logger.warn(
           `撤销登记未完成：自动回滚失败，保留重试入口 id=${operationId} tenant=${tenantId}`,
         );
+        this.auditLogger.logAiCall({
+          tenantId,
+          intent: 'revoke',
+          userMessage: `撤销操作 ${operationId}：自动回滚失败`,
+          promptTokens: 0,
+          completionTokens: 0,
+          success: false,
+          errorMessage: rollback.message,
+        });
         return {
           success: false,
           revocable: true,
@@ -410,6 +431,14 @@ export class ChatController {
       this.logger.log(
         `操作已登记撤销：id=${operationId} tenant=${tenantId} reason=${dto.reason ?? '用户主动撤销'}`,
       );
+      this.auditLogger.logAiCall({
+        tenantId,
+        intent: 'revoke',
+        userMessage: `撤销操作 ${operationId}：${dto.reason ?? '用户主动撤销'}`,
+        promptTokens: 0,
+        completionTokens: 0,
+        success: true,
+      });
       return {
         success: true,
         revocable: true,

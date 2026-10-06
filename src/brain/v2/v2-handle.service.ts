@@ -11,6 +11,7 @@
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { ToolExecutor } from '../../tools/tool-executor';
+import { AuditLogger } from '../../bridge/audit-logger';
 import { ToolRegistry } from '../../tools/tool-registry';
 import { ConfirmationService } from '../confirmation.service';
 import { Orchestrator } from '../orchestrator.service';
@@ -102,6 +103,7 @@ export class V2HandleService {
     private readonly executor: ToolExecutor,
     private readonly router: ProviderRouterService,
     private readonly aiConfigService: AiConfigService,
+    private readonly auditLogger: AuditLogger,
   ) {}
 
   /**
@@ -197,6 +199,15 @@ export class V2HandleService {
         this.logger.warn(
           `写工具未返回预览：tool=${toolName} tenant=${ctx.tenantId}，拒绝自动执行`,
         );
+        this.auditLogger.logAiCall({
+          tenantId: ctx.tenantId,
+          intent: 'write_pending',
+          userMessage: `v2 写意图预览失败：tool=${toolName}`,
+          promptTokens: 0,
+          completionTokens: 0,
+          success: false,
+          errorMessage: '写工具未返回预览',
+        });
         return {
           intent: 'clarify',
           message: '该操作需要人工确认，请通过对话确认后执行',
@@ -222,6 +233,17 @@ export class V2HandleService {
       this.logger.log(
         `v2/handle 写意图挂起：tenant=${ctx.tenantId} tool=${toolName} risk=${risk} token=${confirmation.confirmationId.slice(0, 12)}…`,
       );
+      // P2 修复（2026-10-04）：v2 写分支此前零审计——同一写动作经 v1 有
+      // 审计留痕、经 v2 无，合规口径不一致（写落地的执行审计由确认链路的
+      // 工具级审计覆盖，这里补"草稿挂起"这一环）
+      this.auditLogger.logAiCall({
+        tenantId: ctx.tenantId,
+        intent: 'write_pending',
+        userMessage: `v2 写意图挂起：tool=${toolName} risk=${risk}`,
+        promptTokens: 0,
+        completionTokens: 0,
+        success: true,
+      });
       return {
         intent: 'write',
         pendingWrite: {

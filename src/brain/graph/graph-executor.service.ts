@@ -319,11 +319,8 @@ export class GraphExecutorService implements OnModuleInit {
               });
               state.status = 'paused';
               state.pendingReviewId = review.id;
-              state.history.push({
-                nodeId: node.id,
-                label: node.label,
-                success: true,
-              });
+              // P2 顺手改（验收意见）：挂起不写 history——中性标记，
+              // 节点成败由执行后的真实结果入史（success:true/false 都是误导）
               await this.checkpointer.save(state);
               yield {
                 type: 'review_required',
@@ -368,11 +365,8 @@ export class GraphExecutorService implements OnModuleInit {
               });
               state.status = 'paused';
               state.pendingWriteToken = write.confirmationId;
-              state.history.push({
-                nodeId: node.id,
-                label: node.label,
-                success: false,
-              });
+              // P2 顺手改（验收意见）：挂起不写 history——awaiting 状态既非
+              // 成功也非失败，节点结果由确认续跑回填后再入史
               await this.checkpointer.save(state);
               const expireAt = Date.now() + 24 * 60 * 60 * 1000;
               yield {
