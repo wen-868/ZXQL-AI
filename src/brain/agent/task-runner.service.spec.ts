@@ -313,6 +313,42 @@ describe('TaskRunnerService', () => {
     expect(persisted?.steps[0].pendingToken).toBe('wg_test_token');
   });
 
+  // 阶段0 B-4 返工回归（2026-10-07）：挂起失败 → 显式 failed（不得虚假成功）
+  it('run：写步骤令牌创建失败 → 步骤 failed + 失败事件（不再降级为普通结果）', async () => {
+    const { runner } = makeRunner({
+      executor: {
+        executeToolCall: jest.fn().mockResolvedValue({
+          success: true,
+          preview: { operation: '创建销售单', summary: '红星商行 20 件五粮液' },
+        }),
+      },
+      confirmation: {
+        create: jest.fn().mockRejectedValue(new Error('Redis down')),
+      },
+    });
+    const plan = await runner.createPlan({
+      tenantId: 't1',
+      goal: '给红星商行开单20件五粮液',
+      steps: [
+        makeStep({ tool: 'createSalesOrder' }),
+        makeStep({ id: 'end', type: 'end', tool: undefined, label: '完成' }),
+      ],
+    });
+
+    const events = await collect(runner.run(plan.id, 't1', { tenantId: 't1' }));
+
+    // 反测信号：修复前此处会标 success（虚假成功）
+    const persisted = await runner.getPlan(plan.id, 't1');
+    expect(persisted?.steps[0].status).toBe('failed');
+    expect(persisted?.steps[0].error).toContain('令牌创建失败');
+    expect(persisted?.state).not.toBe('suspended');
+    const failedStep = events.find(
+      (e) => e.type === 'agent_step' && e.status === 'failed',
+    );
+    expect(failedStep).toBeDefined();
+    expect(events.some((e) => e.type === 'pending_write')).toBe(false);
+  });
+
   it('markStepExecutedByToken 确认回写 → 续跑执行剩余步骤至 success', async () => {
     const { runner } = makeRunner({
       executor: {

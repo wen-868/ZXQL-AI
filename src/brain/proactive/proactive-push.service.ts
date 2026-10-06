@@ -52,10 +52,12 @@ export class ProactivePushService {
     // ── 1. 写入 t_push_log（系统级推送流水） ──
     try {
       await this.dataSource.query(
+        // 阶段0 B-1（2026-10-07）：写入租户归属——迁移 012 加列后，
+        // weekly-plan 等消费方按 tenant_id 过滤才有可能命中本租户数据
         `INSERT INTO t_push_log
-          (user_id, template_id, push_type, channel, title, content, status, error_msg, created_at)
-         VALUES (0, NULL, ?, 'ai_proactive', ?, ?, 'SUCCESS', NULL, NOW())`,
-        [push.type, push.title, push.content],
+          (user_id, tenant_id, template_id, push_type, channel, title, content, status, error_msg, created_at)
+         VALUES (0, ?, NULL, ?, 'ai_proactive', ?, ?, 'SUCCESS', NULL, NOW())`,
+        [tenantId, push.type, push.title, push.content],
       );
     } catch (err) {
       // 推送流水写入失败不影响巡检主流程，仅记日志并返回失败

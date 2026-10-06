@@ -314,8 +314,8 @@ export class ServiceClient {
       } catch (err) {
         lastError = err;
 
-        // 判断是否可重试
-        if (attempt < this.maxRetries && this.isRetryable(err)) {
+        // 判断是否可重试（阶段0 B-2：非幂等方法一律不重试）
+        if (attempt < this.maxRetries && this.isRetryable(err, method)) {
           this.logger.warn(
             `${method} ${path} 第 ${attempt + 1} 次请求失败，500ms 后重试：${this.getErrorMessage(err)}`,
           );
@@ -416,7 +416,26 @@ export class ServiceClient {
    * 可重试：5xx 响应、网络错误（ECONNREFUSED/ETIMEDOUT/ENOTFOUND）
    * 不可重试：4xx 响应（客户端错误）、BridgeError（业务错误）
    */
-  private isRetryable(err: unknown): boolean {
+  /**
+   * 可重试判定（阶段0 B-2 修复 2026-10-07）
+   *
+   * 阻断缺陷 B-2：此前只看错误类型不看 method——post/put/delete 全部
+   * 委托到本重试循环，网络抖动/响应丢失时约 40 个写工具（建单/付款/
+   * 退款/调拨）必然重复提交（后端很可能已处理完）。
+   * 现在：非幂等方法（POST/PATCH）一律不重试，无论错误类型。
+   */
+  private static readonly IDEMPOTENT_METHODS = new Set([
+    'GET',
+    'HEAD',
+    'OPTIONS',
+    'PUT',
+    'DELETE',
+  ]);
+
+  private isRetryable(err: unknown, method: string): boolean {
+    if (!ServiceClient.IDEMPOTENT_METHODS.has(method.toUpperCase())) {
+      return false;
+    }
     if (err instanceof AxiosError) {
       // 网络错误（无响应）
       if (!err.response) {

@@ -78,14 +78,20 @@ export class WeeklyPlanService {
    */
   async buildWeeklyPlan(tenantId: string): Promise<WeeklyPlanResult> {
     // 1. 本周主动信号（t_push_log ai_proactive 通道，schema 与推送服务一致）
+    // 阶段0 B-1（2026-10-07 止血）：跨租户经营数据泄露封堵——此前 tenantId
+    // 只用于推送不入 SQL，任意租户可聚合全部租户的库存预警/应收/毛利异常。
+    // 口径对齐 inventory-warning.service 的内联 tenant_id 写法；
+    // 依赖迁移 012（t_push_log 加 tenant_id 列）。
     const rows = await this.dataSource.query<WeeklySignalRow[]>(
       `SELECT title, content, created_at
          FROM t_push_log
         WHERE channel = 'ai_proactive'
           AND status = 'SUCCESS'
+          AND tenant_id = ?
           AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
         ORDER BY created_at DESC
         LIMIT 30`,
+      [tenantId],
     );
 
     const seenTitles = new Set<string>();

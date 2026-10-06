@@ -34,6 +34,8 @@ export class MetricsService {
   private planTotal = 0;
   /** ai_tool_retry_total{recovered}（G-C 工具失败自动重试） */
   private retryTotal = new Map<string, number>();
+  /** ai_billing_consume_total{status}（阶段0 B-3：计费扣减成败观测） */
+  private billingConsumeTotal = new Map<string, number>();
 
   recordRequest(
     tenantId: string,
@@ -99,6 +101,19 @@ export class MetricsService {
   recordToolRetry(recovered: boolean): void {
     const key = recovered ? 'recovered' : 'failed';
     this.retryTotal.set(key, (this.retryTotal.get(key) ?? 0) + 1);
+  }
+
+  /**
+   * 计费扣减成败计数（阶段0 B-3 修复 2026-10-07）
+   *
+   * 扣减失败此前被 catch+warn 吞掉且无指标——漏计费全程无痕。
+   * status: ok=原子扣减成功 / skipped=免费次数或月费套餐不扣 / fail=扣减失败
+   */
+  recordBillingConsume(status: 'ok' | 'skipped' | 'fail'): void {
+    this.billingConsumeTotal.set(
+      status,
+      (this.billingConsumeTotal.get(status) ?? 0) + 1,
+    );
   }
 
   /**

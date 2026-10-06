@@ -12,6 +12,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TenantAiBillingEntity } from '../database/entities/tenant-ai-billing.entity';
+import { MetricsService } from '../common/metrics.service';
 
 /** 额度判定结果 */
 export interface QuotaResult {
@@ -26,6 +27,7 @@ export class BillingService {
   constructor(
     @InjectRepository(TenantAiBillingEntity)
     private readonly repo: Repository<TenantAiBillingEntity>,
+    private readonly metrics: MetricsService,
   ) {}
 
   /**
@@ -64,25 +66,48 @@ export class BillingService {
     try {
       const billing = await this.getOrCreate(tenantId);
       if (billing.enabled !== 1) {
+        this.metrics.recordBillingConsume('skipped');
         return;
       }
 
-      let changed = false;
       if (billing.freeChatCount > 0) {
-        billing.freeChatCount = Math.max(0, billing.freeChatCount - chatCount);
-        changed = true;
-      } else if (billing.planType !== 'monthly') {
+        // 阶段0 B-3（2026-10-07 止血）：原子扣免费次数——此前读-改-写
+        // 在并发下丢失更新（N-1 次计费蒸发）。GREATEST 钳制下限 0，
+        // 单条 UPDATE 由数据库行锁保证串行。
+        await this.repo.query(
+          `UPDATE t_tenant_ai_billing
+              SET free_chat_count = GREATEST(free_chat_count - ?, 0)
+            WHERE tenant_id = ?
+              AND free_chat_count > 0`,
+          [chatCount, tenantId],
+        );
+        this.metrics.recordBillingConsume('ok');
+        return;
+      }
+
+      if (billing.planType !== 'monthly') {
         // 按量扣预付费余额：费用 = overagePrice × tokens/1000
+        // 原子 UPDATE（同上）：结算在数据库侧完成，应用层不再回写内存值
         const cost = (Number(billing.overagePrice) * tokens) / 1000;
-        billing.balance = Math.max(0, Number(billing.balance) - cost);
-        changed = true;
+        await this.repo.query(
+          `UPDATE t_tenant_ai_billing
+              SET balance = GREATEST(balance - ?, 0)
+            WHERE tenant_id = ?`,
+          [cost, tenantId],
+        );
+        this.metrics.recordBillingConsume('ok');
+        return;
       }
-      if (changed) {
-        await this.repo.save(billing);
-      }
+
+      // 月费套餐：不按量扣减
+      this.metrics.recordBillingConsume('skipped');
     } catch (err) {
-      this.logger.warn(
-        `计费消耗失败（非致命）：${err instanceof Error ? err.message : String(err)}`,
+      // 阶段0 B-3：写路径失败不再静默——计费失败=漏费，必须可观测
+      this.metrics.recordBillingConsume('fail');
+      this.logger.error(
+        `计费消耗失败（漏计费风险，已计入 fail 指标）：tenant=${tenantId} tokens=${tokens} err=${
+          err instanceof Error ? err.message : String(err)
+        }`,
       );
     }
   }

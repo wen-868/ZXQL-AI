@@ -13,10 +13,19 @@
  * 对应文档：
  * - docs/AI底座完善度分析报告.md 五、P2 用量计费闭环
  */
-import { Controller, Get, Logger, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  ForbiddenException,
+  Get,
+  Logger,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { resolveAdminTenantId } from '../tenant/admin-tenant-scope';
-import { AdminGuard } from '../tenant/admin-auth.guard';
+import { AdminGuard, getAdminIdentity } from '../tenant/admin-auth.guard';
+import { aiError } from '../common/ai-errors';
 import {
   UsageDailyRow,
   UsageStatsService,
@@ -76,11 +85,28 @@ export class UsageController {
    *
    * GET /api/admin/usage/tenants?startDate=&endDate=
    */
+  /**
+   * 跨租户用量概览
+   *
+   * 阶段0 B-5（2026-10-07 止血）：平台身份门禁——本端点聚合全部租户的
+   * 费用与 Token 汇总，此前任何商户管理角色（含仓库/财务管理员）都可读。
+   * 口径对齐 ai-config.controller.requirePlatformIdentity。
+   */
   @Get('tenants')
   async tenants(
+    @Req() req: Request,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ): Promise<{ list: UsageTotals[] }> {
+    const identity = getAdminIdentity(req);
+    if (identity.identityType !== 'platform') {
+      throw new ForbiddenException({
+        statusCode: 403,
+        ...aiError('AI_010', {
+          detail: '跨租户用量概览仅限总台平台身份访问',
+        }),
+      });
+    }
     const list = await this.usageStats.listTenantUsage(startDate, endDate);
     return { list };
   }

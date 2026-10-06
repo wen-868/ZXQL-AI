@@ -106,12 +106,20 @@ describe('G-A matchPlanStepsByTool（步骤进度）', () => {
         type: 'tool' as const,
         tool: 'queryInventory',
         label: '查杭州仓库存',
+        status: 'pending' as const,
+        retryCount: 0,
+        createdAt: 0,
+        updatedAt: 0,
       },
       {
         id: 'q2',
         type: 'tool' as const,
         tool: 'queryInventory',
         label: '查北京仓库存',
+        status: 'pending' as const,
+        retryCount: 0,
+        createdAt: 0,
+        updatedAt: 0,
       },
     ];
     const done = new Set<string>();
@@ -128,9 +136,36 @@ describe('G-A matchPlanStepsByTool（步骤进度）', () => {
 
   it('计划内多步同名工具 → 每次调用返回长度恒为 1（防全量标 done）', () => {
     const three = [
-      { id: 't1', type: 'tool' as const, tool: 'queryStock', label: '步骤1' },
-      { id: 't2', type: 'tool' as const, tool: 'queryStock', label: '步骤2' },
-      { id: 't3', type: 'tool' as const, tool: 'queryStock', label: '步骤3' },
+      {
+        id: 't1',
+        type: 'tool' as const,
+        tool: 'queryStock',
+        label: '步骤1',
+        status: 'pending' as const,
+        retryCount: 0,
+        createdAt: 0,
+        updatedAt: 0,
+      },
+      {
+        id: 't2',
+        type: 'tool' as const,
+        tool: 'queryStock',
+        label: '步骤2',
+        status: 'pending' as const,
+        retryCount: 0,
+        createdAt: 0,
+        updatedAt: 0,
+      },
+      {
+        id: 't3',
+        type: 'tool' as const,
+        tool: 'queryStock',
+        label: '步骤3',
+        status: 'pending' as const,
+        retryCount: 0,
+        createdAt: 0,
+        updatedAt: 0,
+      },
     ];
     const done = new Set<string>();
     const lens = [

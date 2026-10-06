@@ -152,6 +152,19 @@ describe('S3 WeeklyPlanService', () => {
     expect(dataSource.query).toHaveBeenCalled();
   });
 
+  // 阶段0 B-1 返工回归（2026-10-07）：SQL 必须带租户条件（跨租户泄露封堵）
+  it('信号查询 SQL 强制 tenant_id 过滤且参数含本租户', async () => {
+    const { service, dataSource } = createService({ rows: [], llmText: '' });
+    await service.buildWeeklyPlan('t_001');
+
+    expect(dataSource.query).toHaveBeenCalledTimes(1);
+    const queryMock = dataSource.query as unknown as jest.Mock;
+    const [sql, params] = queryMock.mock.calls[0] as [string, string[]];
+    // 反测信号：修复前 SQL 无 tenant_id 条件、无参数
+    expect(sql).toContain('tenant_id = ?');
+    expect(params).toEqual(['t_001']);
+  });
+
   it('cron 开关关闭 → handleWeeklyCron 空转（不查信号不推送）', async () => {
     const { service, dataSource, push } = createService({
       rows: [],

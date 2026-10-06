@@ -561,6 +561,16 @@ export class TaskRunnerService {
       return { suspended: true, promptTokens: 0, completionTokens: 0 };
     }
 
+    // 阶段0 B-4：挂起失败 → 步骤落账 failed（不得进入下方 success 分支）
+    if (suspend.failed) {
+      step.status = 'failed';
+      step.error = '写操作确认令牌创建失败，操作未执行';
+      step.updatedAt = Date.now();
+      plan.state = this.detectFinalState(plan);
+      await this.savePlan(plan);
+      return { suspended: false, promptTokens: 0, completionTokens: 0 };
+    }
+
     if (first.success) {
       step.status = 'success';
       step.result = first.data;
@@ -807,7 +817,11 @@ export class TaskRunnerService {
     result: ToolResult,
     context: PlanRunContext,
     toolCall?: ToolCall,
-  ): Promise<{ suspended: boolean; events: AgentRunEvent[] }> {
+  ): Promise<{
+    suspended: boolean;
+    failed?: boolean;
+    events: AgentRunEvent[];
+  }> {
     if (!result.preview) {
       return { suspended: false, events: [] };
     }
@@ -874,10 +888,33 @@ export class TaskRunnerService {
       );
       return { suspended: true, events };
     } catch (err) {
-      this.logger.warn(
-        `计划写步骤挂起失败（降级为普通结果）：${err instanceof Error ? err.message : String(err)}`,
+      const msg = err instanceof Error ? err.message : String(err);
+      // 阶段0 B-4（2026-10-07 止血）：挂起失败不再降级为"普通结果"——
+      // 此处降级会让调用方见 first.success 即标 step='success'，
+      // 实际什么都没写（虚假成功）。显式返回 failed 态由调用方落账。
+      this.logger.error(
+        `计划写步骤挂起失败（WriteGuard 令牌未创建，步骤按失败处理）：plan=${plan.id} step=${step.id} tool=${toolName} err=${msg}`,
       );
-      return { suspended: false, events: [] };
+      return {
+        suspended: false,
+        failed: true,
+        events: [
+          {
+            type: 'tool_result',
+            tool: toolName,
+            success: false,
+            error: `写操作确认令牌创建失败，操作未执行：${msg}`,
+          },
+          {
+            type: 'agent_step',
+            planId: plan.id,
+            stepId: step.id,
+            label: step.label,
+            status: 'failed',
+            detail: '写确认令牌创建失败，操作未执行',
+          },
+        ] as AgentRunEvent[],
+      };
     }
   }
 
