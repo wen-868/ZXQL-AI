@@ -17,9 +17,12 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
-import { AdminGuard } from '../tenant/admin-auth.guard';
+import type { Request } from 'express';
+import { AdminGuard, getAdminIdentity } from '../tenant/admin-auth.guard';
+import { resolveOptionalAdminTenantId } from '../tenant/admin-tenant-scope';
 import {
   ReviewTaskService,
   ReviewTaskView,
@@ -27,7 +30,7 @@ import {
 
 /** 驳回请求体 */
 export interface RejectReviewDto {
-  reviewer: string;
+  reviewer?: string;
   reason: string;
 }
 
@@ -36,36 +39,62 @@ export interface RejectReviewDto {
 export class ReviewController {
   constructor(private readonly service: ReviewTaskService) {}
 
-  /** 待审工单列表（租户 + 状态过滤） */
+  /**
+   * 待审工单列表（租户 + 状态过滤）
+   *
+   * P1 修复（2026-10-04）：租户一律由 JWT 身份解析——此前 query 自报且
+   * 缺省 'default'，商户可列他人租户的待审工单（含写预览业务数据）；
+   * 平台身份不传=全量。
+   */
   @Get()
   list(
-    @Query('tenantId') tenantId = 'default',
+    @Req() req: Request,
+    @Query('tenantId') tenantId?: string,
     @Query('status') status?: string,
   ): Promise<ReviewTaskView[]> {
-    return this.service.list(tenantId, status);
+    return this.service.list(
+      resolveOptionalAdminTenantId(req, tenantId),
+      status,
+    );
   }
 
-  /** 工单详情 */
+  /** 工单详情（商户锁本租户，跨租户 id 落到"不存在"） */
   @Get(':id')
-  get(@Param('id', ParseIntPipe) id: number): Promise<ReviewTaskView> {
-    return this.service.get(id);
+  get(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<ReviewTaskView> {
+    return this.service.get(id, resolveOptionalAdminTenantId(req));
   }
 
-  /** 审核通过（图续跑） */
+  /** 审核通过（图续跑；审核人从 JWT 身份取，body 可覆盖） */
   @Post(':id/approve')
   approve(
+    @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: { reviewer?: string },
   ): Promise<ReviewTaskView> {
-    return this.service.approve(id, dto.reviewer ?? 'admin');
+    const reviewer = dto.reviewer ?? getAdminIdentity(req).username;
+    return this.service.approve(
+      id,
+      reviewer,
+      resolveOptionalAdminTenantId(req),
+    );
   }
 
-  /** 审核驳回（图终止） */
+  /** 审核驳回（图终止；租户域语义同 approve） */
   @Post(':id/reject')
   reject(
+    @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: RejectReviewDto,
   ): Promise<ReviewTaskView> {
-    return this.service.reject(id, dto.reviewer ?? 'admin', dto.reason);
+    const reviewer = dto.reviewer ?? getAdminIdentity(req).username;
+    return this.service.reject(
+      id,
+      reviewer,
+      dto.reason,
+      resolveOptionalAdminTenantId(req),
+    );
   }
 }

@@ -13,7 +13,9 @@
  * 对应文档：
  * - docs/AI底座完善度分析报告.md 五、P2 用量计费闭环
  */
-import { Controller, Get, Logger, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Logger, Query, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
+import { resolveAdminTenantId } from '../tenant/admin-tenant-scope';
 import { AdminGuard } from '../tenant/admin-auth.guard';
 import {
   UsageDailyRow,
@@ -35,6 +37,7 @@ export class UsageController {
    */
   @Get('daily')
   async daily(
+    @Req() req: Request,
     @Query('tenantId') tenantId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -42,7 +45,9 @@ export class UsageController {
     tenantId: string;
     list: UsageDailyRow[];
   }> {
-    const tid = tenantId ?? 'default';
+    // P1 修复（2026-10-04）：租户由 JWT 身份解析（此前 query 自报缺省
+    // 'default'，商户可读任意租户用量/计费数据）
+    const tid = resolveAdminTenantId(req, tenantId);
     const list = await this.usageStats.getDailyUsage(tid, startDate, endDate);
     return { tenantId: tid, list };
   }
@@ -54,11 +59,12 @@ export class UsageController {
    */
   @Get('totals')
   async totals(
+    @Req() req: Request,
     @Query('tenantId') tenantId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ): Promise<UsageTotals> {
-    const tid = tenantId ?? 'default';
+    const tid = resolveAdminTenantId(req, tenantId);
     this.logger.log(
       `查询租户用量汇总：tenant=${tid} range=${startDate ?? '*'}-${endDate ?? '*'}`,
     );

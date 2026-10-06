@@ -705,11 +705,14 @@ async function go(t){
               break}
             case 'task_artifact':{
               // G-B 任务产物卡：文件/链接可直接打开
+              // P1 修复（2026-10-04）：URL 协议白名单（http/https）——esc 只防
+              // 属性逃逸，`javascript:` URL 可原样通过成为可点击链接（XSS）
               const a=ev.artifact||{};
+              const safeUrl=a.url&&/^https?:\/\//i.test(a.url)?a.url:null;
               const line=document.createElement('div');line.className='usage-line';line.style.cssText='font-size:12px;margin-top:8px;line-height:1.6';
-              line.innerHTML=`📎 任务产物：<b>${esc(a.name||'文件')}</b>${a.url?` · <a href="${esc(a.url)}" target="_blank" style="color:var(--blue)">打开 / 下载</a>`:''}${a.summary?`<div style="color:var(--sub);font-size:11px">${esc(a.summary)}</div>`:''}`;
+              line.innerHTML=`📎 任务产物：<b>${esc(a.name||'文件')}</b>${safeUrl?` · <a href="${esc(safeUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--blue)">打开 / 下载</a>`:''}${a.summary?`<div style="color:var(--sub);font-size:11px">${esc(a.summary)}</div>`:''}`;
               bd.appendChild(line);end();
-              cards.push(`📎 任务产物：${a.name||'文件'}${a.url?' · '+a.url:''}`);
+              cards.push(`📎 任务产物：${a.name||'文件'}${safeUrl?' · '+safeUrl:''}`);
               break}
             case 'done':
               sess.id=ev.conversationId||sess.id;

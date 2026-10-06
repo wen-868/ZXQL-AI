@@ -100,6 +100,7 @@ export class CreateSalesOrderTool implements ITool {
     '示例参数：{"customerName":"红星商行","items":[{"skuId":10,"boxQty":5,"productInfo":{"boxRatio":6,"retailPrice":1200,"wholesalePrice":980,"storePrice":1100,"costPrice":850}}],"confirm":false}';
   readonly category = 'order' as const;
   readonly isWriteOperation = true;
+  readonly risk = 'medium' as const;
   readonly requiredTools = [
     'searchCustomer',
     'searchProduct',

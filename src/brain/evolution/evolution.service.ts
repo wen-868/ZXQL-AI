@@ -124,8 +124,12 @@ export class EvolutionService {
   /**
    * 审核通过：proposed → gray（灰度，比例可配）
    */
-  async approve(id: number, reviewer: string): Promise<AiEvolutionEntity> {
-    const entity = await this.getOrThrow(id);
+  async approve(
+    id: number,
+    reviewer: string,
+    tenantId?: string,
+  ): Promise<AiEvolutionEntity> {
+    const entity = await this.getOrThrow(id, tenantId);
     this.assertStatus(entity, ['proposed']);
     entity.status = 'gray';
     entity.grayPercent = this.defaultGrayPercent;
@@ -146,8 +150,9 @@ export class EvolutionService {
     id: number,
     reviewer: string,
     reason: string,
+    tenantId?: string,
   ): Promise<AiEvolutionEntity> {
-    const entity = await this.getOrThrow(id);
+    const entity = await this.getOrThrow(id, tenantId);
     this.assertStatus(entity, ['proposed']);
     entity.status = 'rejected';
     entity.reviewedBy = reviewer;
@@ -162,8 +167,8 @@ export class EvolutionService {
   /**
    * 灰度转正式生效：gray → rolled_out（并应用进化）
    */
-  async rollout(id: number): Promise<AiEvolutionEntity> {
-    const entity = await this.getOrThrow(id);
+  async rollout(id: number, tenantId?: string): Promise<AiEvolutionEntity> {
+    const entity = await this.getOrThrow(id, tenantId);
     this.assertStatus(entity, ['gray']);
     entity.status = 'rolled_out';
     entity.rolledOutAt = new Date();
@@ -181,8 +186,12 @@ export class EvolutionService {
   /**
    * 回滚：rolled_out → rolled_back（快照还原）
    */
-  async rollback(id: number, reviewer: string): Promise<AiEvolutionEntity> {
-    const entity = await this.getOrThrow(id);
+  async rollback(
+    id: number,
+    reviewer: string,
+    tenantId?: string,
+  ): Promise<AiEvolutionEntity> {
+    const entity = await this.getOrThrow(id, tenantId);
     this.assertStatus(entity, ['rolled_out']);
     await this.revert(entity);
     entity.status = 'rolled_back';
@@ -195,8 +204,11 @@ export class EvolutionService {
   /**
    * 列表（租户内）
    */
-  async list(tenantId: string, status?: string): Promise<AiEvolutionEntity[]> {
-    const where: { tenantId: string; status?: string } = { tenantId };
+  async list(tenantId?: string, status?: string): Promise<AiEvolutionEntity[]> {
+    // P1 修复（2026-10-04）：租户可选——平台身份跨租户运维不传=全量；
+    // 商户恒由控制器传入本租户
+    const where: { tenantId?: string; status?: string } = {};
+    if (tenantId) where.tenantId = tenantId;
     if (status) where.status = status;
     return this.repo.find({ where, order: { createdAt: 'DESC' } });
   }
@@ -261,8 +273,15 @@ export class EvolutionService {
     }
   }
 
-  private async getOrThrow(id: number): Promise<AiEvolutionEntity> {
-    const entity = await this.repo.findOne({ where: { id } });
+  private async getOrThrow(
+    id: number,
+    tenantId?: string,
+  ): Promise<AiEvolutionEntity> {
+    // P1 修复（2026-10-04）：传入租户时强制归属校验——此前按 id 裸查，
+    // 商户可对他人租户的提案执行审批/回滚
+    const entity = await this.repo.findOne({
+      where: { id, ...(tenantId ? { tenantId } : {}) },
+    });
     if (!entity) {
       throw new NotFoundException(`进化提案不存在：id=${id}`);
     }

@@ -80,8 +80,15 @@ export class ReviewTaskService {
   /**
    * 查询待审工单（租户 + 状态过滤）
    */
-  async list(tenantId: string, status?: string): Promise<ReviewTaskView[]> {
-    const where: { tenantId: string; status?: string } = { tenantId };
+  /**
+   * 查询待审工单（租户 + 状态过滤）
+   *
+   * P1 修复（2026-10-04）：tenantId 可选——平台身份跨租户运维不传时返回
+   * 全量；调用方必须经控制器身份口径决定是否传（商户恒传本租户）。
+   */
+  async list(tenantId?: string, status?: string): Promise<ReviewTaskView[]> {
+    const where: { tenantId?: string; status?: string } = {};
+    if (tenantId) where.tenantId = tenantId;
     if (status) where.status = status;
     const rows = await this.repo.find({
       where,
@@ -92,9 +99,14 @@ export class ReviewTaskService {
 
   /**
    * 查询单条工单
+   *
+   * P1 修复（2026-10-04）：此前纯按自增 id 裸查，商户可枚举 id 读他人租户
+   * 工单的 reviewPayload（含业务参数）——传入 tenantId 时强制归属校验。
    */
-  async get(id: number): Promise<ReviewTaskView> {
-    const entity = await this.repo.findOne({ where: { id } });
+  async get(id: number, tenantId?: string): Promise<ReviewTaskView> {
+    const entity = await this.repo.findOne({
+      where: { id, ...(tenantId ? { tenantId } : {}) },
+    });
     if (!entity) {
       throw new NotFoundException(`待审工单不存在：id=${id}`);
     }
@@ -103,9 +115,18 @@ export class ReviewTaskService {
 
   /**
    * 审核通过（仅 pending 可批准）
+   *
+   * P1 修复（2026-10-04）：传入 tenantId 时强制归属校验——此前按 id 裸改，
+   * 商户可枚举 id 批准别家租户的挂起写操作（approve 会续跑对方图执行）。
    */
-  async approve(id: number, reviewer: string): Promise<ReviewTaskView> {
-    const entity = await this.repo.findOne({ where: { id } });
+  async approve(
+    id: number,
+    reviewer: string,
+    tenantId?: string,
+  ): Promise<ReviewTaskView> {
+    const entity = await this.repo.findOne({
+      where: { id, ...(tenantId ? { tenantId } : {}) },
+    });
     if (!entity) {
       throw new NotFoundException(`待审工单不存在：id=${id}`);
     }
@@ -123,14 +144,17 @@ export class ReviewTaskService {
   }
 
   /**
-   * 审核驳回（仅 pending 可驳回）
+   * 审核驳回（仅 pending 可驳回；租户域语义同 approve）
    */
   async reject(
     id: number,
     reviewer: string,
     reason: string,
+    tenantId?: string,
   ): Promise<ReviewTaskView> {
-    const entity = await this.repo.findOne({ where: { id } });
+    const entity = await this.repo.findOne({
+      where: { id, ...(tenantId ? { tenantId } : {}) },
+    });
     if (!entity) {
       throw new NotFoundException(`待审工单不存在：id=${id}`);
     }

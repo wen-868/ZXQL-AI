@@ -226,15 +226,28 @@ export class ToolRegistry {
 
   /**
    * ITool → ToolMeta（剥离 execute 函数，可安全序列化）
+   *
+   * P1 修复（2026-10-04）：写工具未标 risk 时默认 medium（此前一律 low，
+   * 高危二次确认对未标注写工具永不触发），并打启动告警让漏标可见；
+   * 只读工具维持 low。
    */
   private toMeta(tool: ITool): ToolMeta {
+    let risk = tool.risk;
+    if (!risk) {
+      risk = tool.isWriteOperation ? 'medium' : 'low';
+      if (tool.isWriteOperation) {
+        this.logger.warn(
+          `工具 ${tool.name} 是写操作但未标注 risk，已按 medium 兜底（资金/不可逆类请显式标 high）`,
+        );
+      }
+    }
     return {
       name: tool.name,
       description: tool.description,
       category: tool.category,
       isWriteOperation: tool.isWriteOperation,
-      risk: tool.risk ?? 'low',
-      needsReview: tool.needsReview ?? tool.risk === 'high',
+      risk,
+      needsReview: tool.needsReview ?? risk === 'high',
       requiredTools: tool.requiredTools,
       scope: tool.scope ?? 'mgmt',
       parameters: tool.parameters,

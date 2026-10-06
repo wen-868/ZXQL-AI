@@ -19,9 +19,15 @@ import {
   ParseIntPipe,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { AdminGuard } from '../tenant/admin-auth.guard';
+import {
+  resolveAdminTenantId,
+  resolveOptionalAdminTenantId,
+} from '../tenant/admin-tenant-scope';
 import { EvolutionService } from '../brain/evolution/evolution.service';
 import type { ProposalInput } from '../brain/evolution/evolution.service';
 
@@ -30,51 +36,81 @@ import type { ProposalInput } from '../brain/evolution/evolution.service';
 export class EvolutionController {
   constructor(private readonly service: EvolutionService) {}
 
-  /** 进化版本列表 */
+  /**
+   * 进化版本列表
+   * P1 修复（2026-10-04）：租户由 JWT 身份解析（此前 query 自报缺省 'default'）
+   */
   @Get()
   list(
-    @Query('tenantId') tenantId = 'default',
+    @Req() req: Request,
+    @Query('tenantId') tenantId?: string,
     @Query('status') status?: string,
   ) {
-    return this.service.list(tenantId, status);
+    return this.service.list(
+      resolveOptionalAdminTenantId(req, tenantId),
+      status,
+    );
   }
 
-  /** 提出进化提案 */
+  /**
+   * 提出进化提案
+   * P1 修复（2026-10-04）：tenantId 由身份解析——此前取请求体自报，
+   * 商户可向任意租户提出案并自动创建审核工单
+   */
   @Post()
-  propose(@Body() dto: ProposalInput) {
-    return this.service.propose(dto);
+  propose(@Req() req: Request, @Body() dto: ProposalInput) {
+    return this.service.propose({
+      ...dto,
+      tenantId: resolveAdminTenantId(req, dto.tenantId),
+    });
   }
 
   /** 审核通过 → 灰度 */
   @Post(':id/approve')
   approve(
+    @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: { reviewer?: string },
   ) {
-    return this.service.approve(id, dto.reviewer ?? 'admin');
+    return this.service.approve(
+      id,
+      dto.reviewer ?? 'admin',
+      resolveOptionalAdminTenantId(req),
+    );
   }
 
   /** 审核驳回 */
   @Post(':id/reject')
   reject(
+    @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: { reviewer?: string; reason: string },
   ) {
-    return this.service.reject(id, dto.reviewer ?? 'admin', dto.reason);
+    return this.service.reject(
+      id,
+      dto.reviewer ?? 'admin',
+      dto.reason,
+      resolveOptionalAdminTenantId(req),
+    );
   }
 
   /** 灰度转正式生效 */
   @Post(':id/rollout')
-  rollout(@Param('id', ParseIntPipe) id: number) {
-    return this.service.rollout(id);
+  rollout(@Req() req: Request, @Param('id', ParseIntPipe) id: number) {
+    return this.service.rollout(id, resolveOptionalAdminTenantId(req));
   }
 
   /** 一键回滚 */
   @Post(':id/rollback')
   rollback(
+    @Req() req: Request,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: { reviewer?: string },
   ) {
-    return this.service.rollback(id, dto.reviewer ?? 'admin');
+    return this.service.rollback(
+      id,
+      dto.reviewer ?? 'admin',
+      resolveOptionalAdminTenantId(req),
+    );
   }
 }

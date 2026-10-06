@@ -61,6 +61,7 @@ export class CreateProductTool implements ITool {
     '示例参数：{"name":"红星二锅头 56度 500ml","categoryName":"白酒","retailPrice":45,"wholesalePrice":38,"boxRatio":6,"confirm":false}';
   readonly category = 'product' as const;
   readonly isWriteOperation = true;
+  readonly risk = 'medium' as const;
 
   readonly parameters = {
     type: 'object' as const,

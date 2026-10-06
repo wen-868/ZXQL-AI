@@ -66,6 +66,7 @@ export class CreateSalesReturnTool implements ITool {
     '示例参数：{"storeId":1,"customerName":"红星商行","items":[{"skuId":10,"skuName":"五粮液 500ml","boxQty":2,"unitPrice":850}],"confirm":false}';
   readonly category = 'finance' as const;
   readonly isWriteOperation = true;
+  readonly risk = 'medium' as const;
   readonly requiredTools = ['searchProduct'];
 
   readonly parameters = {

@@ -19,9 +19,12 @@ import {
   Param,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { AdminGuard } from '../../tenant/admin-auth.guard';
+import { resolveAdminTenantId } from '../../tenant/admin-tenant-scope';
 import { ProactiveService } from './proactive.service';
 import { WeeklyPlanService } from './weekly-plan.service';
 import { ProactiveJobInfo, ProactiveTaskResult } from './proactive.types';
@@ -69,9 +72,13 @@ export class ProactiveController {
    *
    * POST /api/admin/proactive/weekly-plan?tenantId=xxx
    */
+  /**
+   * P1 修复（2026-10-04）：租户由 JWT 身份解析（此前 query 自报缺省
+   * 'default'，商户可自报他人租户触发 LLM 周计划生成并推送留痕）
+   */
   @Post('weekly-plan')
-  async weeklyPlan(@Query('tenantId') tenantId?: string) {
-    const tid = tenantId?.trim() || 'default';
+  async weeklyPlan(@Req() req: Request, @Query('tenantId') tenantId?: string) {
+    const tid = resolveAdminTenantId(req, tenantId);
     this.logger.log(`收到 proactive/weekly-plan 请求，tenant=${tid}`);
     return this.weeklyPlanService.buildWeeklyPlan(tid);
   }

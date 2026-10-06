@@ -515,6 +515,28 @@ export class ConfirmationService {
   }
 
   /**
+   * 按确认 ID 查找已执行操作（graph 续跑用）
+   *
+   * P1 修复（2026-10-04）：图执行器在确认后续跑时需要拿回写操作的执行
+   * 结果（撤销窗口内存态，进程重启即丢——丢时调用方自行降级）。
+   */
+  getExecutedByConfirmation(
+    confirmationId: string,
+    tenantId: string,
+  ): ExecutedOperation | null {
+    for (const op of this.executedMap.values()) {
+      if (
+        op.confirmationId === confirmationId &&
+        op.tenantId === tenantId &&
+        op.status === 'executed'
+      ) {
+        return op;
+      }
+    }
+    return null;
+  }
+
+  /**
    * 查询已执行操作
    *
    * @param operationId 操作 ID

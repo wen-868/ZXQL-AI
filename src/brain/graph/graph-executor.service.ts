@@ -28,6 +28,7 @@ import type { ToolContext, ToolResult } from '../../tools/tool.interface';
 import { CheckpointerService } from './checkpointer.service';
 import { ReviewTaskService } from '../review/review-task.service';
 import { EvidenceLedgerService } from '../evidence/evidence-ledger.service';
+import { ConfirmationService } from '../confirmation.service';
 import { KnowledgeRulesService } from '../knowledge-rules.service';
 import {
   BUILTIN_GRAPHS,
@@ -58,6 +59,14 @@ export type GraphRunEvent =
       note: string;
       payload?: Record<string, unknown>;
     }
+  | {
+      type: 'pending_write';
+      token: string;
+      preview: ToolResult['preview'];
+      writeType: string;
+      expireAt: number;
+    }
+  | { type: 'await_confirm'; token: string; expireAt: number }
   | { type: 'graph_done'; graphId: string }
   | { type: 'error'; message: string };
 
@@ -72,6 +81,7 @@ export class GraphExecutorService implements OnModuleInit {
     private readonly reviewTaskService: ReviewTaskService,
     private readonly evidence: EvidenceLedgerService,
     private readonly knowledgeRules: KnowledgeRulesService,
+    private readonly confirmationService: ConfirmationService,
   ) {}
 
   /**
@@ -139,10 +149,14 @@ export class GraphExecutorService implements OnModuleInit {
         `图 ${graph.id} 从断点续跑：session=${sessionId} node=${state.currentNodeId}`,
       );
       // P0-4：暂停态先查审核结果（approved 续跑 / pending 等待 / rejected 终止）
+      // P1 修复（2026-10-04）：带租户条件——工单归属租户校验
       if (state.status === 'paused' && state.pendingReviewId) {
         let review;
         try {
-          review = await this.reviewTaskService.get(state.pendingReviewId);
+          review = await this.reviewTaskService.get(
+            state.pendingReviewId,
+            toolContext.tenantId,
+          );
         } catch {
           review = null;
         }
@@ -165,9 +179,76 @@ export class GraphExecutorService implements OnModuleInit {
         // approved：恢复运行
         state.status = 'running';
         state.pendingReviewId = undefined;
+        // P1 修复（2026-10-04）：登记已放行节点——审核通过=人工批准执行，
+        // 续跑时跳过闸（否则重新建单→暂停→死循环）并以 allowConfirm 真执行
+        state.approvedNodeIds = [
+          ...(state.approvedNodeIds ?? []),
+          state.currentNodeId,
+        ];
         this.logger.log(
           `图 ${graph.id} 人工审核通过，继续执行：node=${state.currentNodeId}`,
         );
+      }
+
+      // P1 修复（2026-10-04）：写操作确认挂起的续跑分支——
+      // 检查 WriteGuard 令牌状态：confirmed=写已执行（取回执行结果标记节点
+      // 完成并推进）；pending=仍在等待（重新下发确认事件）；其余（取消/
+      // 过期/记录丢失）按节点失败终止图。
+      const resume = state;
+      if (resume.status === 'paused' && resume.pendingWriteToken) {
+        const writeToken = resume.pendingWriteToken;
+        const write = await this.confirmationService.getByTenant(
+          writeToken,
+          toolContext.tenantId,
+        );
+        if (!write) {
+          state.status = 'error';
+          resume.pendingWriteToken = undefined;
+          resume.error = '写操作确认已失效（令牌过期或已删除），图执行终止';
+          await this.checkpointer.save(resume);
+          yield { type: 'error', message: resume.error };
+          return;
+        }
+        if (write.status === 'pending') {
+          await this.checkpointer.save(resume);
+          yield {
+            type: 'await_confirm',
+            token: writeToken,
+            expireAt: write.expiresAt,
+          };
+          return;
+        }
+        if (write.status === 'cancelled') {
+          resume.status = 'error';
+          resume.pendingWriteToken = undefined;
+          resume.error = '写操作已被用户取消，图执行终止';
+          await this.checkpointer.save(resume);
+          yield { type: 'error', message: resume.error };
+          return;
+        }
+        // confirmed：写已由确认端点真执行——回填节点产物并推进
+        resume.pendingWriteToken = undefined;
+        const executed = this.confirmationService.getExecutedByConfirmation(
+          writeToken,
+          toolContext.tenantId,
+        );
+        const writeNode = graph.nodes.find(
+          (n) => n.id === resume.currentNodeId,
+        );
+        resume.results[resume.currentNodeId] = executed?.result ?? {
+          confirmedExecuted: true,
+        };
+        resume.history.push({
+          nodeId: resume.currentNodeId,
+          label: writeNode?.label ?? resume.currentNodeId,
+          success: true,
+        });
+        this.logger.log(
+          `图 ${graph.id} 写操作确认已完成，节点续跑：node=${resume.currentNodeId}${executed ? '' : '（执行结果已随撤销窗口过期，产物以占位标记）'}`,
+        );
+        resume.status = 'running';
+        resume.currentNodeId = writeNode?.next ?? 'end';
+        await this.checkpointer.save(resume);
       }
     }
 
@@ -214,9 +295,14 @@ export class GraphExecutorService implements OnModuleInit {
             }
             // P0-5/P0-4：工具风险 high 或节点显式 needsReview → 人工闸
             const tool = this.registry.get(node.tool);
-            const toolRisk = tool?.risk ?? 'low';
+            // P1 修复（2026-10-04）：默认与 chat/MCP 通道对齐为 medium（此前 low 更宽松）
+            const toolRisk = tool?.risk ?? 'medium';
+            const approvedByReview = (state.approvedNodeIds ?? []).includes(
+              node.id,
+            );
             const needsReview =
-              node.needsReview || tool?.needsReview || toolRisk === 'high';
+              !approvedByReview &&
+              (node.needsReview || tool?.needsReview || toolRisk === 'high');
             if (needsReview) {
               const review = await this.reviewTaskService.create({
                 tenantId: toolContext.tenantId,
@@ -260,15 +346,59 @@ export class GraphExecutorService implements OnModuleInit {
             // P2 修复（2026-10-04）：与 chat 通道同口径的超时闸门——
             // 此前直接 await，卡死的工具会无限挂起图执行与 SSE 流，
             // checkpointer 永远停在 running
-            const result = await this.executeToolWithTimeout(
-              toolCall,
-              toolContext,
-            );
+            // P1 修复（2026-10-04）：审核放行的节点带 allowConfirm 真执行
+            // （审核=人工确认；否则 confirm 门强制降级 preview，写永不落地）
+            const result = approvedByReview
+              ? await this.executor.executeToolCall(toolCall, toolContext, {
+                  allowConfirm: true,
+                })
+              : await this.executeToolWithTimeout(toolCall, toolContext);
+            // P1 修复（2026-10-04）：写工具返回 preview（confirm 门强制降级，
+            // 未真执行）→ 挂 WriteGuard 确认并暂停图——此前 preview 被当作
+            // "节点成功"继续跑到 graph_done，业务单据根本没创建且无确认入口
+            if (tool?.isWriteOperation && result.success && result.preview) {
+              const write = await this.confirmationService.create({
+                tenantId: toolContext.tenantId,
+                conversationId: sessionId,
+                toolName: node.tool,
+                risk: toolRisk,
+                args: node.args ?? {},
+                preview: result.preview,
+                operationLabel: `图「${graph.name}」节点「${node.label}」`,
+              });
+              state.status = 'paused';
+              state.pendingWriteToken = write.confirmationId;
+              state.history.push({
+                nodeId: node.id,
+                label: node.label,
+                success: false,
+              });
+              await this.checkpointer.save(state);
+              const expireAt = Date.now() + 24 * 60 * 60 * 1000;
+              yield {
+                type: 'pending_write',
+                token: write.confirmationId,
+                preview: result.preview,
+                writeType: node.tool,
+                expireAt,
+              };
+              yield {
+                type: 'await_confirm',
+                token: write.confirmationId,
+                expireAt,
+              };
+              return;
+            }
             // C10 证据优先（P0-7）：写操作账本 + 呈现前核查
-            // P2 修复（2026-10-04）：与 chat 通道口径对齐——仅写工具且执行
-            // 成功才记台账（此前只读查询与失败调用也打 is_write_operation=true，
-            // 污染证据台账的撤销/追责溯源）
-            if (node.tool && this.isWriteTool(node.tool) && result.success) {
+            // P2 修复（2026-10-04）：与 chat 通道口径对齐——仅写工具、非
+            // preview、执行成功才记台账（此前只读查询/失败调用/预览都会
+            // 打 is_write_operation=true，污染证据台账的撤销/追责溯源）
+            if (
+              node.tool &&
+              this.isWriteTool(node.tool) &&
+              !result.preview &&
+              result.success
+            ) {
               this.evidence.recordWrite(
                 toolContext,
                 node.tool,

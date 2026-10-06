@@ -209,12 +209,15 @@ export class AiDbController {
       taskType: string;
       force?: boolean;
       baseModel?: string;
+      /** P1 修复（2026-10-04）：平台身份的目标租户——此前三端点没有
+       * 任何传租户的通道，平台身份恒 400 死锁；商户传了也会被锁回本租户 */
+      tenantId?: string;
     },
   ) {
     // 租户从 JWT 身份解析（此前 `getData()?.tenantId ?? 'default'` 在管理路由下
     // 恒为 'default'：真实租户的样本永远训练不到，且多租户会共用一份 'default'
     // 样本池互相污染）。商户锁本租户，平台须显式指定目标租户。
-    const tenantId = resolveAdminTenantId(req);
+    const tenantId = resolveAdminTenantId(req, dto.tenantId);
     return this.e4.train(dto.taskType ?? '', {
       force: dto.force ?? false,
       baseModel: dto.baseModel,
@@ -224,8 +227,8 @@ export class AiDbController {
 
   /** E4 就绪度看板（各 taskType 的 quality≥4 样本量/平均质量/是否达训练阈值） */
   @Get('e4/readiness')
-  e4Readiness(@Req() req: Request) {
-    return this.e4.readiness(resolveAdminTenantId(req));
+  e4Readiness(@Req() req: Request, @Query('tenantId') tenantId?: string) {
+    return this.e4.readiness(resolveAdminTenantId(req, tenantId));
   }
 
   /** E4 训练集导出（JSONL messages 格式，quality≥4，供离线微调管线） */
@@ -234,11 +237,12 @@ export class AiDbController {
     @Req() req: Request,
     @Query('taskType') taskType: string,
     @Query('limit') limit?: string,
+    @Query('tenantId') tenantId?: string,
   ) {
     return this.e4.exportDataset(
       taskType ?? '',
       limit ? Number(limit) : 500,
-      resolveAdminTenantId(req),
+      resolveAdminTenantId(req, tenantId),
     );
   }
 

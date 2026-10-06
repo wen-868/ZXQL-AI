@@ -91,6 +91,7 @@ export class InventoryTransferTool implements ITool {
     '"items":[{"skuId":101,"skuName":"五粮液 500ml","quantity":50,"unitPrice":850}],"confirm":false}';
   readonly category = 'inventory' as const;
   readonly isWriteOperation = true;
+  readonly risk = 'high' as const;
   readonly requiredTools = ['searchProduct'];
 
   readonly parameters = {

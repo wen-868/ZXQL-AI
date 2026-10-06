@@ -46,6 +46,7 @@ export class CreateDeliveryTool implements ITool {
     '示例参数：{"orderNo":"SO20260730001","confirm":false}';
   readonly category = 'delivery' as const;
   readonly isWriteOperation = true;
+  readonly risk = 'medium' as const;
   readonly requiredTools = ['queryDeliveryStatus'];
 
   readonly parameters = {

@@ -90,6 +90,7 @@ export class CreateCustomerTool implements ITool {
     '示例参数：{"name":"兴旺超市","phone":"13800000000","customerType":"WHOLESALE","settlementType":"ACCOUNT","address":"解放路88号","remark":"周结客户","confirm":false}';
   readonly category = 'customer' as const;
   readonly isWriteOperation = true;
+  readonly risk = 'medium' as const;
 
   readonly parameters = {
     type: 'object' as const,

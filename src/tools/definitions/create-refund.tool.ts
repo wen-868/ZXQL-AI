@@ -56,6 +56,7 @@ export class CreateRefundTool implements ITool {
     '示例参数：{"returnNo":"TH202608010001","refundMethod":"WECHAT","confirm":false}';
   readonly category = 'finance' as const;
   readonly isWriteOperation = true;
+  readonly risk = 'high' as const;
 
   readonly parameters = {
     type: 'object' as const,

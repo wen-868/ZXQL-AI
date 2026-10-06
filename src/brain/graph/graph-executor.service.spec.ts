@@ -172,6 +172,11 @@ function makeExecutor(
   const knowledgeRulesMock = {
     getRulesContext: jest.fn(() => undefined),
   };
+  const confirmationServiceMock = {
+    create: jest.fn(),
+    getByTenant: jest.fn().mockResolvedValue(null),
+    getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+  };
   return new GraphExecutorService(
     executorMock as unknown as ToolExecutor,
     checkpointer as unknown as CheckpointerService,
@@ -179,6 +184,7 @@ function makeExecutor(
     review as unknown as ReviewTaskService,
     evidence as unknown as EvidenceLedgerService,
     knowledgeRulesMock as unknown as KnowledgeRulesService,
+    confirmationServiceMock as never,
   );
 }
 
@@ -418,6 +424,11 @@ describe('GraphExecutorService', () => {
       { create: jest.fn(), get: jest.fn().mockResolvedValue(null) } as never,
       { recordWrite: jest.fn(), verify: jest.fn() } as never,
       rulesMock as never,
+      {
+        create: jest.fn(),
+        getByTenant: jest.fn().mockResolvedValue(null),
+        getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+      } as never,
     );
 
     const events: Array<{ type: string; [k: string]: unknown }> = [];
@@ -562,5 +573,231 @@ describe('GraphExecutorService', () => {
       events2.push(e);
     }
     expect(events2.some((e) => e.type === 'graph_done')).toBe(true);
+  });
+});
+
+describe('graph 写操作确认闭环（P1 修复回归）', () => {
+  const WRITE_GRAPH: GraphDefinition = {
+    id: 'test_write',
+    name: '写单图',
+    entry: 'create',
+    nodes: [
+      {
+        id: 'create',
+        label: '创建销售单',
+        type: 'tool',
+        tool: 'createSalesOrder',
+        args: {},
+        next: 'end',
+      },
+      { id: 'end', label: '完成', type: 'end' },
+    ],
+  };
+
+  function makeWired(opts: {
+    preview?: {
+      operation: string;
+      summary: string;
+      details: Record<string, unknown>;
+    };
+    writeStatus?: string;
+    executedResult?: unknown;
+  }) {
+    const checkpointer = makeCheckpointer();
+    const confirmation = {
+      create: jest.fn().mockResolvedValue({ confirmationId: 'wg_tok1' }),
+      getByTenant: jest
+        .fn()
+        .mockResolvedValue(
+          opts.writeStatus
+            ? { status: opts.writeStatus, expiresAt: 9999 }
+            : null,
+        ),
+      getExecutedByConfirmation: jest.fn(() =>
+        opts.executedResult !== undefined
+          ? { result: opts.executedResult }
+          : null,
+      ),
+    };
+    const executorMock = {
+      executeToolCall: jest
+        .fn()
+        .mockResolvedValue(
+          opts.preview
+            ? { success: true, preview: opts.preview }
+            : { success: true, data: { ok: 1 } },
+        ),
+    };
+    const evidence = {
+      recordWrite: jest.fn(),
+      verify: jest.fn(() => ({ ok: true, issues: [] })),
+    };
+    const service = new GraphExecutorService(
+      executorMock as never,
+      checkpointer as never,
+      {
+        toToolDefinitions: jest.fn(() => []),
+        has: jest.fn(() => true),
+        get: jest.fn(() => ({
+          name: 'createSalesOrder',
+          isWriteOperation: true,
+          risk: 'medium',
+          needsReview: false,
+        })),
+      } as never,
+      { create: jest.fn(), get: jest.fn().mockResolvedValue(null) } as never,
+      evidence as never,
+      { getRulesContext: jest.fn(() => undefined) } as never,
+      confirmation as never,
+    );
+    return { service, checkpointer, confirmation, executorMock, evidence };
+  }
+
+  async function collect(
+    gen: AsyncGenerator<{ type: string; [k: string]: unknown }>,
+  ) {
+    const out: Array<{ type: string; [k: string]: unknown }> = [];
+    for await (const e of gen) out.push(e);
+    return out;
+  }
+
+  it('写工具返回 preview → 挂 WriteGuard 确认并暂停（节点不标成功、不记台账、不推到 end）', async () => {
+    const { service, checkpointer, confirmation, evidence } = makeWired({
+      preview: { operation: '创建销售单', summary: '预览', details: {} },
+    });
+
+    const events = await collect(service.execute(WRITE_GRAPH, 's1', makeCtx()));
+
+    expect(confirmation.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'createSalesOrder',
+        tenantId: 't1',
+      }),
+    );
+    const pw = events.find((e) => e.type === 'pending_write');
+    expect(pw?.token).toBe('wg_tok1');
+    expect(events.some((e) => e.type === 'await_confirm')).toBe(true);
+    // 此前缺陷：preview 被当作成功一路推到 graph_done
+    expect(events.some((e) => e.type === 'graph_done')).toBe(false);
+    const state = await checkpointer.load('t1', 's1');
+    expect(state?.status).toBe('paused');
+    expect(state?.pendingWriteToken).toBe('wg_tok1');
+    // preview 不是已执行写，不得进证据台账
+    expect(evidence.recordWrite).not.toHaveBeenCalled();
+  });
+
+  it('确认完成后续跑：confirmed → 回填执行结果并推进到 end', async () => {
+    const { service, checkpointer, confirmation } = makeWired({
+      writeStatus: 'confirmed',
+      executedResult: { id: 42 },
+    });
+    await checkpointer.save({
+      graphId: 'test_write',
+      tenantId: 't1',
+      sessionId: 's1',
+      currentNodeId: 'create',
+      status: 'paused',
+      results: {},
+      nodeOrder: [],
+      history: [],
+      pendingWriteToken: 'wg_tok1',
+      updatedAt: 0,
+    });
+
+    const events = await collect(service.execute(WRITE_GRAPH, 's1', makeCtx()));
+
+    expect(confirmation.getExecutedByConfirmation).toHaveBeenCalled();
+    expect(events.some((e) => e.type === 'graph_done')).toBe(true);
+  });
+
+  it('确认取消后续跑：cancelled → 图终止且不再推进', async () => {
+    const { service, checkpointer } = makeWired({ writeStatus: 'cancelled' });
+    await checkpointer.save({
+      graphId: 'test_write',
+      tenantId: 't1',
+      sessionId: 's1',
+      currentNodeId: 'create',
+      status: 'paused',
+      results: {},
+      nodeOrder: [],
+      history: [],
+      pendingWriteToken: 'wg_tok1',
+      updatedAt: 0,
+    });
+
+    const events = await collect(service.execute(WRITE_GRAPH, 's1', makeCtx()));
+
+    const err = events.find((e) => e.type === 'error');
+    expect(err).toBeDefined();
+    expect(String(err?.message)).toContain('取消');
+    expect(events.some((e) => e.type === 'graph_done')).toBe(false);
+  });
+
+  it('needsReview 审核通过续跑：不再重复建单且带 allowConfirm 真执行（死循环封堵）', async () => {
+    const reviewMock = {
+      create: jest.fn().mockResolvedValue({ id: 7, payload: null }),
+      get: jest.fn().mockResolvedValue({ status: 'approved' }),
+    };
+    const checkpointer = makeCheckpointer();
+    const executorMock = {
+      executeToolCall: jest
+        .fn()
+        .mockResolvedValue({ success: true, data: { done: 1 } }),
+    };
+    const service = new GraphExecutorService(
+      executorMock as never,
+      checkpointer as never,
+      {
+        toToolDefinitions: jest.fn(() => []),
+        has: jest.fn(() => true),
+        get: jest.fn(() => ({
+          name: 'searchCustomer',
+          isWriteOperation: true,
+          risk: 'high',
+          needsReview: false,
+        })),
+      } as never,
+      reviewMock as never,
+      {
+        recordWrite: jest.fn(),
+        verify: jest.fn(() => ({ ok: true, issues: [] })),
+      } as never,
+      { getRulesContext: jest.fn(() => undefined) } as never,
+      {
+        create: jest.fn(),
+        getByTenant: jest.fn().mockResolvedValue(null),
+        getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+      } as never,
+    );
+
+    // 第一跑：建单暂停
+    const graph: GraphDefinition = {
+      id: 'test_review',
+      name: '审核图',
+      entry: 'step',
+      nodes: [
+        {
+          id: 'step',
+          label: '高危步骤',
+          type: 'tool',
+          tool: 'searchCustomer',
+          needsReview: true,
+          next: 'end',
+        },
+        { id: 'end', label: '完成', type: 'end' },
+      ],
+    };
+    await collect(service.execute(graph, 's1', makeCtx()));
+    expect(reviewMock.create).toHaveBeenCalledTimes(1);
+    expect(executorMock.executeToolCall).not.toHaveBeenCalled();
+
+    // 第二跑（审核已批准）：不建新单，allowConfirm 真执行
+    await collect(service.execute(graph, 's1', makeCtx()));
+    expect(reviewMock.create).toHaveBeenCalledTimes(1);
+    expect(executorMock.executeToolCall).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { allowConfirm: true },
+    );
   });
 });

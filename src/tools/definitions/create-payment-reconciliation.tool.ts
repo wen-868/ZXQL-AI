@@ -42,6 +42,7 @@ export class CreatePaymentReconciliationTool implements ITool {
     '示例参数：{"customerId":5,"confirm":false}';
   readonly category = 'finance' as const;
   readonly isWriteOperation = true;
+  readonly risk = 'high' as const;
   readonly requiredTools = ['searchCustomer'];
 
   readonly parameters = {

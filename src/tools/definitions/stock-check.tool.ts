@@ -61,6 +61,7 @@ export class StockCheckTool implements ITool {
     '示例参数：{"storeId":1,"remark":"月度盘点","items":[{"skuId":101,"skuName":"五粮液 500ml","bookQty":200}],"confirm":false}';
   readonly category = 'inventory' as const;
   readonly isWriteOperation = true;
+  readonly risk = 'medium' as const;
 
   readonly parameters = {
     type: 'object' as const,

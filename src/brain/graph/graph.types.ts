@@ -105,6 +105,10 @@ export interface GraphState {
   error?: string;
   /** 暂停等待的待审工单 ID（P0-4 人工闸） */
   pendingReviewId?: number;
+  /** 暂停等待的写操作确认令牌（P1 修复 2026-10-04：写工具 preview 挂起） */
+  pendingWriteToken?: string;
+  /** 人工审核已放行的节点（P1 修复 2026-10-04：防 needsReview 死循环） */
+  approvedNodeIds?: string[];
   /** 更新时间戳 */
   updatedAt: number;
 }
@@ -113,7 +117,15 @@ export interface GraphState {
 export type GraphEvent =
   | { type: 'node_start'; nodeId: string; label: string }
   | { type: 'node_end'; nodeId: string; label: string; success: boolean }
-  | { type: 'graph_done'; graphId: string };
+  | { type: 'graph_done'; graphId: string }
+  | {
+      type: 'pending_write';
+      token: string;
+      preview: unknown;
+      writeType: string;
+      expireAt: number;
+    }
+  | { type: 'await_confirm'; token: string; expireAt: number };
 
 /** 内置图注册表（管理系统域，先落地骨架示例） */
 export const BUILTIN_GRAPHS: Record<string, GraphDefinition> = {

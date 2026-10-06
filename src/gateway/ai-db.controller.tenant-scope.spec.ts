@@ -111,6 +111,15 @@ describe('AiDbController 租户口径', () => {
         controller.e4Train(reqWith(platform()), { taskType: 'order' }),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('平台身份显式指定租户 → 按指定租户训练（P1 回归：三端点此前无传租户通道致平台恒 400 死锁）', async () => {
+      const { controller, calls } = makeController();
+      await controller.e4Train(reqWith(platform()), {
+        taskType: 'order',
+        tenantId: 't_target',
+      });
+      expect(calls.train[0].tenantId).toBe('t_target');
+    });
   });
 
   describe('e4/readiness', () => {
@@ -126,6 +135,12 @@ describe('AiDbController 租户口径', () => {
         BadRequestException,
       );
     });
+
+    it('平台身份显式指定 → 按指定租户出看板', () => {
+      const { controller, calls } = makeController();
+      void controller.e4Readiness(reqWith(platform()), 't_target');
+      expect(calls.readiness[0]).toBe('t_target');
+    });
   });
 
   describe('e4/dataset', () => {
@@ -133,6 +148,12 @@ describe('AiDbController 租户口径', () => {
       const { controller, calls } = makeController();
       void controller.e4Dataset(reqWith(merchant('t_real')), 'order', '10');
       expect(calls.dataset[0][2]).toBe('t_real');
+    });
+
+    it('平台身份显式指定 → 按指定租户导出（P1 回归）', () => {
+      const { controller, calls } = makeController();
+      void controller.e4Dataset(reqWith(platform()), 'order', '10', 't_target');
+      expect(calls.dataset[0][2]).toBe('t_target');
     });
   });
 

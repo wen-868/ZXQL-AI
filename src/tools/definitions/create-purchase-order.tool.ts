@@ -116,6 +116,7 @@ export class CreatePurchaseOrderTool implements ITool {
     '示例参数：{"supplierName":"红星酒业","storeId":1,"items":[{"skuId":10,"skuName":"五粮液 500ml","boxQty":100,"unitPrice":850,"productInfo":{"boxRatio":6,"costPrice":830}}],"confirm":false}';
   readonly category = 'purchase' as const;
   readonly isWriteOperation = true;
+  readonly risk = 'medium' as const;
   readonly requiredTools = ['searchProduct'];
 
   readonly parameters = {

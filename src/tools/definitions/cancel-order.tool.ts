@@ -36,6 +36,7 @@ export class CancelOrderTool implements ITool {
     '示例：用户说"取消ORD20260801001"→ 调用此工具 → 传入 orderNo 和 reason。';
   readonly category = 'order' as const;
   readonly isWriteOperation = true;
+  readonly risk = 'high' as const;
 
   readonly parameters = {
     type: 'object' as const,

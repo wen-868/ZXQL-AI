@@ -101,6 +101,7 @@ export class UpdateProductPriceTool implements ITool {
     '示例参数：{"skuId":101,"priceType":"wholesalePrice","newPrice":1000,"productInfo":{"skuName":"五粮液 500ml","currentPrice":980},"confirm":false}';
   readonly category = 'product' as const;
   readonly isWriteOperation = true;
+  readonly risk = 'high' as const;
   readonly requiredTools = ['searchProduct'];
 
   readonly parameters = {
