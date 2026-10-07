@@ -15,6 +15,14 @@ import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
 @Index('idx_tenant_created', ['tenantId', 'createdAt'])
 @Index('idx_tenant_date', ['tenantId', 'statDate'])
 @Index('idx_date', ['statDate'])
+// D-2：写入侧 audit-logger.ts:441-454 的 INSERT ... ON DUPLICATE KEY UPDATE 依赖
+// (tenant_id, stat_date, provider, model) 唯一键才能走 UPDATE 分支。该键缺失时
+// UPSERT 退化为纯 INSERT，表按请求数膨胀，用量报表与超阈值告警静默失真。
+// 库侧由 migrations/014_usage_daily_unique_key.sql 建立，此处保持实体与库一致。
+// 注意：provider/model 可空，MySQL 唯一键对 NULL 不去重，NULL 行仍会膨胀（见 014 注释）。
+@Index('uk_usage_daily', ['tenantId', 'statDate', 'provider', 'model'], {
+  unique: true,
+})
 export class AiUsageDailyEntity {
   /** 主键ID */
   @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true, comment: '主键ID' })
