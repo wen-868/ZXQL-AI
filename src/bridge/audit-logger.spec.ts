@@ -120,6 +120,28 @@ describe('AuditLogger', () => {
     expect(saved[0].categories).toBeNull();
   });
 
+  // D-2 闭环守卫：唯一索引视每个 NULL 互不相同，用量行若带 NULL 的
+  // provider/model 不会被 uk_usage_daily 去重，表会重新按请求数膨胀。
+  // 写入侧必须落空串 —— 这条断言防的是「改回传 null」这类回归。
+  it('upsertDailyUsage：provider/model 为 null 时落空串而非 NULL（唯一键可去重）', async () => {
+    const { logger, usageParams } = createHarness();
+
+    logger.logAiCall({
+      tenantId: 't1',
+      lane: 'chat',
+      promptTokens: 1,
+      completionTokens: 2,
+      success: true,
+    });
+    await flush();
+
+    expect(usageParams).toHaveLength(1);
+    const p = usageParams[0];
+    // 入参顺序：tenantId, statDate, chat, tool, prompt, completion, total, provider, model
+    expect(p[7]).toBe('');
+    expect(p[8]).toBe('');
+  });
+
   it('logAiCall：未传 lane/categories → 落 null（历史调用方不受影响）', async () => {
     const { logger, saved } = createHarness();
 

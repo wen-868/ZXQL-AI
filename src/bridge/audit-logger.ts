@@ -418,8 +418,19 @@ export class AuditLogger {
    * UPSERT 日用量汇总
    *
    * 按 (tenant_id, stat_date, provider, model) 唯一键：
-   * - 存在则累加（chat_count / tool_call_count / tokens）
-   * - 不存在则插入
+   * - 命中唯一键则累加（chat_count / tool_call_count / tokens）
+   * - 未命中则插入
+   *
+   * ⚠️ 该唯一键由 migrations/014_usage_daily_unique_key.sql 建立（D-2）。
+   *   **键建立之前，本 UPSERT 并不具备去重能力**：INSERT 不带 id，主键自增
+   *   永不冲突，而表上其余索引全是非唯一的 ⇒ ON DUPLICATE KEY UPDATE 分支
+   *   永不命中 ⇒ 每次调用都 INSERT 新行，t_ai_usage_daily 按请求数而非
+   *   「租户×日期×模型」膨胀，用量报表与超阈值告警静默失真。
+   *   014 执行后行为才与上面的描述一致。
+   *
+   * ⚠️ provider / model 传空串而非 NULL：MySQL 唯一索引视每个 NULL 互不相同，
+   *   传 NULL 的行不会被唯一键去重（会重新膨胀）。空串是普通值，可被去重。
+   *   列的 nullable 未改，约定由本方法保证。
    *
    * 使用 MySQL INSERT ... ON DUPLICATE KEY UPDATE 语法（TypeORM 的 upsert 方法封装）
    */
@@ -460,8 +471,10 @@ export class AuditLogger {
             params.promptTokens,
             params.completionTokens,
             totalTokens,
-            params.provider,
-            params.model,
+            // D-2：唯一索引对每个 NULL 视为互不相同 ⇒ 传 NULL 的行不会被去重。
+            // 统一用空串表示「未指定」，配合 014 的唯一键对所有行生效。
+            params.provider ?? '',
+            params.model ?? '',
           ],
         );
       },

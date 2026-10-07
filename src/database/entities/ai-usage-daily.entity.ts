@@ -19,7 +19,10 @@ import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
 // (tenant_id, stat_date, provider, model) 唯一键才能走 UPDATE 分支。该键缺失时
 // UPSERT 退化为纯 INSERT，表按请求数膨胀，用量报表与超阈值告警静默失真。
 // 库侧由 migrations/014_usage_daily_unique_key.sql 建立，此处保持实体与库一致。
-// 注意：provider/model 可空，MySQL 唯一键对 NULL 不去重，NULL 行仍会膨胀（见 014 注释）。
+// provider / model 列仍声明 nullable（避免大表结构变更），但语义上不再用 NULL
+// 表示「未指定」：写入侧 audit-logger.ts 统一传空串，014 第 2 步把存量 NULL
+// 归一成空串。唯一索引视每个 NULL 互不相同，只有非空值（含空串）才会被去重，
+// 因此归一到空串后本唯一键对**全部**行生效。
 @Index('uk_usage_daily', ['tenantId', 'statDate', 'provider', 'model'], {
   unique: true,
 })

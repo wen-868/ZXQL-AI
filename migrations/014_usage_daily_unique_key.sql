@@ -29,9 +29,12 @@
 --
 -- ⚠️ 注释规范：破折号后必须留一个空白，否则 MySQL 报 1064。
 --
--- ⚠️ 残留风险（本迁移不解决，见报告第 5 节）：provider / model 列可空，
---   MySQL/MariaDB 唯一键对 NULL 不去重 ⇒ provider 或 model 为 NULL 的行仍会膨胀。
---   需要改写入侧（audit-logger 传空串而非 NULL）才能根治，不属于本迁移范围。
+-- ⚠️ provider / model 列保持 nullable（不改列定义，避免大表结构变更），
+--   但**语义上不再用 NULL 表示"未指定"**：
+--   * 本迁移第 2 步把存量 NULL 归一成空串；
+--   * 写入侧 audit-logger.ts 传 '' 而非 null。
+--   唯一索引视每个 NULL 互不相同，只有非空值（含空串）才会被去重，
+--   因此归一到空串后唯一键才对**全部**行生效。
 
 SET @main_db := DATABASE();
 
@@ -67,7 +70,29 @@ SET @ddl := IF(
 );
 PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
--- ── 2) 查重（只读，供人工核对规模）──────────────────────────────────
+-- ── 2) NULL 归一化：provider / model 的 NULL 一律改成空串 ───────────
+-- 原因：MySQL/MariaDB 的唯一索引把每个 NULL 视为互不相同 ⇒ 同
+--   (tenant_id, stat_date, NULL, NULL) 可以无限插入，唯一键对这部分行无效。
+--   本机 liquor_inventory 库实测 196 行里 99 行两列均为 NULL（约一半）。
+--   写入侧（audit-logger.ts）已同步改为传空串，存量由本步归一。
+--
+-- 顺序（不可颠倒）：先归一化 → 再去重合并 → 最后建唯一键。
+--   若先按 NULL 合并再改空串，可能撞上已存在的空串行而冒出新的重复组。
+--
+-- 幂等：第二次跑命中 0 行。
+--
+-- 守卫：仅当**尚不存在**唯一键时才归一化。若已有唯一键，且库里 NULL 行与
+--   空串行同时存在，这条 UPDATE 会在语句内触发 1062 重复键错误；
+--   此时重复组仍按第 5 步的 <=> 合并，不会丢数据，但需要人工确认后再处理。
+UPDATE t_ai_usage_daily SET provider = '' WHERE provider IS NULL AND @uk_exists = 0;
+UPDATE t_ai_usage_daily SET model    = '' WHERE model    IS NULL AND @uk_exists = 0;
+
+SELECT SUM(provider IS NULL) AS provider_null_left,
+       SUM(model IS NULL) AS model_null_left,
+       COUNT(*) AS rows_after_normalize
+  FROM t_ai_usage_daily;
+
+-- ── 3) 查重（只读，供人工核对规模）──────────────────────────────────
 SELECT COUNT(*) AS dup_groups
   FROM (
     SELECT tenant_id, stat_date, provider, model
@@ -84,7 +109,7 @@ SELECT
       GROUP BY tenant_id, stat_date, provider, model
    ) AS g) AS groups_before;
 
--- ── 3) 重复组聚合到临时表（只收 COUNT(*)>1 的组）────────────────────
+-- ── 4) 重复组聚合到临时表（只收 COUNT(*)>1 的组）────────────────────
 DROP TEMPORARY TABLE IF EXISTS tmp_usage_daily_dups;
 CREATE TEMPORARY TABLE tmp_usage_daily_dups AS
 SELECT tenant_id,
@@ -111,7 +136,7 @@ SELECT COUNT(*) AS groups_to_merge,
        COALESCE(SUM(dup_cnt - 1), 0) AS rows_to_delete
   FROM tmp_usage_daily_dups;
 
--- ── 4) SUM 合并回保留行（keep_id = 组内 MIN(id)）────────────────────
+-- ── 5) SUM 合并回保留行（keep_id = 组内 MIN(id)）────────────────────
 UPDATE t_ai_usage_daily t
   JOIN tmp_usage_daily_dups d ON t.id = d.keep_id
    SET t.chat_count        = d.s_chat_count,
@@ -124,8 +149,10 @@ UPDATE t_ai_usage_daily t
        t.total_cost        = d.s_total_cost,
        t.created_at        = d.s_created_at;
 
--- ── 5) 删除多余行（数值已在第 4 步合并进保留行，此处无数据丢失）────
---    provider / model 可空，故用 NULL 安全比较运算符 <=>
+-- ── 6) 删除多余行（数值已在第 5 步合并进保留行，此处无数据丢失）────
+--    仍保留 <=> 而非改成 =：第 2 步归一化之后正常情况下已无 NULL，
+--    但迁移执行期间若有并发写入插入了 NULL 行，<=> 能一并收进组里，
+--    换成 = 会漏掉它们（残留下重复行）。二者在无 NULL 时行为完全一致。
 DELETE t
   FROM t_ai_usage_daily t
   JOIN tmp_usage_daily_dups d
@@ -137,7 +164,7 @@ DELETE t
 
 DROP TEMPORARY TABLE IF EXISTS tmp_usage_daily_dups;
 
--- ── 6) 建唯一键（条件执行，MySQL 8.0 / MariaDB 通用）────────────────
+-- ── 7) 建唯一键（条件执行，MySQL 8.0 / MariaDB 通用）────────────────
 SET @uk_exists := (
   SELECT COUNT(*) FROM information_schema.STATISTICS
    WHERE TABLE_SCHEMA = @main_db
@@ -152,7 +179,7 @@ SET @ddl := IF(
 );
 PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
--- ── 7) 核验（人工阅读输出即可）──────────────────────────────────────
+-- ── 8) 核验（人工阅读输出即可）──────────────────────────────────────
 --  dup_groups 应为 0；rows_after 应等于 groups_after
 SELECT COUNT(*) AS dup_groups_after
   FROM (
