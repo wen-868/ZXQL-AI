@@ -408,8 +408,49 @@ $ git show --stat --oneline d3f4993
 
 ### 7.2 推送与远程核实
 
-见下方「八、远程核实结果」（推送后由 `gh api` 独立确认，不引用本地 `origin/main` 引用 ——
-`git fetch origin` 会失败导致本地引用是旧值）。
+推送前先探测远程真实 sha（**不引用本地 `origin/main` 引用** ——
+`git fetch origin` 在本环境会失败，会导致本地引用是旧值）：
+
+```
+$ gh api repos/wen-868/ZXQL-AI/commits/main --jq .sha
+bb579d3b69d59dc515c4aa1490d9540592aca1fe# 推送前远程在bb579d3
+```
+
+> 注：`bb579d3`（阶段 3 并发/幂等选型报告）是**队友 p3-designer 在我两个提交之间**
+> 落到 main 的，不在我的交付范围内，但也随之一起推上去了（符合预期）。
+
+按任务卡指引，502/schannel 通道已知不稳，直接走 IP 直连：
+
+```
+$ git push gh-ip main
+To https://20.205.243.166/wen-868/ZXQL-AI.git
+   bb579d3..1e3577d  main -> main
+PUSH_EXIT=0
+```
+
+推送后用 `gh api` 独立核实远程真实提交：
+
+```
+$ gh api repos/wen-868/ZXQL-AI/commits/main --jq .sha
+1e3577d3a1ba71f5fbdc01973ea992a132f5b092
+$ git rev-parse HEAD
+1e3577d3a1ba71f5fbdc01973ea992a132f5b092
+
+$ gh api "repos/wen-868/ZXQL-AI/commits?sha=main&per_page=3" --jq '.[] | "\(.sha[0:7]) \(.commit.message | split("\n")[0])"'
+1e3577d docs(阶段4-1): 补 taskType 归一执行报告 —— 门禁原文 + 反测证据 + 两处任务卡更正
+bb579d3 docs(阶段3): 并发/幂等选型报告（只读调研，不改业务代码）
+d3f4993 fix(阶段4-1): 修复进化飞轮 taskType 口径归一 —— 样本 100% 进不了 few-shot 池
+```
+
+✅ **远程 `main` 真实 sha = `1e3577d`，与本地 HEAD 逐字一致。**
+本次交付的两个提交均已在远程：
+- `d3f4993` —— 代码修复 + 契约测试 + 迁移脚本
+- `1e3577d` —— 执行报告
+
+### 7.3 临时 worktree 清理
+
+两个验证 worktree（`p4-worker-verify` / `p4-baseline-check`）均为一次性用途，
+门禁与反测完成后已`git worktree remove` + `rm -rf` 清理，未在仓库留下任何残留引用。
 
 ---
 
