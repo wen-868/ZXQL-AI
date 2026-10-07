@@ -114,22 +114,6 @@ export class McpTokenService {
   }
 
   /**
-   * 启停 Token
-   *
-   * @param id      Token ID
-   * @param enabled 1=启用 0=停用
-   * @returns 是否更新成功
-   */
-  async setEnabled(id: number, enabled: boolean): Promise<boolean> {
-    const result = await this.repo.update(id, { enabled: enabled ? 1 : 0 });
-    if (result.affected && result.affected > 0) {
-      this.logger.log(`MCP Token 已${enabled ? '启用' : '停用'}：id=${id}`);
-      return true;
-    }
-    return false;
-  }
-
-  /**
    * 启停 Token（租户域版本，2026-10-04 P1 修复）
    *
    * @param tenantId 传入时条件追加 tenant_id（商户身份只允许操作本租户
@@ -148,21 +132,6 @@ export class McpTokenService {
       this.logger.log(
         `MCP Token 已${enabled ? '启用' : '停用'}：id=${id}${tenantId ? ` tenant=${tenantId}` : ''}`,
       );
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * 删除 Token
-   *
-   * @param id Token ID
-   * @returns 是否删除成功
-   */
-  async remove(id: number): Promise<boolean> {
-    const result = await this.repo.delete(id);
-    if (result.affected && result.affected > 0) {
-      this.logger.warn(`MCP Token 已删除：id=${id}`);
       return true;
     }
     return false;

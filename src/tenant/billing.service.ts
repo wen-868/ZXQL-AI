@@ -21,6 +21,23 @@ export interface QuotaResult {
   reason?: string;
 }
 
+/**
+ * 从 `repo.query()` 的返回值里取 affectedRows。
+ *
+ * `repo.query()` 走 mysql2 直连，返回的是协议层 OK 包（OkPacket），
+ * 计数字段名为 `affectedRows`（mysql2 lib/packets/resultset_header.js）。
+ * ⚠️ 不是 TypeORM `UpdateResult.affected` —— 那是 `update()` 的返回形态，
+ * 二者字段名不同，写错会静默得到 undefined（undefined > 0 为 false，
+ * 会把「扣成功」误判成「未命中」）。
+ */
+function affectedRowsOf(result: unknown): number {
+  if (typeof result !== 'object' || result === null) {
+    return 0;
+  }
+  const value = (result as { affectedRows?: unknown }).affectedRows;
+  return typeof value === 'number' ? value : 0;
+}
+
 @Injectable()
 export class BillingService {
   constructor(
@@ -101,24 +118,39 @@ export class BillingService {
       return;
     }
 
-    if (billing.freeChatCount > 0) {
-      // 阶段0 B-3（2026-10-07 止血）：原子扣免费次数——此前读-改-写
-      // 在并发下丢失更新（N-1 次计费蒸发）。GREATEST 钳制下限 0，
-      // 单条 UPDATE 由数据库行锁保证串行。
-      await this.repo.query(
-        `UPDATE t_tenant_ai_billing
-            SET free_chat_count = GREATEST(free_chat_count - ?, 0)
-          WHERE tenant_id = ?
-            AND free_chat_count > 0`,
-        [chatCount, tenantId],
-      );
+    // 阶段2 A3（2026-10-07）：判据下沉到数据库。
+    //
+    // 此前判据读的是 getOrCreate 返回的内存快照：并发时 req1/req2 同读
+    // freeChatCount=1 都进入免费分支，req1 的 UPDATE 命中扣成 0，req2 因
+    // `WHERE free_chat_count > 0` 不匹配而实际影响 0 行 —— 但代码不看
+    // affectedRows，照记 ok。⇒ 第二次请求被免费放行且从未扣减，指标显示 ok
+    // 而账上少扣一次。假的 ok 比没有指标更危险（会掩盖真实漏费）。
+    //
+    // 改为：先无条件扣免费次数，**用 affectedRows 决定是否落入余额分支**，
+    // 而非用内存快照提前分流。判据（是否还有免费次数）由数据库的行锁 +
+    // WHERE 条件原子裁决，每个并发请求都落到正确分支。
+    //
+    // ⚠️ 不加事务：事务不解决「判据读的是快照」这个本质，判据已下沉到 SQL，
+    // 此处需要的是单条 UPDATE 的原子性（由 InnoDB 行锁保证）。
+    const freeResult: unknown = await this.repo.query(
+      `UPDATE t_tenant_ai_billing
+          SET free_chat_count = GREATEST(free_chat_count - ?, 0)
+        WHERE tenant_id = ?
+          AND free_chat_count > 0`,
+      [chatCount, tenantId],
+    );
+
+    if (affectedRowsOf(freeResult) > 0) {
+      // 免费次数确实扣减到了（命中 ≥1 行）——此时记 ok 才是真的
       this.metrics.recordBillingConsume('ok');
       return;
     }
 
+    // affectedRows === 0 ⇒ 免费次数已耗尽（并发下同样准确，因为判据在 DB 侧）
+    // 此时才读快照的 planType 决定是否走余额扣减
     if (billing.planType !== 'monthly') {
       // 按量扣预付费余额：费用 = overagePrice × tokens/1000
-      // 原子 UPDATE（同上）：结算在数据库侧完成，应用层不再回写内存值
+      // 原子 UPDATE：结算在数据库侧完成，应用层不再回写内存值
       const cost = (Number(billing.overagePrice) * tokens) / 1000;
       await this.repo.query(
         `UPDATE t_tenant_ai_billing
@@ -126,7 +158,8 @@ export class BillingService {
           WHERE tenant_id = ?`,
         [cost, tenantId],
       );
-      this.metrics.recordBillingConsume('ok');
+      // 与「命中免费次数」可区分：ok=扣免费次数 / ok_balance=扣预付费余额
+      this.metrics.recordBillingConsume('ok_balance');
       return;
     }
 

@@ -21,11 +21,9 @@
  * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-01
  */
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   Header,
   Logger,
@@ -37,11 +35,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { aiError } from '../common/ai-errors';
 import { AdminGuard } from '../tenant/admin-auth.guard';
-import { TenantContext } from '../tenant/tenant-context';
 import { getAdminIdentity } from '../tenant/admin-auth.guard';
-import { resolveAdminTenantId } from '../tenant/admin-tenant-scope';
+import {
+  resolveAdminTenantId,
+  resolveOptionalAdminTenantId,
+} from '../tenant/admin-tenant-scope';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
@@ -98,7 +97,6 @@ export class AdminController {
     private readonly executor: ToolExecutor,
     private readonly serviceClient: ServiceClient,
     private readonly auditLogger: AuditLogger,
-    private readonly tenantContext: TenantContext,
     private readonly configService: ConfigService,
     private readonly memoryManager: MemoryManager,
     private readonly metricsService: MetricsService,
@@ -335,6 +333,7 @@ export class AdminController {
    */
   @Get('session-archive')
   async sessionArchive(
+    @Req() req: Request,
     @Query('tenantId') tenantId?: string,
     @Query('sessionId') sessionId?: string,
     @Query('limit') limit = '20',
@@ -342,33 +341,17 @@ export class AdminController {
     total: number;
     items: AiSessionArchiveEntity[];
   }> {
-    // 租户口径同 audit-logs / clearMemory：
-    // ① tenantId 原本可选 ⇒ 不传时返回**全部租户**的会话归档（比越权读更糟）；
-    // ② 传了也不校验归属 ⇒ 可读他人租户归档。
-    // 现改为：商家恒定查自己租户；平台身份才可跨租户且必须显式指定。
-    const ctx = this.tenantContext.getData();
-    if (!ctx?.tenantId) {
-      throw new BadRequestException({
-        statusCode: 400,
-        ...aiError('AI_001', { detail: '缺少租户上下文：请携带有效 JWT 访问' }),
-      });
-    }
-    if (
-      !this.tenantContext.isPlatform() &&
-      tenantId &&
-      tenantId !== ctx.tenantId
-    ) {
+    // 租户口径收敛到 admin-tenant-scope（与 tools/execute 同一函数，阶段2-A1）。
+    // 本端点语义为「平台可跨租户运维，未指定租户 = 查全部」——下游 QueryBuilder
+    // 仅在 scopedTenantId 非空时才追加 where，结构上支持跨租户视图；端点不再
+    // 自行读TenantContext（管理路由的身份只认 AdminGuard 挂在 req 上的 JWT 身份）。
+    const ownTenantId = getAdminIdentity(req).tenantId;
+    if (ownTenantId && tenantId?.trim() && tenantId.trim() !== ownTenantId) {
       this.logger.warn(
-        `会话归档越权拦截：商家身份 tenantId=${ctx.tenantId} 试图查询 tenantId=${tenantId}`,
+        `会话归档越权拦截：商家身份 tenantId=${ownTenantId} 试图查询 tenantId=${tenantId}`,
       );
-      throw new ForbiddenException({
-        statusCode: 403,
-        ...aiError('AI_010', { detail: '仅平台身份可跨租户查询会话归档' }),
-      });
     }
-    const scopedTenantId = this.tenantContext.isPlatform()
-      ? tenantId
-      : ctx.tenantId;
+    const scopedTenantId = resolveOptionalAdminTenantId(req, tenantId);
 
     const qb = this.sessionArchiveRepo
       .createQueryBuilder('a')
@@ -407,31 +390,21 @@ export class AdminController {
    */
   @Delete('memory/:tenantId/:sessionId')
   async clearMemory(
+    @Req() req: Request,
     @Param('tenantId') tenantId: string,
     @Param('sessionId') sessionId: string,
     @Query('customerId') customerId?: string,
   ): Promise<{ success: boolean; message: string }> {
-    // 与 audit-logs 同一租户口径：商家 JWT 只能清自己租户的记忆，
-    // 平台身份才可跨租户运维。tenantId 只认 JWT payload，不接受路径自报。
-    const ctx = this.tenantContext.getData();
-    if (!ctx?.tenantId) {
-      throw new BadRequestException({
-        statusCode: 400,
-        ...aiError('AI_001', { detail: '缺少租户上下文：请携带有效 JWT 访问' }),
-      });
-    }
-    if (!this.tenantContext.isPlatform() && tenantId !== ctx.tenantId) {
+    // 租户口径收敛到 admin-tenant-scope（阶段2-A1）。**必锁**语义，不用 optional：
+    // 记忆是用户资产且属破坏性写，tenantId 为必填路径参数（NestJS 在进入方法体
+    // 前即拒绝缺失路径参数），故平台永远显式指定目标租户；商户自报他人 → 403。
+    const ownTenantId = getAdminIdentity(req).tenantId;
+    if (ownTenantId && tenantId !== ownTenantId) {
       this.logger.warn(
-        `清除记忆越权拦截：商家身份 tenantId=${ctx.tenantId} 试图操作 tenantId=${tenantId}`,
+        `清除记忆越权拦截：商家身份 tenantId=${ownTenantId} 试图操作 tenantId=${tenantId}`,
       );
-      throw new ForbiddenException({
-        statusCode: 403,
-        ...aiError('AI_010', { detail: '仅平台身份可跨租户清除记忆' }),
-      });
     }
-    const scopedTenantId = this.tenantContext.isPlatform()
-      ? tenantId
-      : ctx.tenantId;
+    const scopedTenantId = resolveAdminTenantId(req, tenantId);
 
     // P2 修复（2026-10-04）：透传 customerId——运营客户端记忆 key 含客户分区
     await this.memoryManager.clearHistory(
@@ -531,6 +504,7 @@ export class AdminController {
    */
   @Get('audit-logs')
   async queryAuditLogs(
+    @Req() req: Request,
     @Query('tenantId') tenantId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -544,34 +518,18 @@ export class AdminController {
     page: number;
     pageSize: number;
   }> {
-    // 租户口径：商家 JWT 只能查自己租户（tenantId 只认 JWT payload，不接受查询参数自报）；
-    // 平台 JWT 跨租户运维，需显式指定目标租户。全项目安全约定见 tenant.middleware.ts。
-    const ctx = this.tenantContext.getData();
-    if (!ctx?.tenantId) {
-      throw new BadRequestException({
-        statusCode: 400,
-        ...aiError('AI_001', { detail: '缺少租户上下文：请携带有效 JWT 访问' }),
-      });
-    }
-    if (
-      !this.tenantContext.isPlatform() &&
-      tenantId &&
-      tenantId !== ctx.tenantId
-    ) {
+    // 租户口径收敛到 admin-tenant-scope（阶段2-A1）。**必锁**语义，不用 optional：
+    // AuditLogger.queryAuditLogs 内部 `.where('log.tenant_id = :tenantId')` 恒定过滤，
+    // 结构上无法查全部租户；若传 undefined 会退化为 `tenant_id = NULL` 并静默返回空
+    // （docs/规范/踩坑日志.md:463 记录的反模式）。平台未指定目标租户 → 400。
+    // 此前 `tenantId || ctx.tenantId` 的就近兜底已移除，见报告「断言翻转」一节。
+    const ownTenantId = getAdminIdentity(req).tenantId;
+    if (ownTenantId && tenantId && tenantId !== ownTenantId) {
       this.logger.warn(
-        `审计查询越权拦截：商家身份 tenantId=${ctx.tenantId} 试图查询 tenantId=${tenantId}`,
+        `审计查询越权拦截：商家身份 tenantId=${ownTenantId} 试图查询 tenantId=${tenantId}`,
       );
-      throw new ForbiddenException({
-        statusCode: 403,
-        ...aiError('AI_010', {
-          detail: '仅平台身份可跨租户查询审计日志',
-        }),
-      });
     }
-    // 商家身份忽略查询参数里的 tenantId，强制用自己租户
-    const scopedTenantId = this.tenantContext.isPlatform()
-      ? tenantId || ctx.tenantId
-      : ctx.tenantId;
+    const scopedTenantId = resolveAdminTenantId(req, tenantId);
 
     const result = await this.auditLogger.queryAuditLogs(scopedTenantId, {
       startDate,

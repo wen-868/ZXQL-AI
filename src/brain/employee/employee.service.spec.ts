@@ -66,6 +66,169 @@ function makeQb(
   return qb;
 }
 
+// ── listTasksFor 租户隔离：真实求值 WHERE 子句的 QueryBuilder 桩 ──────────
+//
+// 为什么不用上面那个 makeQb：它对 where/andWhere 一律返回自身、getMany 恒返回
+// 预设数组。拿它断言「跨租户返回空数组」是**恒真断言** —— 无论服务里有没有
+// 租户条件，用例都绿。
+//
+// 这里的桩把服务真实传入的条件串与参数原样记下，按 SQL 优先级
+// （AND 高于 OR，支持显式括号）对夹具行求值。关键在于它复现了 TypeORM 的
+// 拼接规则：`where(字符串)` 不加括号，后续 `andWhere` 直接以 " AND " 追加。
+// 于是「漏掉租户条件」或「OR 组没加括号」都会让越权行被返回 ⇒ 用例立刻变红。
+// 只覆盖本服务用到的语法；遇到不认识的语法直接抛错，避免"解析失败即匹配"假绿。
+
+/** 把 `t.<col>` 归一到夹具行的字段名（夹具用驼峰键） */
+function resolveColumn(
+  column: string,
+): 'id' | 'tenantId' | 'employeeId' | 'dispatchedBy' {
+  const camel = column.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+  if (
+    camel !== 'id' &&
+    camel !== 'tenantId' &&
+    camel !== 'employeeId' &&
+    camel !== 'dispatchedBy'
+  ) {
+    throw new Error(`桩不认识的列：${column}`);
+  }
+  return camel;
+}
+
+/**
+ * 极简 SQL 布尔表达式求值器（仅支持 `t.col = :param`、AND、OR、括号）。
+ * 抛错优先于猜测：解析不了就失败，绝不静默当成 true。
+ */
+function evalWhereSql(
+  sql: string,
+  params: Record<string, unknown>,
+  row: AiEmployeeTaskEntity,
+): boolean {
+  // ⚠️ 顺序要紧：先匹配 `t.col` 与 `:param`，否则 `t.employee_id` 会被拆成
+  // `t` + `employee_id` 两个 token。
+  const tokens = sql.match(/t\.\w+|:\w+|[A-Za-z_]\w*|[()=<>!]+/g);
+  if (!tokens) throw new Error(`桩无法词法分析：${sql}`);
+  let pos = 0;
+
+  const peek = (): string | undefined => tokens[pos];
+  const eat = (expected: string): void => {
+    const t = tokens[pos];
+    if (t?.toUpperCase() !== expected.toUpperCase()) {
+      throw new Error(`桩期望 ${expected}，实际 ${String(t)}（SQL: ${sql}）`);
+    }
+    pos += 1;
+  };
+
+  /** comparison := t.col = :param */
+  const parseComparison = (): boolean => {
+    const ref = tokens[pos];
+    const m = /^t\.(\w+)$/.exec(String(ref));
+    if (!m) throw new Error(`桩期望列引用，实际 ${String(ref)}（SQL: ${sql}）`);
+    pos += 1;
+    eat('=');
+    const token = String(tokens[pos]);
+    if (!token.startsWith(':')) {
+      throw new Error(`桩期望参数，实际 ${token}（SQL: ${sql}）`);
+    }
+    pos += 1;
+    // 绑定值的键不带前导冒号（与 TypeORM 一致）
+    const name = token.slice(1);
+    if (!(name in params)) {
+      throw new Error(`桩未收到参数绑定：${token}`);
+    }
+    return row[resolveColumn(m[1])] === params[name];
+  };
+
+  /** factor := '(' expr ')' | comparison */
+  const parseFactor = (): boolean => {
+    if (peek() === '(') {
+      eat('(');
+      const v = parseExpr();
+      eat(')');
+      return v;
+    }
+    return parseComparison();
+  };
+
+  /** term := factor (AND factor)* */
+  const parseTerm = (): boolean => {
+    let left = parseFactor();
+    while (peek()?.toUpperCase() === 'AND') {
+      eat('AND');
+      //不可短路：右侧仍须解析，否则语法错误会被吞掉
+      const right = parseFactor();
+      left = left && right;
+    }
+    return left;
+  };
+
+  /** expr := term (OR term)* */
+  function parseExpr(): boolean {
+    let left = parseTerm();
+    while (peek()?.toUpperCase() === 'OR') {
+      eat('OR');
+      const right = parseTerm();
+      left = left || right;
+    }
+    return left;
+  }
+
+  const result = parseExpr();
+  if (pos !== tokens.length) {
+    throw new Error(`桩解析后仍有残留 token（SQL: ${sql}）`);
+  }
+  return result;
+}
+
+/**
+ * 真实求值 WHERE 的 QueryBuilder 桩。
+ * 拼接规则对齐 TypeORM `createWhereClausesExpression`：首个条件裸接，
+ * 后续 andWhere 以 " AND " 追加 —— 字符串条件**不会**被自动加括号。
+ */
+function makeEvalQb(rows: AiEmployeeTaskEntity[]): {
+  qb: QbStub;
+  whereSql: () => string;
+} {
+  let sql = '';
+  const params: Record<string, unknown> = {};
+  const chain = {
+    where: (cond: string, p: Record<string, unknown> = {}) => {
+      sql = `${sql}${sql === '' ? '' : ' AND '}${cond}`;
+      Object.assign(params, p);
+      return chain;
+    },
+    andWhere: (cond: string, p: Record<string, unknown> = {}) => {
+      sql = `${sql} AND ${cond}`;
+      Object.assign(params, p);
+      return chain;
+    },
+    setParameter: () => chain,
+    orderBy: () => chain,
+    take: () => chain,
+    getOne: () => Promise.resolve(null),
+    getMany: () =>
+      Promise.resolve(
+        sql === '' ? [] : rows.filter((r) => evalWhereSql(sql, params, r)),
+      ),
+  };
+  return { qb: chain as unknown as QbStub, whereSql: () => sql };
+}
+
+/** 构造任务行（跨租户隔离用例的夹具） */
+function makeTask(over: Partial<AiEmployeeTaskEntity>): AiEmployeeTaskEntity {
+  return {
+    id: over.id ?? 1,
+    tenantId: over.tenantId ?? 't_a',
+    employeeId: over.employeeId ?? 7,
+    task: over.task ?? '任务',
+    dispatchedBy: over.dispatchedBy ?? 'user',
+    resultSummary: over.resultSummary ?? null,
+    status: over.status ?? 'running',
+    taskType: over.taskType ?? null,
+    ratingResult: over.ratingResult ?? null,
+    createdAt: over.createdAt ?? new Date(),
+  };
+}
+
 describe('EmployeeService', () => {
   let service: EmployeeService;
   let savedTasks: Array<Partial<AiEmployeeTaskEntity> & { id: number }>;
@@ -451,5 +614,123 @@ describe('EmployeeService', () => {
     expect(list[0].status).toBe('管理岗');
     expect(list[1].dispatchUids).toEqual([]);
     expect(list[1].status).toBe('就绪');
+  });
+
+  // ── listTasksFor 租户隔离（2026-10-07 阶段 2 · A2）────────────────────
+  // 此前 listTasksFor 自身零租户过滤，安全性 100% 依赖调用方先校验 ——
+  // 约定而非机制：将来新增调用点忘了校验即跨租户泄露。
+  // 用 makeEvalQb（真实求值 WHERE）而非 makeQb（恒返回预设数组），
+  // 否则「跨租户返回空数组」是恒真断言。
+  describe('listTasksFor：租户条件下沉到方法内部', () => {
+    let rows: AiEmployeeTaskEntity[];
+    let evalQb: ReturnType<typeof makeEvalQb>;
+
+    /** 用求值桩替换任务仓储的 QueryBuilder */
+    function useEvalQb(): void {
+      evalQb = makeEvalQb(rows);
+      qbImpl = () => evalQb.qb;
+    }
+
+    /**
+     * 夹具设计原则：被断言为"空"的场景，B 租户**确实没有**对应任务 ——
+     * 否则"返回空数组"可能是恒真断言。
+     * A 租户有两条可被越权命中的任务（分别走 employee_id 与 dispatched_by 分支），
+     * B 租户只有一条无关任务（employee 99 / dispatched_by=user）。
+     */
+    beforeEach(() => {
+      rows = [
+        makeTask({
+          id: 1,
+          tenantId: 't_a',
+          employeeId: 7,
+          task: 'A 租户机密任务',
+          dispatchedBy: 'employee:emp_z',
+        }),
+        makeTask({
+          id: 2,
+          tenantId: 't_b',
+          employeeId: 99,
+          task: 'B 租户无关任务',
+          dispatchedBy: 'user',
+        }),
+      ];
+      useEvalQb();
+    });
+
+    it('本租户：只返回本租户的任务（证明夹具非空、断言非恒真）', async () => {
+      const list = await service.listTasksFor('emp_z', 7, 't_a');
+      expect(list.map((t) => t.id)).toEqual([1]);
+      expect(list[0].task).toBe('A 租户机密任务');
+    });
+
+    it('跨租户：employee_id 命中别家租户 → 返回空数组（不是别人的数据）', async () => {
+      // B 租户没有员工 7 的任务；若缺租户条件，id=1 会被 employee_id 分支命中
+      const list = await service.listTasksFor('emp_z', 7, 't_b');
+      expect(list.length).toBe(0);
+      // 反测信号：明确断言"没拿到别家原文"，而不只是长度
+      expect(list.map((t) => t.task)).not.toContain('A 租户机密任务');
+    });
+
+    it('跨租户：dispatched_by 命中别家租户 → 返回空数组', async () => {
+      // B 租户没有任何 dispatched_by='employee:emp_z' 的任务；
+      // 若缺租户条件，id=1 会被 dispatched_by 分支命中
+      const list = await service.listTasksFor('emp_z', 999, 't_b');
+      expect(list.length).toBe(0);
+      expect(list.map((t) => t.task)).not.toContain('A 租户机密任务');
+    });
+
+    it('跨租户：两个越权面各命中一条别家数据 → 一条都不返回', async () => {
+      rows = [
+        // 走 employee_id 分支的越权数据
+        makeTask({
+          id: 1,
+          tenantId: 't_a',
+          employeeId: 7,
+          dispatchedBy: 'user',
+        }),
+        // 走 dispatched_by 分支的越权数据
+        makeTask({
+          id: 2,
+          tenantId: 't_a',
+          employeeId: 555,
+          dispatchedBy: 'employee:emp_z',
+        }),
+        // 本租户的合法数据（两个分支都命中）
+        makeTask({
+          id: 3,
+          tenantId: 't_b',
+          employeeId: 7,
+          dispatchedBy: 'employee:emp_z',
+        }),
+      ];
+      useEvalQb();
+      // 缺租户条件时会返回 [1,2,3]；正确实现只返回本租户的 [3]
+      const list = await service.listTasksFor('emp_z', 7, 't_b');
+      expect(list.map((t) => t.id)).toEqual([3]);
+      expect(list.every((t) => t.tenantId === 't_b')).toBe(true);
+    });
+
+    it('WHERE 子句：租户条件以 AND 挂在 OR 组之外（含括号，不可省）', async () => {
+      await service.listTasksFor('emp_z', 7, 't_b');
+      const sql = evalQb.whereSql();
+      // 反测信号：若去掉括号，SQL 变成 `A OR B AND tenant`，
+      // 按优先级 AND 先算 ⇒ employee_id 分支不受租户约束 ⇒ 上面的用例会红
+      expect(sql).toContain('(t.employee_id = :eid OR t.dispatched_by = :uid)');
+      expect(sql).toContain('AND t.tenant_id = :tenantId');
+    });
+
+    it('租户条件：tenantId 为必填位置参数（漏传在编译期就过不去）', async () => {
+      // 编译期保证：tenantId 是必填位置参数。
+      // 下面这行若被改成可选参数（`tenantId?: string`），@ts-expect-error
+      // 会因"此处无错误可抑制"而让 tsc 报错 ⇒ 参数必填性被门禁守住。
+      const noTenantId = () =>
+        // @ts-expect-error 故意漏传 tenantId —— 证明签名把它设为必填
+        service.listTasksFor('emp_z', 7);
+      expect(typeof noTenantId).toBe('function');
+
+      // 运行时行为：传本租户仍能正常取数（证明上一条不是靠"永远抛错"变绿）
+      const list = await service.listTasksFor('emp_z', 7, 't_a');
+      expect(list.length).toBe(1);
+    });
   });
 });

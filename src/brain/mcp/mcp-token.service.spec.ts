@@ -88,17 +88,51 @@ describe('P0-3 McpTokenService', () => {
     expect(repo.createQueryBuilder).toHaveBeenCalled();
   });
 
-  it('启停：更新 enabled 字段', async () => {
+  it('启停：更新 enabled 字段，条件对象带 tenant_id', async () => {
     const { service, repo } = createService({});
-    expect(await service.setEnabled(1, false)).toBe(true);
+    expect(await service.setEnabledFor(1, false, 'tenant-x')).toBe(true);
 
-    expect(repo.update.mock.calls[0]).toEqual([1, { enabled: 0 }]);
+    // 断言条件形状而非仅返回值：裸 id 条件必须被断言挡住
+    expect(repo.update.mock.calls[0]).toEqual([
+      { id: 1, tenantId: 'tenant-x' },
+      { enabled: 0 },
+    ]);
   });
 
-  it('删除：affected=0 返回 false', async () => {
+  it('启停：跨租户操作无效（affected=0 → false），且条件仍带 tenant_id', async () => {
+    const { service, repo } = createService({});
+    repo.update.mockResolvedValueOnce({ affected: 0 } as never);
+
+    expect(await service.setEnabledFor(999, false, 'tenant-x')).toBe(false);
+    // 关键：即使库层面 affected=0，传给 update 的条件也必须含 tenantId
+    expect(repo.update.mock.calls[0]).toEqual([
+      { id: 999, tenantId: 'tenant-x' },
+      { enabled: 0 },
+    ]);
+  });
+
+  it('启停：平台身份不传 tenantId → 条件只含 id', async () => {
+    const { service, repo } = createService({});
+    expect(await service.setEnabledFor(1, true)).toBe(true);
+
+    expect(repo.update.mock.calls[0]).toEqual([{ id: 1 }, { enabled: 1 }]);
+  });
+
+  it('删除：affected=0 返回 false，且 delete 收到含 tenant_id 的条件对象', async () => {
     const { service, repo } = createService({});
     repo.delete.mockResolvedValueOnce({ affected: 0 } as never);
-    expect(await service.remove(999)).toBe(false);
+
+    expect(await service.removeFor(999, 'tenant-x')).toBe(false);
+    expect(repo.delete.mock.calls[0]).toEqual([
+      { id: 999, tenantId: 'tenant-x' },
+    ]);
+  });
+
+  it('删除：平台身份不传 tenantId → 条件只含 id', async () => {
+    const { service, repo } = createService({});
+    expect(await service.removeFor(1)).toBe(true);
+
+    expect(repo.delete.mock.calls[0]).toEqual([{ id: 1 }]);
   });
 
   it('校验：哈希命中的有效 token 返回实体', async () => {

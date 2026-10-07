@@ -132,7 +132,9 @@ export class EmployeeController {
     const tenantId = this.tenantContext.requireTenantId();
     return this.employeeService
       .getById(id, tenantId)
-      .then((e) => this.employeeService.listTasksFor(e.employeeUid, e.id));
+      .then((e) =>
+        this.employeeService.listTasksFor(e.employeeUid, e.id, tenantId),
+      );
   }
 
   /** 办公任务评分回流（采纳→样本池喂 E3/E4；驳回→纠错喂 E2/E5） */

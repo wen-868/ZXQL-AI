@@ -104,12 +104,16 @@ export class MetricsService {
   }
 
   /**
-   * 计费扣减成败计数（阶段0 B-3 修复 2026-10-07）
+   * 计费扣减成败计数（阶段0 B-3 修复 2026-10-07；阶段2 A3 细化 2026-10-07）
    *
    * 扣减失败此前被 catch+warn 吞掉且无指标——漏计费全程无痕。
-   * status: ok=原子扣减成功 / skipped=免费次数或月费套餐不扣 / fail=扣减失败
+   * 阶段2 A3：`ok` 收紧为「确实扣减到了」——由 UPDATE 的 affectedRows 裁决，
+   * 此前无论命中与否都记 ok（假的 ok 会掩盖真实漏费）；并新增 ok_balance
+   * 使「扣免费次数」与「扣预付费余额」可区分。
+   * status: ok=确实扣减到免费次数 / ok_balance=扣减预付费余额 /
+   *         skipped=未启用或月费套餐不扣 / fail=扣减失败
    */
-  recordBillingConsume(status: 'ok' | 'skipped' | 'fail'): void {
+  recordBillingConsume(status: 'ok' | 'ok_balance' | 'skipped' | 'fail'): void {
     this.billingConsumeTotal.set(
       status,
       (this.billingConsumeTotal.get(status) ?? 0) + 1,
@@ -165,6 +169,12 @@ export class MetricsService {
     lines.push(`ai_chat_plan_total ${this.planTotal}`);
     for (const [recovered, value] of this.retryTotal) {
       lines.push(`ai_tool_retry_total{recovered="${recovered}"} ${value}`);
+    }
+    // 阶段2 A3 收口：此前本指标被记录进内存 Map 却从未渲染，
+    // 导致「假 ok」与「真 ok」在监控上完全无法区分 —— 改造的核心价值失效。
+    // 按 Map 的 key 遍历（非硬编码三个label），故新增的 ok_balance 天然可见。
+    for (const [status, value] of this.billingConsumeTotal) {
+      lines.push(`ai_billing_consume_total{status="${status}"} ${value}`);
     }
 
     return `${lines.join('\n')}\n`;

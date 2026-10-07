@@ -79,7 +79,10 @@ describe('P1-B 写路径迁移契约（业务模块确实走三级语义）', ()
     } {
       const query = opts.queryError
         ? jest.fn().mockRejectedValue(opts.queryError)
-        : jest.fn().mockResolvedValue({ affected: 1 });
+        : // mysql2 OK 包形态：repo.query() 返回 raw（OkPacket），计数字段是
+          // affectedRows，不是 TypeORM UpdateResult 的 affected。
+          // 阶段2 A3 起判据读affectedRows，故mock 必须是真实字段名。
+          jest.fn().mockResolvedValue({ affectedRows: 1 });
       const repo = {
         findOne: jest.fn().mockResolvedValue(billing),
         create: jest.fn((d: Record<string, unknown>) => d),

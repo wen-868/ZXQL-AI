@@ -475,17 +475,34 @@ export class EmployeeService implements OnModuleInit, OnModuleDestroy {
     return this.taskRepo.findOne({ where: { id: taskId, tenantId } });
   }
 
-  /** 员工任务列表（对话框工作台：执行的任务 + 派发出的任务） */
+  /**
+   * 员工任务列表（对话框工作台：执行的任务 + 派发出的任务）
+   *
+   * 2026-10-07 安全修复：强制带 tenantId —— 此前方法自身零租户过滤，安全性
+   * 100% 依赖调用方先 `getById(id, tenantId)` 校验。这是**约定而非机制**：
+   * 将来任何人新增调用点忘了校验，即跨租户泄露（`OR dispatched_by` 分支尤其
+   * 易写错）。与 completeTask / markTaskRated / getTaskById 对齐，租户过滤下沉
+   * 到方法内部。
+   *
+   * ⚠️ `where()` 传字符串时 TypeORM **不会**自动加括号（`createWhereCondition
+   * Expression` 对 string 直接原样返回），所以 `where('A OR B').andWhere('C')`
+   * 生成的是 `A OR B AND C` —— 按 SQL 优先级 AND 先算，租户条件只约束了
+   * `dispatched_by` 分支，`employee_id` 分支仍可跨租户命中。括号不可省。
+   * 已用真实元数据出 SQL 核验：`WHERE (`employee_id` = ? OR `dispatched_by` = ?)
+   * AND `tenant_id` = ?`
+   */
   async listTasksFor(
     employeeUid: string,
     employeeId: number,
+    tenantId: string,
   ): Promise<AiEmployeeTaskEntity[]> {
     return this.taskRepo
       .createQueryBuilder('t')
-      .where('t.employee_id = :eid OR t.dispatched_by = :uid', {
+      .where('(t.employee_id = :eid OR t.dispatched_by = :uid)', {
         eid: employeeId,
         uid: `employee:${employeeUid}`,
       })
+      .andWhere('t.tenant_id = :tenantId', { tenantId })
       .orderBy('t.id', 'DESC')
       .take(50)
       .getMany();

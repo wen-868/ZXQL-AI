@@ -9,13 +9,20 @@
  *                                           不传时返回**全部租户**归档）
  * 而全项目安全约定（tenant.middleware.ts）明确："tenantId 一律只认 JWT payload"。
  *
- * 本 spec 只聚焦这三个端点的租户口径，不追求 AdminController 全文件覆盖
- * （该文件千行以上、此前零测试；全量覆盖应单独立项）。
+ * 阶段2-A1（本次收敛）：三处手写校验统一到 `admin-tenant-scope.ts`，口径改为
+ * 读 `req.adminIdentity`（AdminGuard 从 JWT 挂载），不再读 `TenantContext`。
+ * 统一后的函数选择（语义归属判断见执行报告）：
+ *   - sessionArchive → `resolveOptionalAdminTenantId`（平台未指定 = 查全部，
+ *     下游 QueryBuilder 支持跨租户视图）
+ *   - clearMemory    → `resolveAdminTenantId`（破坏性写 + tenantId 必填路径参数）
+ *   - queryAuditLogs → `resolveAdminTenantId`（下游 queryAuditLogs 恒定
+ *     `.where(tenant_id)`，结构上无法查全部）
  *
- * 用 Object.create 构造最小对象：只挂被测方法真正用到的依赖，避免为 12 个
+ * 用Object.create 构造最小对象：只挂被测方法真正用到的依赖，避免为 12 个
  * 构造参数造假。
  */
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import type { Request } from 'express';
 import { AdminController } from './admin.controller';
 
 /** 端点查询串（原始 string 形态） */
@@ -39,17 +46,27 @@ interface Harness {
     getManyAndCount: jest.Mock;
   };
   sessionArchiveRepo: { createQueryBuilder: jest.Mock };
-  tenantContext: {
-    getData: jest.Mock;
-    isPlatform: jest.Mock;
-  };
   logger: { warn: jest.Mock; log: jest.Mock };
 }
 
-function createHarness(opts: {
-  ctxTenantId?: string;
-  isPlatform?: boolean;
-}): Harness {
+/**
+ * 构造挂好 adminIdentity 的 req（AdminGuard 的挂载形态）。
+ *
+ * `none` 模拟**绕过守卫直调**：`req` 上没有 adminIdentity，统一函数应抛 403。
+ */
+function reqOf(
+  identityType: 'merchant' | 'platform' | 'none',
+  tenantId?: string,
+): Request {
+  if (identityType === 'none') {
+    return {} as Request;
+  }
+  return {
+    adminIdentity: { identityType, tenantId, userId: 1, username: 'tester' },
+  } as unknown as Request;
+}
+
+function createHarness(): Harness {
   const auditLogger = {
     queryAuditLogs: jest.fn().mockResolvedValue({ list: [], total: 0 }),
   };
@@ -65,23 +82,12 @@ function createHarness(opts: {
   const sessionArchiveRepo = {
     createQueryBuilder: jest.fn().mockReturnValue(archiveQb),
   };
-  const tenantContext = {
-    getData: jest
-      .fn()
-      .mockReturnValue(
-        opts.ctxTenantId === undefined
-          ? undefined
-          : { tenantId: opts.ctxTenantId },
-      ),
-    isPlatform: jest.fn().mockReturnValue(opts.isPlatform ?? false),
-  };
   const controller = Object.create(
     AdminController.prototype,
   ) as AdminController;
   const logger = { warn: jest.fn(), log: jest.fn() };
   Object.assign(controller, {
     auditLogger,
-    tenantContext,
     memoryManager,
     sessionArchiveRepo,
     logger,
@@ -92,34 +98,34 @@ function createHarness(opts: {
     memoryManager: memoryManager,
     archiveQb: archiveQb,
     sessionArchiveRepo: sessionArchiveRepo,
-    tenantContext: tenantContext,
     logger: logger,
   };
 }
 
-const call = (
-  h: Harness,
-  tenantId: string,
-  extra: QueryParts = {},
-): Promise<{
-  list: unknown[];
-  total: number;
-  page: number;
-  pageSize: number;
-}> =>
-  h.controller.queryAuditLogs(
-    tenantId,
-    extra.startDate,
-    extra.endDate,
-    extra.intent,
-    extra.sessionId,
-    extra.page,
-    extra.pageSize,
-  );
+describe('AdminController.queryAuditLogs 多租户隔离（P0 + 阶段2-A1 收敛）', () => {
+  const call = (
+    h: Harness,
+    tenantId: string,
+    extra: QueryParts = {},
+  ): Promise<{
+    list: unknown[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }> =>
+    h.controller.queryAuditLogs(
+      reqOf('merchant', 'tenant-A'),
+      tenantId,
+      extra.startDate,
+      extra.endDate,
+      extra.intent,
+      extra.sessionId,
+      extra.page,
+      extra.pageSize,
+    );
 
-describe('AdminController.queryAuditLogs 多租户隔离（P0）', () => {
-  it('商家身份：查询自己租户 → 放行，且强制用自己的 tenantId', async () => {
-    const h = createHarness({ ctxTenantId: 'tenant-A' });
+  it('商户身份：查询自己租户 → 放行，且强制用自己的 tenantId', async () => {
+    const h = createHarness();
 
     const out = await call(h, 'tenant-A');
 
@@ -130,8 +136,8 @@ describe('AdminController.queryAuditLogs 多租户隔离（P0）', () => {
     expect(out.total).toBe(0);
   });
 
-  it('商家身份：不传 tenantId 也放行（不再返回空列表）', async () => {
-    const h = createHarness({ ctxTenantId: 'tenant-A' });
+  it('商户身份：不传 tenantId 也放行（用 JWT 租户，不静默返回空）', async () => {
+    const h = createHarness();
 
     await call(h, '');
 
@@ -143,8 +149,8 @@ describe('AdminController.queryAuditLogs 多租户隔离（P0）', () => {
     );
   });
 
-  it('商家身份：自报别的 tenantId → 403 拒绝（越权修复核心）', async () => {
-    const h = createHarness({ ctxTenantId: 'tenant-A' });
+  it('商户身份：自报别的 tenantId → 403 拒绝（越权修复核心）', async () => {
+    const h = createHarness();
 
     await expect(call(h, 'tenant-B')).rejects.toBeInstanceOf(
       ForbiddenException,
@@ -153,26 +159,30 @@ describe('AdminController.queryAuditLogs 多租户隔离（P0）', () => {
     expect(h.auditLogger.queryAuditLogs).not.toHaveBeenCalled();
   });
 
-  it('商家身份：自报别的 tenantId → 记warn 审计痕迹', async () => {
-    const h = createHarness({ ctxTenantId: 'tenant-A' });
-    const warnSpy = jest.fn();
-    (h.controller as unknown as { logger: { warn: unknown } }).logger = {
-      warn: warnSpy,
-    };
+  it('商户身份：自报别的 tenantId → 记warn 审计痕迹', async () => {
+    const h = createHarness();
 
     await expect(call(h, 'tenant-B')).rejects.toBeInstanceOf(
       ForbiddenException,
     );
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('越权拦截'));
+    expect(h.logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('越权拦截'),
+    );
   });
 
-  it('平台身份：可跨租户查询（保留运维能力）', async () => {
-    const h = createHarness({
-      ctxTenantId: 'platform-scope',
-      isPlatform: true,
-    });
+  it('平台身份：显式指定目标租户 → 放行（保留运维能力）', async () => {
+    const h = createHarness();
 
-    await call(h, 'tenant-B');
+    await h.controller.queryAuditLogs(
+      reqOf('platform'),
+      'tenant-B',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
 
     expect(h.auditLogger.queryAuditLogs).toHaveBeenCalledWith(
       'tenant-B',
@@ -180,32 +190,66 @@ describe('AdminController.queryAuditLogs 多租户隔离（P0）', () => {
     );
   });
 
-  it('平台身份：未指定目标租户 → 回落自己作用域，不报错', async () => {
-    const h = createHarness({
-      ctxTenantId: 'platform-scope',
-      isPlatform: true,
-    });
+  /**
+   * ⚠️ 断言翻转（阶段2-A1，纪律 4.4典型案例）
+   *
+   * 这条用例**原本断言「回落自己作用域、不报错」**，固化的是 `:573` 一行
+   * `tenantId || ctx.tenantId` 的历史宽松兜底——平台未指定目标租户时静默
+   * 就近落到 `ctx.tenantId`。
+   *
+   * 收敛到 `resolveAdminTenantId` 后该兜底被移除：平台跨租户操作**必须显式
+   * 指定目标租户**，缺失即 400（`admin-tenant-scope.ts:61-70` 的既定口径，
+   * 注释明确"不允许静默退化"）。
+   *
+   * 为什么必须翻：下游 `AuditLogger.queryAuditLogs` 恒定
+   * `.where('log.tenant_id = :tenantId')`，结构上无法查全部租户；继续保留
+   * 兜底只会让「未指定目标」静默落到某个租户上查，掩盖调用方参数用错。
+   */
+  it('平台身份：未指定目标租户 → 400（不再回落就近作用域，断言已翻转）', async () => {
+    const h = createHarness();
 
-    await call(h, '');
+    await expect(
+      h.controller.queryAuditLogs(
+        reqOf('platform'),
+        '',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(h.auditLogger.queryAuditLogs).toHaveBeenCalledWith(
-      'platform-scope',
-      expect.anything(),
-    );
+    // 收紧方向：拒绝时绝不能已把查询打出去
+    expect(h.auditLogger.queryAuditLogs).not.toHaveBeenCalled();
   });
 
-  it('无租户上下文（缺 JWT） → 400 拒绝，不静默返回空', async () => {
-    const h = createHarness({ ctxTenantId: undefined });
+  it('绕过守卫直调（req 无 adminIdentity）→ 403，不再是 400', async () => {
+    const h = createHarness();
 
-    // Nest 异常的message 是对象（响应体），正则匹配不到，改断言错误码
-    await expect(call(h, 'tenant-A')).rejects.toMatchObject({
-      response: expect.objectContaining({ code: 'AI_001' }) as unknown,
+    // 统一函数把"缺身份"判为鉴权问题（403/AI_010）而非参数问题（400/AI_001）：
+    // AdminGuard 已在管道最前端拦掉无 token/无效 JWT，能走到这里的只可能是
+    // 绕过守卫直调，报"请携带有效 JWT"是误导性的。
+    await expect(
+      h.controller.queryAuditLogs(
+        reqOf('none'),
+        'tenant-A',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'AI_010' }) as unknown,
     });
     expect(h.auditLogger.queryAuditLogs).not.toHaveBeenCalled();
   });
 
   it('分页与过滤参数透传给AuditLogger', async () => {
-    const h = createHarness({ ctxTenantId: 'tenant-A' });
+    const h = createHarness();
 
     await call(h, 'tenant-A', {
       startDate: '2026-10-01',
@@ -232,13 +276,21 @@ describe('AdminController.queryAuditLogs 多租户隔离（P0）', () => {
  *
  * 原实现直接用路径里的 tenantId 调clearHistory ⇒ 商家超管可删任意租户记忆。
  * 记忆是用户资产，这条比"读审计"更严重。
+ *
+ * 阶段2-A1：统一到 `resolveAdminTenantId`（**必锁**，不用 optional）。
+ * tenantId 是必填路径参数，NestJS 在进入方法体前即拒绝缺失路径参数，
+ * 因此平台永远显式指定目标租户，不存在"平台未指定"的场景。
  */
 describe('AdminController.clearMemory 多租户隔离', () => {
   const call = (h: Harness, tenantId: string, sessionId: string) =>
-    h.controller.clearMemory(tenantId, sessionId);
+    h.controller.clearMemory(
+      reqOf('merchant', 'tenant-A'),
+      tenantId,
+      sessionId,
+    );
 
-  it('商家身份清自己租户 → 放行', async () => {
-    const h = createHarness({ ctxTenantId: 'tenant-A' });
+  it('商户身份清自己租户 → 放行', async () => {
+    const h = createHarness();
 
     const out = await call(h, 'tenant-A', 'sess-1');
 
@@ -250,8 +302,8 @@ describe('AdminController.clearMemory 多租户隔离', () => {
     );
   });
 
-  it('商家身份清别人租户 → 403（越权修复核心）', async () => {
-    const h = createHarness({ ctxTenantId: 'tenant-A' });
+  it('商户身份清别人租户 → 403（越权修复核心）', async () => {
+    const h = createHarness();
 
     await expect(call(h, 'tenant-B', 'sess-1')).rejects.toBeInstanceOf(
       ForbiddenException,
@@ -260,8 +312,8 @@ describe('AdminController.clearMemory 多租户隔离', () => {
     expect(h.memoryManager.clearHistory).not.toHaveBeenCalled();
   });
 
-  it('商家身份清别人租户 → 记 warn 审计痕迹', async () => {
-    const h = createHarness({ ctxTenantId: 'tenant-A' });
+  it('商户身份清别人租户 → 记 warn 审计痕迹', async () => {
+    const h = createHarness();
 
     await expect(call(h, 'tenant-B', 'sess-1')).rejects.toBeInstanceOf(
       ForbiddenException,
@@ -271,13 +323,15 @@ describe('AdminController.clearMemory 多租户隔离', () => {
     );
   });
 
-  it('平台身份可跨租户清除（保留运维能力）', async () => {
-    const h = createHarness({
-      ctxTenantId: 'platform-scope',
-      isPlatform: true,
-    });
+  it('平台身份显式指定租户 → 可跨租户清除（保留运维能力）', async () => {
+    const h = createHarness();
 
-    await call(h, 'tenant-B', 'sess-9');
+    await h.controller.clearMemory(
+      reqOf('platform'),
+      'tenant-B',
+      'sess-9',
+      undefined,
+    );
 
     expect(h.memoryManager.clearHistory).toHaveBeenCalledWith(
       'tenant-B',
@@ -286,11 +340,13 @@ describe('AdminController.clearMemory 多租户隔离', () => {
     );
   });
 
-  it('无租户上下文 → 400 拒绝，不执行删除', async () => {
-    const h = createHarness({ ctxTenantId: undefined });
+  it('绕过守卫直调（req 无 adminIdentity）→ 403，不再是 400', async () => {
+    const h = createHarness();
 
-    await expect(call(h, 'tenant-A', 'sess-1')).rejects.toMatchObject({
-      response: expect.objectContaining({ code: 'AI_001' }) as unknown,
+    await expect(
+      h.controller.clearMemory(reqOf('none'), 'tenant-A', 'sess-1'),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'AI_010' }) as unknown,
     });
     expect(h.memoryManager.clearHistory).not.toHaveBeenCalled();
   });
@@ -301,13 +357,21 @@ describe('AdminController.clearMemory 多租户隔离', () => {
  *
  * 原实现 tenantId 可选且不校验归属 ⇒① 不传时返回**全部租户**的会话归档
  * （比越权读更糟：一次请求拖走所有租户数据）；② 传了也可读他人租户。
+ *
+ * 阶段2-A1：统一到 `resolveOptionalAdminTenantId`（**可跨租户运维**）——
+ * 下游仅在 scopedTenantId 非空时才追加 where，故平台未指定 = 查全部。
  */
 describe('AdminController.sessionArchive 多租户隔离', () => {
   const call = (h: Harness, tenantId?: string, sessionId?: string) =>
-    h.controller.sessionArchive(tenantId, sessionId, '20');
+    h.controller.sessionArchive(
+      reqOf('merchant', 'tenant-A'),
+      tenantId,
+      sessionId,
+      '20',
+    );
 
-  it('商家身份不传 tenantId → 仍强制按自己租户过滤（不返回全租户）', async () => {
-    const h = createHarness({ ctxTenantId: 'tenant-A' });
+  it('商户身份不传 tenantId → 仍强制按自己租户过滤（不返回全租户）', async () => {
+    const h = createHarness();
 
     await call(h);
 
@@ -318,8 +382,8 @@ describe('AdminController.sessionArchive 多租户隔离', () => {
     );
   });
 
-  it('商家身份传自己租户 → 用自己租户', async () => {
-    const h = createHarness({ ctxTenantId: 'tenant-A' });
+  it('商户身份传自己租户 → 用自己租户', async () => {
+    const h = createHarness();
 
     await call(h, 'tenant-A');
 
@@ -329,8 +393,8 @@ describe('AdminController.sessionArchive 多租户隔离', () => {
     );
   });
 
-  it('商家身份传别人租户 → 403（越权修复核心）', async () => {
-    const h = createHarness({ ctxTenantId: 'tenant-A' });
+  it('商户身份传别人租户 → 403（越权修复核心）', async () => {
+    const h = createHarness();
 
     await expect(call(h, 'tenant-B')).rejects.toBeInstanceOf(
       ForbiddenException,
@@ -338,13 +402,26 @@ describe('AdminController.sessionArchive 多租户隔离', () => {
     expect(h.sessionArchiveRepo.createQueryBuilder).not.toHaveBeenCalled();
   });
 
-  it('平台身份不指定租户 → 保持跨租户查询（运维场景）', async () => {
-    const h = createHarness({
-      ctxTenantId: 'platform-scope',
-      isPlatform: true,
-    });
+  it('商户身份传别人租户 → 记 warn 审计痕迹', async () => {
+    const h = createHarness();
 
-    await call(h);
+    await expect(call(h, 'tenant-B')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(h.logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('越权拦截'),
+    );
+  });
+
+  it('平台身份不指定租户 → 保持跨租户查询（运维场景，本端点语义）', async () => {
+    const h = createHarness();
+
+    await h.controller.sessionArchive(
+      reqOf('platform'),
+      undefined,
+      undefined,
+      '20',
+    );
 
     // 未指定目标租户时不加租户条件，保留全局运维视图
     expect(h.archiveQb.andWhere).not.toHaveBeenCalledWith(
@@ -354,12 +431,14 @@ describe('AdminController.sessionArchive 多租户隔离', () => {
   });
 
   it('平台身份指定租户 → 按指定租户过滤', async () => {
-    const h = createHarness({
-      ctxTenantId: 'platform-scope',
-      isPlatform: true,
-    });
+    const h = createHarness();
 
-    await call(h, 'tenant-B');
+    await h.controller.sessionArchive(
+      reqOf('platform'),
+      'tenant-B',
+      undefined,
+      '20',
+    );
 
     expect(h.archiveQb.andWhere).toHaveBeenCalledWith(
       'a.tenant_id = :scopedTenantId',
@@ -368,7 +447,7 @@ describe('AdminController.sessionArchive 多租户隔离', () => {
   });
 
   it('sessionId 过滤条件仍生效（叠加在租户约束之上）', async () => {
-    const h = createHarness({ ctxTenantId: 'tenant-A' });
+    const h = createHarness();
 
     await call(h, 'tenant-A', 'sess-7');
 
@@ -378,11 +457,13 @@ describe('AdminController.sessionArchive 多租户隔离', () => {
     );
   });
 
-  it('无租户上下文 → 400 拒绝', async () => {
-    const h = createHarness({ ctxTenantId: undefined });
+  it('绕过守卫直调（req 无 adminIdentity）→ 403，不再是 400', async () => {
+    const h = createHarness();
 
-    await expect(call(h)).rejects.toMatchObject({
-      response: expect.objectContaining({ code: 'AI_001' }) as unknown,
+    await expect(
+      h.controller.sessionArchive(reqOf('none'), undefined, undefined, '20'),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'AI_010' }) as unknown,
     });
     expect(h.sessionArchiveRepo.createQueryBuilder).not.toHaveBeenCalled();
   });
