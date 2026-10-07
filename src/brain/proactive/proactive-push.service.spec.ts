@@ -42,7 +42,8 @@ describe('ProactivePushService', () => {
       expect(result).toBe(true);
       expect(dataSource.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO t_push_log'),
-        ['inventory', '⚠️ 库存预警', '五粮液库存不足'],
+        // 阶段0 B-1：INSERT 首参为租户（迁移 012 加列后写入归属）
+        ['tenant-1', 'inventory', '⚠️ 库存预警', '五粮液库存不足'],
       );
       expect(auditLogger.logAiCall).toHaveBeenCalledWith(
         expect.objectContaining({
