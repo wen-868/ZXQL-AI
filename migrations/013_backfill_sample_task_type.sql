@@ -10,81 +10,105 @@
 --   （14 类 docType / 19 个工具名，实施方已逐条 Read 核实）。
 --   工具名 → docType 为多对一（promotion 有 6 个工具名），无二义。
 --
--- 幂等：每条 UPDATE 都以 WHERE task_type = '<工具名>' 精确限定。
---   重跑时命中 0 行（工具名已被改成 docType），结果与跑一次完全一致。
---   不使用 ADD COLUMN / ADD INDEX，故无需 information_schema 判定 + PREPARE，
---   也不触碰「加列/加索引条件存在」这类 MariaDB 专有写法（MySQL 8.0 语法不支持）红线。
+-- ⚠️ 跨库口径（2026-10-08 修正，P0）：
+--   `ai_sample` 由 003_ai_db_evolution.sql 建在 **AI 私有库 ai_db**，
+--   而部署脚本是 `mysql <业务库> < 文件`（业务库如 liquor_inventory）。
+--   原脚本写裸 `UPDATE ai_sample` ⇒ 打到业务库 ⇒ ERROR 1146
+--   ⇒ 每次部署都 fail（run 37665016905 起成为常驻红灯）。
+--   按全仓统一口径，本文件所有引用一律显式写 `ai_db.ai_sample`（见 README §二.6）。
 --
--- ⚠️ 前置检查（人工确认后再执行）：
---   docType 与工具名大小写/下划线形态完全不相交（docType 全 snake_case，
---   工具名全 camelCase 或 api_ 前缀），因此本脚本 19 条 UPDATE 互不干扰，
---   执行顺序无关。utf8mb4 默认不区分大小写的排序规则下结论同样成立。
+-- ⚠️ 缺表不中断（2026-10-08 新增）：
+--   本脚本是**存量数据回填（DML）**，不是结构必需项。表不存在时打印「跳过」并 EXIT=0，
+--   不阻断部署；结构完整性由 `/api/health/ready` 就绪探针终判（部署脚本第 6.1 步）。
+--   对比：DDL 脚本（003/007）缺表 = 结构不完整，必须报错让部署红 —— 两类区别对待，
+--   否则缺表会被静默吞掉，反而制造"假绿"。
+--
+-- ⚠️ 幂等：WHERE task_type IN (<19 个工具名>) 精确限定，重跑命中 0 行，
+--   结果与跑一次完全一致。不使用 ADD COLUMN / ADD INDEX，故无需 information_schema
+--   的加列判定；只做一次 information_schema.TABLES 的**存在性**判定。
+--
+-- ⚠️ 实现说明：原 19 条独立 UPDATE 合并为 1 条 CASE 更新（语义等价 ——
+--   原文件已论证 19 条互不干扰、执行顺序无关；且 docType 全 snake_case、
+--   工具名全 camelCase/api_ 前缀，互不相交）。合并是为了让"缺表跳过"的守卫
+--   只需一处 PREPARE，不必为 19 条各写一遍（19×4 行守卫反而更易写错）。
 --
 -- ⚠️ 本脚本【只写不执行】：生产是否回填由审查方/用户决策。
---   确认方式：先跑末段核验 SELECT（回填前应全部为 0）。
+--   确认方式：先跑末段核验 SELECT（回填前应显示为工具名残留行数 > 0）。
 --
--- ⚠️ 依赖：本文件是纯 DML，无会话变量，mysql < 文件 整文件执行即可，
---   也可按分号拆分到多条连接逐条执行（与 007/008/009/011 不同，无 PREPARE 依赖）。
+-- ⚠️ 依赖会话变量（PREPARE），本文件必须**整文件执行**，不可按分号拆分到多连接逐条执行。
 --
--- ⚠️ 注释规范：每行注释的破折号后必须留一个空白，否则 MySQL 报 1064。
+-- ⚠️ 注释规范：行注释引导符后必须留一个空白，否则 MySQL 报 1064。
 
--- ── 1:1 映射（13 个 docType，各对应 1 个工具名）──
--- createCustomer → customer_create
-UPDATE ai_sample SET task_type = 'customer_create' WHERE task_type = 'createCustomer';
--- createProduct → product_create
-UPDATE ai_sample SET task_type = 'product_create' WHERE task_type = 'createProduct';
--- updateProductPrice → price_update
-UPDATE ai_sample SET task_type = 'price_update' WHERE task_type = 'updateProductPrice';
--- createSalesOrder → sales_order
-UPDATE ai_sample SET task_type = 'sales_order' WHERE task_type = 'createSalesOrder';
--- createSalesReturn → sales_return
-UPDATE ai_sample SET task_type = 'sales_return' WHERE task_type = 'createSalesReturn';
--- createPurchaseOrder → purchase_order
-UPDATE ai_sample SET task_type = 'purchase_order' WHERE task_type = 'createPurchaseOrder';
--- api_create_purchase_return → purchase_return
-UPDATE ai_sample SET task_type = 'purchase_return' WHERE task_type = 'api_create_purchase_return';
--- createDelivery → delivery
-UPDATE ai_sample SET task_type = 'delivery' WHERE task_type = 'createDelivery';
--- createPaymentReconciliation → receipt
-UPDATE ai_sample SET task_type = 'receipt' WHERE task_type = 'createPaymentReconciliation';
--- api_create_purchase_payment → payment
-UPDATE ai_sample SET task_type = 'payment' WHERE task_type = 'api_create_purchase_payment';
--- createRefund → refund
-UPDATE ai_sample SET task_type = 'refund' WHERE task_type = 'createRefund';
--- inventoryTransfer → inventory_transfer
-UPDATE ai_sample SET task_type = 'inventory_transfer' WHERE task_type = 'inventoryTransfer';
--- stockCheck → inventory_check
-UPDATE ai_sample SET task_type = 'inventory_check' WHERE task_type = 'stockCheck';
-
--- 1:N 映射（promotion 对应 6 个工具名，单条 IN 一次改完）
--- api_create_flash_sale / createCouponTemplate / createFullReduction /
--- createGroupBuy / createGiftRule / createLimitedDiscount → promotion
-UPDATE ai_sample SET task_type = 'promotion' WHERE task_type IN (
-  'api_create_flash_sale',
-  'createCouponTemplate',
-  'createFullReduction',
-  'createGroupBuy',
-  'createGiftRule',
-  'createLimitedDiscount'
+SET @ai_sample_exists := (
+  SELECT COUNT(*) FROM information_schema.TABLES
+   WHERE TABLE_SCHEMA = 'ai_db'
+     AND TABLE_NAME = 'ai_sample'
 );
 
--- 核验 SELECT：以下两列均应为 0（非 0 说明仍有工具名残留，需排查后再执行本脚本）
---   remaining_tool_name_rows：仍以工具名存储的样本行数
---   total_rows：样本总行数
-SELECT
-  (SELECT COUNT(*) FROM ai_sample WHERE task_type IN (
-     'createCustomer','createProduct','updateProductPrice','createSalesOrder',
-     'createSalesReturn','createPurchaseOrder','api_create_purchase_return',
-     'createDelivery','createPaymentReconciliation','api_create_purchase_payment',
-     'createRefund','inventoryTransfer','stockCheck','api_create_flash_sale',
-     'createCouponTemplate','createFullReduction','createGroupBuy',
-     'createGiftRule','createLimitedDiscount'
-   )) AS remaining_tool_name_rows,
-  (SELECT COUNT(*) FROM ai_sample) AS total_rows;
+-- 1) 回填：19 个工具名 → 14 类 docType（单条 CASE，一次扫表）
+SET @ddl := IF(
+  @ai_sample_exists = 0,
+  'SELECT ''ai_db.ai_sample 不存在，跳过回填'' AS skip_reason',
+  'UPDATE ai_db.ai_sample
+      SET task_type = CASE task_type
+        WHEN ''createCustomer''              THEN ''customer_create''
+        WHEN ''createProduct''               THEN ''product_create''
+        WHEN ''updateProductPrice''          THEN ''price_update''
+        WHEN ''createSalesOrder''            THEN ''sales_order''
+        WHEN ''createSalesReturn''           THEN ''sales_return''
+        WHEN ''createPurchaseOrder''         THEN ''purchase_order''
+        WHEN ''api_create_purchase_return''  THEN ''purchase_return''
+        WHEN ''createDelivery''              THEN ''delivery''
+        WHEN ''createPaymentReconciliation'' THEN ''receipt''
+        WHEN ''api_create_purchase_payment'' THEN ''payment''
+        WHEN ''createRefund''                THEN ''refund''
+        WHEN ''inventoryTransfer''           THEN ''inventory_transfer''
+        WHEN ''stockCheck''                  THEN ''inventory_check''
+        WHEN ''api_create_flash_sale''       THEN ''promotion''
+        WHEN ''createCouponTemplate''        THEN ''promotion''
+        WHEN ''createFullReduction''         THEN ''promotion''
+        WHEN ''createGroupBuy''              THEN ''promotion''
+        WHEN ''createGiftRule''              THEN ''promotion''
+        WHEN ''createLimitedDiscount''       THEN ''promotion''
+        ELSE task_type
+      END
+    WHERE task_type IN (
+      ''createCustomer'', ''createProduct'', ''updateProductPrice'', ''createSalesOrder'',
+      ''createSalesReturn'', ''createPurchaseOrder'', ''api_create_purchase_return'',
+      ''createDelivery'', ''createPaymentReconciliation'', ''api_create_purchase_payment'',
+      ''createRefund'', ''inventoryTransfer'', ''stockCheck'', ''api_create_flash_sale'',
+      ''createCouponTemplate'', ''createFullReduction'', ''createGroupBuy'',
+      ''createGiftRule'', ''createLimitedDiscount''
+    )'
+);
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
--- 回填后分布核对（人工阅读输出即可，无需断言）：确认 14 类 docType 已出现，
--- 且原本就合规的存量值（如 office_document / write / analysis）原样保留。
-SELECT task_type, COUNT(*) AS cnt
-  FROM ai_sample
- GROUP BY task_type
- ORDER BY cnt DESC;
+-- 2) 核验 SELECT：remaining_tool_name_rows 应为 0（非 0 说明仍有工具名残留）
+--    total_rows 为样本总行数
+SET @ddl := IF(
+  @ai_sample_exists = 0,
+  'SELECT ''ai_db.ai_sample 不存在，跳过核验'' AS skip_reason',
+  'SELECT
+     (SELECT COUNT(*) FROM ai_db.ai_sample WHERE task_type IN (
+        ''createCustomer'', ''createProduct'', ''updateProductPrice'', ''createSalesOrder'',
+        ''createSalesReturn'', ''createPurchaseOrder'', ''api_create_purchase_return'',
+        ''createDelivery'', ''createPaymentReconciliation'', ''api_create_purchase_payment'',
+        ''createRefund'', ''inventoryTransfer'', ''stockCheck'', ''api_create_flash_sale'',
+        ''createCouponTemplate'', ''createFullReduction'', ''createGroupBuy'',
+        ''createGiftRule'', ''createLimitedDiscount''
+      )) AS remaining_tool_name_rows,
+     (SELECT COUNT(*) FROM ai_db.ai_sample) AS total_rows'
+);
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- 3) 回填后分布核对（人工阅读输出即可，无需断言）：确认 14 类 docType 已出现，
+--    且原本就合规的存量值（如 office_document / write / analysis）原样保留。
+SET @ddl := IF(
+  @ai_sample_exists = 0,
+  'SELECT ''ai_db.ai_sample 不存在，跳过分布核对'' AS skip_reason',
+  'SELECT task_type, COUNT(*) AS cnt
+     FROM ai_db.ai_sample
+    GROUP BY task_type
+    ORDER BY cnt DESC'
+);
+PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;

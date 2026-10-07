@@ -18,6 +18,20 @@
    ⚠️ 该写法依赖 **MySQL 会话变量**，因此迁移文件必须**整文件执行**（`mysql -u<user> -p <db> < migrations/NNN_x.sql`），不可按分号拆分到多条独立连接逐条执行，否则变量丢失。
 4. **对齐实体**：SQL 与 `src/database/entities/*.entity.ts` 保持一一对应，字段名/类型/索引一致。
 5. **迁移文件不做版本回滚**：回滚走反向迁移文件（如 `002_revert`），不做 `DROP` 误删。
+6. **跨库引用口径（2026-10-08 统一，强制）**：AI 私有库 `ai_db` 的对象**一律显式写 `ai_db.<table>`**，
+   **禁止**裸引用、**禁止**用 `USE ai_db;` 切库。
+   - 为什么不用 `USE`：`USE` 改的是**会话当前库**。部署脚本是一个文件一条连接、按 NNN 顺序投放
+     （`mysql <业务库> < migrations/NNN_x.sql`），一旦某文件以 `USE ai_db;` 收尾，
+     若连接被复用或脚本按分号拆分执行，后续本该落在业务库的语句会**静默落进 ai_db**。
+   - 为什么禁止裸引用：裸 `UPDATE ai_sample` 会打到会话当前库（业务库 `liquor_inventory`），
+     而该表在 `ai_db` ⇒ ERROR 1146 ⇒ 部署脚本白名单（1060/1061/1050/1091）不含 1146 ⇒ **每次部署红**
+     （run 37665016905 实证，见 `docs/reports/` 下 R101 卡）。
+   - 库名由 `003_ai_db_evolution.sql` 第 1 条 `CREATE DATABASE IF NOT EXISTS ai_db` 固定。
+     私有库改名须改该行 + 全仓全部命中点，审计命令：`rg -n "ai_db\." migrations/`。
+   - ⚠️ `@ai_db` 这个会话变量在本仓的语义是 **`DATABASE()`（= 业务库）**（见 004/005/008/009/010/011），
+     **不是** ai_db。跨库段不要拿它当私有库名用。
+   - **缺表语义区别对待**：DDL 脚本（003/007）缺表 = 结构不完整 ⇒ 必须报错让部署红；
+     DML 回填脚本（013）缺表 ⇒ 打印「跳过」并 EXIT=0，不阻断部署，由就绪探针终判结构。
 
 ## 三、执行方式
 
@@ -28,11 +42,11 @@
 
 | 迁移段 | 表 | 归属 | 状态 |
 |---|---|---|---|
-| 001 | t_ai_audit_log | 业务库 | ✅ 已建（001_audit_log.sql，2026-10-08 补齐；此前全仓无 CREATE TABLE 却被 008/009/010 ALTER，新环境部署必挂） |
-| 001 | t_ai_usage_daily / t_platform_ai_config / t_tenant_ai_config / t_tenant_ai_billing / t_ai_external_model | 业务库（现有实体已建，SQL 待归档） | 待补齐 |
-| 001 | ai_experience / ai_correction / ai_sample / ai_evolution_version | ai_db（P1-1 独立库） | 待落地 |
+| 001 | t_ai_audit_log | 业务库 | ✅ 已建（001_audit_log.sql，2026-10-08 补齐）。⚠️ 管理系统仓 `docs/migrations/121_ai_base_tables.sql` 也建了同名表且列集合一致（16 列同类型同索引），构成**跨仓重复声明**；两边都用 `IF NOT EXISTS`，谁先执行谁建，无运行期冲突，但归属待明确 |
+| 001 | t_ai_usage_daily / t_platform_ai_config / t_tenant_ai_config / t_tenant_ai_billing | 业务库 | ✅ 由管理系统仓建表，本仓不重复建（121_ai_base_tables.sql） |
+| 001 | t_ai_external_model | 业务库 | ✅ 由管理系统仓建表，本仓不重复建（154_ai_external_model.sql） |
 | 002 | t_mcp_token（MCP 对接令牌，P0-3） | 业务库 | ✅ 已建（002_mcp_token.sql） |
-| 003 | ai_db 独立库 + ai_experience/ai_correction/ai_sample/ai_evolution_version（认知闭环，P1-1） | ai_db（独立 schema） | ✅ 已建（003_ai_db_evolution.sql） |
+| 003 | ai_db 独立库 + ai_experience/ai_correction/ai_sample/ai_evolution_version（认知闭环，P1-1） | ai_db（独立 schema） | ✅ 已建（003_ai_db_evolution.sql）。⚠️ 旧 README 的 001 行写这四个表「待落地」是**错的** —— 它们一直由 003 建，2026-10-08 更正；四表**不在**管理系统仓，属本仓独占 |
 | 004 | t_platform_ai_config 增加 ollama_fallback_enabled（本地兜底开关，P1-3） | 业务库 | ✅ 已建（004_platform_ai_config_fallback.sql） |
 | 005 | t_ai_session_archive（会话冷备归档）+ t_tenant_ai_billing 补 balance 列（计费扣减，批次1） | 业务库 | ✅ 已建（005_session_archive_billing.sql） |
 | 006 | ai_execution_plan（Agent 自主执行计划，第22章） | 业务库 | ✅ 已建（006_ai_execution_plan.sql） |
