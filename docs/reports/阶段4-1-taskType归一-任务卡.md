@@ -96,16 +96,21 @@ createRefund       inventoryTransfer    stockCheck
 promotion ← api_create_flash_sale / createCouponTemplate / createFullReduction /
              createGroupBuy / createGiftRule / createLimitedDiscount
 ```
-⇒ 工具名 → docType 是**单射**（19 个工具名无任何一个跨 docType），回填时不会有
-「一个工具名映射到两个 docType」的歧义。**注意不是双射**：`promotion` 一对6，
-共 14 类 docType / 19 个工具名，函数非满射。
+⇒ 工具名 → docType 是**单值函数**（每个工具名恰映射到 1 个 docType），
+回填时不会有「一个工具名映射到两个 docType」的歧义—— 这才是回填无二义的真正根据。
 
-> ⚠️ **2026-10-08 实施方更正（p4-worker，已落盘）**：上两处原表述有误，以代码为准。
+>⚠️ **2026-10-08 实施方更正（p4-worker，已落盘）**：上段原表述有两处错误，以代码为准。
 > ① 第 97 行 `createLimiteddiscount` 拼写错误，实为 `createLimitedDiscount`（大写 D，
 > 见 `write-schema-registry.ts:437`）。照原拼写回填会静默漏掉该工具名的存量样本。
-> ② 「双射」不成立，应为「单射」——结论方向（无二义）不变，但若有人基于「双射」假设
-> 写反向回填（docType → 工具名）会直接出错。
-> 取证与完整对照表见 `阶段4-1-taskType归一-执行报告.md` 第二节。
+> ② 「双射」不成立，且**「非满射」也是错的** —— 该函数**恰恰是满射**。实测三条性质：
+> - 单值性（f 良定义）：✅ 一个工具名映射到两个 docType 的次数 = 0
+> - **满射**：✅ 14 类 docType 全部被至少一个工具名覆盖，孤立 docType 为空
+> - 单射：❌ `promotion` 一对 6，故非单射
+>
+>准确表述：**满射但非单射**（既非双射，也非非满射）。14类 docType / 19 个工具名。
+> 注意「单射」在数学上意味着「每个 docType 只挂一个工具名」，与本处事实相反，
+> 切勿用它来描述本映射 —— 会误导人以为 promotion 只对应 1 个工具名。
+> 取证命令与完整对照表见 `阶段4-1-taskType归一-执行报告.md` 第二节。
 
 ###消费侧口径已确认一致
 - `structured-extractor.ts:141` 先剥 `write_schema.` 前缀再查
