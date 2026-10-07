@@ -21,6 +21,7 @@ import { DataSource } from 'typeorm';
 import { AiConfigService } from '../../tenant/ai-config.service';
 import { ProviderRouterService } from '../router/provider-router.service';
 import { ProactivePushService } from './proactive-push.service';
+import { bestEffort, degrade } from '../../common/error-semantics';
 
 /** 本周信号行（t_push_log ai_proactive 通道） */
 interface WeeklySignalRow {
@@ -55,6 +56,12 @@ export class WeeklyPlanService {
    *
    * 默认关闭（WEEKLY_PLAN_CRON_ENABLED=true 开启）：多租户的租户清单
    * 接入前，先覆盖单体/默认租户场景，避免误推。
+   *
+   * P1-B 迁移（2026-10-07）：语义定为 degrade。
+   * 判据链：① 失败会让用户看到"成功"吗？不会——cron 无调用方，无人看到返回值；
+   * ② 数据丢了会账目不平/合规缺失吗？不会——buildWeeklyPlan 内部的推送已有
+   * 独立的 bestEffort 兜底，外层只是定时器触发器；③ 故为纯旁路，可降级。
+   * 行为等价：仍是不抛、继续走完 cron 周期，只多出 warn 日志与语义指标。
    */
   @Cron('0 0 9 * * 1')
   async handleWeeklyCron(): Promise<void> {
@@ -64,13 +71,10 @@ export class WeeklyPlanService {
     ) {
       return;
     }
-    try {
-      await this.buildWeeklyPlan('default');
-    } catch (err) {
-      this.logger.warn(
-        `周计划定时生成失败：${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    await degrade(() => this.buildWeeklyPlan('default'), undefined, {
+      op: 'weekly_plan.cron',
+      tenantId: 'default',
+    });
   }
 
   /**
@@ -115,59 +119,70 @@ export class WeeklyPlanService {
         : '（本周暂无主动推送信号）';
 
     // 2. LLM 规划三件事
-    let plan: string;
-    try {
-      const resolved = await this.aiConfigService.getResolvedConfig();
-      const routed = this.router.route({
-        requestedModel: undefined,
-        resolved,
-        systemScope: 'mgmt',
-      });
-      const res = await routed.provider.chatSync(
-        [
-          {
-            role: 'user',
-            content:
-              `你是酒水门店的经营助手。以下是系统本周自动产生的主动提醒信号（最新在前）：\n${brief}\n\n` +
-              '请为老板制定「本周值得关注的三件事」：每件事一行，格式为「标题 —— 数据依据 → 建议动作」；' +
-              '标题前用 1./2./3. 编号；总长不超过 8 行，简体中文。' +
-              '若信号为空，给出周初经营检查清单三条（库存/应收/动销各一条）。',
-          },
-        ],
-        { temperature: 0.3, max_tokens: 500 },
-      );
-      let planText = res.content?.trim() ?? '';
-      // 剥 markdown 代码块围栏（部分模型会给计划套 ```）
-      if (planText.startsWith('```')) {
-        const nl = planText.indexOf('\n');
-        if (nl >= 0) planText = planText.slice(nl + 1);
-        if (planText.endsWith('```')) planText = planText.slice(0, -3);
-        planText = planText.trim();
-      }
-      plan = planText;
-    } catch (err) {
-      this.logger.warn(
-        `周计划 LLM 规划失败（降级为信号清单）：${err instanceof Error ? err.message : String(err)}`,
-      );
-      plan =
-        signals > 0
-          ? `本周共 ${signals} 条主动提醒，请按时间顺序查看：\n${brief}`
-          : '本周暂无主动提醒信号。周初建议检查：①低库存商品补货；②逾期应收催收；③滞销品动销方案。';
-    }
+    //
+    // P1-B 迁移（2026-10-07）：语义定为 degrade。
+    // 判据链：① 失败会让用户看到"成功"吗？不会——降级产出的信号清单本身就是
+    // 有效结论（每条标题都对应真实推送记录），不是伪造的"AI 规划"；② 数据丢了
+    // 会账目不平吗？不会——真实信号一条未丢，只是没被 LLM 串成叙事；③ 故为旁路
+    // 增强，可降级。行为等价：仍返回同一段信号清单文本。
+    const plan = await degrade(
+      async () => {
+        const resolved = await this.aiConfigService.getResolvedConfig();
+        const routed = this.router.route({
+          requestedModel: undefined,
+          resolved,
+          systemScope: 'mgmt',
+        });
+        const res = await routed.provider.chatSync(
+          [
+            {
+              role: 'user',
+              content:
+                `你是酒水门店的经营助手。以下是系统本周自动产生的主动提醒信号（最新在前）：\n${brief}\n\n` +
+                '请为老板制定「本周值得关注的三件事」：每件事一行，格式为「标题 —— 数据依据 → 建议动作」；' +
+                '标题前用 1./2./3. 编号；总长不超过 8 行，简体中文。' +
+                '若信号为空，给出周初经营检查清单三条（库存/应收/动销各一条）。',
+            },
+          ],
+          { temperature: 0.3, max_tokens: 500 },
+        );
+        let planText = res.content?.trim() ?? '';
+        // 剥 markdown 代码块围栏（部分模型会给计划套 ```）
+        if (planText.startsWith('```')) {
+          const nl = planText.indexOf('\n');
+          if (nl >= 0) planText = planText.slice(nl + 1);
+          if (planText.endsWith('```')) planText = planText.slice(0, -3);
+          planText = planText.trim();
+        }
+        return planText;
+      },
+      signals > 0
+        ? `本周共 ${signals} 条主动提醒，请按时间顺序查看：\n${brief}`
+        : '本周暂无主动提醒信号。周初建议检查：①低库存商品补货；②逾期应收催收；③滞销品动销方案。',
+      { op: 'weekly_plan.llm', tenantId, detail: `signals=${signals}` },
+    );
 
     // 3. 落库推送（审计留痕；失败不阻塞返回）
-    try {
-      await this.push.push(tenantId, 'weekly-plan', {
-        type: 'system',
-        priority: 'important',
-        title: '本周经营计划（AI 规划）',
-        content: plan,
-      });
-    } catch (err) {
-      this.logger.warn(
-        `周计划推送失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    //
+    // P1-B 迁移（2026-10-07）：语义定为 bestEffort。
+    // 判据链：① 失败会让用户看到"成功"吗？会——但计划正文已真实生成并返回给
+    // 调用方，缺的只是推送留痕；若用 mustSucceed 上抛会凭空中断一次已成功的计划
+    // 生成，属于改变行为；② 数据丢了会账目不平/合规缺失吗？会——t_push_log 是
+    // 主动推送的审计留痕，缺失即审计断链，不能降级为无声；③ 故取 bestEffort：
+    // 不阻断主流程，但失败必落 logger.error + 指标 + 死信，运维可据死信补推。
+    await bestEffort(
+      async () => {
+        // push 返回 boolean，bestEffort 要求 Promise<void>——显式丢弃返回值
+        // （原代码也是只等完成、不看返回值，行为等价）
+        await this.push.push(tenantId, 'weekly-plan', {
+          type: 'system',
+          priority: 'important',
+          title: '本周经营计划（AI 规划）',
+          content: plan,
+        });
+      },
+      { op: 'weekly_plan.push', tenantId, detail: 'weekly-plan 推送留痕' },
+    );
 
     this.logger.log(
       `S3 周计划已生成：tenant=${tenantId} signals=${signals} plan=${plan.length}字`,

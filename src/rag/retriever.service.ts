@@ -19,6 +19,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EmbeddingService } from './embedding.service';
 import { RetrievalResult, VectorStoreService } from './vector-store.service';
+import { degrade } from '../common/error-semantics';
 
 @Injectable()
 export class RetrieverService {
@@ -50,14 +51,14 @@ export class RetrieverService {
       return [];
     }
 
-    try {
-      const queryEmbedding = await this.embeddingService.embed(query);
-      return this.vectorStore.search(tenantId, queryEmbedding, topK);
-    } catch (err) {
-      this.logger.warn(
-        `RAG 向量检索失败（跳过知识库增强）：${err instanceof Error ? err.message : String(err)}`,
-      );
-      return [];
-    }
+    // 向量化/检索失败属旁路降级：返回空结果，对话主流程不受影响
+    return degrade(
+      async () => {
+        const queryEmbedding = await this.embeddingService.embed(query);
+        return this.vectorStore.search(tenantId, queryEmbedding, topK);
+      },
+      [],
+      { op: 'rag.search', tenantId, detail: query.slice(0, 100) },
+    );
   }
 }

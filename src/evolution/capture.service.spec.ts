@@ -11,6 +11,12 @@ import { AiExperienceEntity } from '../database/entities/ai-experience.entity';
 import { AiCorrectionEntity } from '../database/entities/ai-correction.entity';
 import { AiSampleEntity } from '../database/entities/ai-sample.entity';
 import { CaptureService } from './capture.service';
+import {
+  errorSemanticsCount,
+  resetErrorSemanticsMetrics,
+  setDefaultDeadLetterSink,
+  type DeadLetterRecord,
+} from '../common/error-semantics';
 
 // Repository<T> 要求 T extends ObjectLiteral，泛型需带同约束
 function createRepo<T extends ObjectLiteral>() {
@@ -117,5 +123,83 @@ describe('P1-1 CaptureService', () => {
     await service.listCorrections();
     await service.listSamples('t_001');
     // 无异常即通过（repo.find mock 返回空数组）
+  });
+});
+
+// P1-C 迁移回归：采集失败此前只 logger.warn，运维无从知晓样本丢失。
+// 迁到 bestEffort 后必须能看到死信 + 指标，且不阻断主流程。
+describe('P1-C CaptureService bestEffort 死信', () => {
+  beforeEach(() => resetErrorSemanticsMetrics());
+  afterEach(() => setDefaultDeadLetterSink(null));
+
+  it('任务采集失败 → 写死信 + 计 fail 指标，且不抛出', async () => {
+    const deadLetters: DeadLetterRecord[] = [];
+    setDefaultDeadLetterSink((r) => {
+      deadLetters.push(r);
+    });
+    const { service, expRepo } = createService();
+    (expRepo.save as jest.Mock).mockRejectedValueOnce(
+      new Error('ai_db 连接失败'),
+    );
+
+    await expect(
+      service.captureTask({
+        tenantId: 't_001',
+        domain: 'write',
+        intent: 'sales_order_create',
+        outcome: 'success',
+        reply: '已创建',
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(deadLetters).toHaveLength(1);
+    expect(deadLetters[0].op).toBe('capture.captureTask');
+    expect(deadLetters[0].tenantId).toBe('t_001');
+    expect(deadLetters[0].level).toBe('best_effort');
+    expect(deadLetters[0].error).toContain('ai_db 连接失败');
+    expect(
+      errorSemanticsCount('best_effort', 'capture.captureTask', 'fail'),
+    ).toBe(1);
+    // 落库失败不得虚计成功（沿用 P3 修复口径）
+    expect(
+      errorSemanticsCount('best_effort', 'capture.captureTask', 'ok'),
+    ).toBe(0);
+  });
+
+  it('纠正采集失败 → 写死信，且不抛出', async () => {
+    const deadLetters: DeadLetterRecord[] = [];
+    setDefaultDeadLetterSink((r) => {
+      deadLetters.push(r);
+    });
+    const { service, corrRepo } = createService();
+    (corrRepo.save as jest.Mock).mockRejectedValueOnce(new Error('ai_db 只读'));
+
+    await expect(
+      service.captureCorrection({ tenantId: 't_002', taskType: 'order' }),
+    ).resolves.toBeUndefined();
+
+    expect(deadLetters).toHaveLength(1);
+    expect(deadLetters[0].op).toBe('capture.captureCorrection');
+    expect(deadLetters[0].tenantId).toBe('t_002');
+  });
+
+  it('采集成功 → 不写死信（死信只在失败路径出现）', async () => {
+    const deadLetters: DeadLetterRecord[] = [];
+    setDefaultDeadLetterSink((r) => {
+      deadLetters.push(r);
+    });
+    const { service } = createService();
+
+    await service.captureTask({
+      tenantId: 't_001',
+      domain: 'analysis',
+      intent: 'chat',
+      outcome: 'success',
+    });
+
+    expect(deadLetters).toHaveLength(0);
+    expect(
+      errorSemanticsCount('best_effort', 'capture.captureTask', 'ok'),
+    ).toBe(1);
   });
 });

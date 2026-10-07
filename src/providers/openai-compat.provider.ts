@@ -26,6 +26,7 @@ import {
   ToolDefinition,
 } from './provider.interface';
 import { ProviderError } from './provider-error';
+import { degrade } from '../common/error-semantics';
 
 /** OpenAI 兼容请求体 */
 interface OpenAICompatRequestBody {
@@ -204,13 +205,14 @@ export class OpenAICompatProvider implements IModelProvider {
             );
           }
 
-          let parsed: OpenAICompatStreamChunk;
-          try {
-            parsed = JSON.parse(data) as OpenAICompatStreamChunk;
-          } catch (err) {
-            this.logger.warn(
-              `SSE 行 JSON 解析失败，跳过：${data.slice(0, 100)}${err instanceof Error ? ` (${err.message})` : ''}`,
-            );
+          // 解析 JSON：单行解析失败降级跳过该行，不中断整个流
+          // （部分 Provider 偶发心跳行；控制流与迁移前一致）
+          const parsed = await degrade<OpenAICompatStreamChunk | null>(
+            () => Promise.resolve(JSON.parse(data) as OpenAICompatStreamChunk),
+            null,
+            { op: 'provider.parseSseLine', detail: data.slice(0, 100) },
+          );
+          if (parsed === null) {
             continue;
           }
 

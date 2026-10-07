@@ -28,6 +28,7 @@ import {
   ToolExecutionRecord,
   ToolRisk,
 } from '../tools/tool.interface';
+import { bestEffort } from '../common/error-semantics';
 
 /**
  * 执行车道（取证埋点，方案 12.4）
@@ -167,71 +168,84 @@ export class AuditLogger {
    */
   logAiCall(record: AiCallAuditRecord): void {
     // 异步写入，不阻塞主流程
-    this.fireAndForget(async () => {
-      // P1-3：Provider 降级元数据并入 tool_calls（event=provider_fallback）
-      const toolCalls = [...(record.toolCalls ?? [])];
-      if (record.fallback?.used) {
-        toolCalls.push({
-          event: 'provider_fallback',
-          from: record.fallback.from,
-          to: record.fallback.to,
-          reason: record.fallback.reason,
-          attempts: record.fallback.attempts,
-          latency_ms: record.fallback.latencyMs,
+    this.fireAndForget(
+      async () => {
+        // P1-3：Provider 降级元数据并入 tool_calls（event=provider_fallback）
+        const toolCalls = [...(record.toolCalls ?? [])];
+        if (record.fallback?.used) {
+          toolCalls.push({
+            event: 'provider_fallback',
+            from: record.fallback.from,
+            to: record.fallback.to,
+            reason: record.fallback.reason,
+            attempts: record.fallback.attempts,
+            latency_ms: record.fallback.latencyMs,
+          });
+        }
+
+        // 合规脱敏（2026-09-05 找茬审计 #4）：AUDIT_MASK_MESSAGE=true 时对
+        // 对话原文做 PII 掩码（手机号/连续证件号），审计仍可排障但不存明文 PII
+        let userMessage = record.userMessage ?? null;
+        // P2 修复（2026-10-04）：掩码默认开启（此前默认 false，手机号/证件号
+        // 明文入库）；需关闭时显式设 AUDIT_MASK_MESSAGE=false
+        if (
+          userMessage &&
+          (process.env.AUDIT_MASK_MESSAGE || 'true') === 'true'
+        ) {
+          userMessage = userMessage
+            .replace(
+              /1[3-9]\d{9}/g,
+              (m) => m.slice(0, 3) + '****' + m.slice(-2),
+            )
+            .replace(/\d{15,18}/g, (m) => m.slice(0, 4) + '****' + m.slice(-3));
+        }
+
+        const entity = this.auditLogRepo.create({
+          tenantId: record.tenantId,
+          userId: record.userId ?? null,
+          sessionId: record.sessionId ?? null,
+          provider: record.provider ?? null,
+          model: record.model ?? null,
+          intent: record.intent ?? null,
+          employeeUid: record.employeeUid ?? null,
+          triageLane: record.triageLane ?? null,
+          triageCategories: record.triageCategories ?? null,
+          lane: record.lane ?? null,
+          categories: record.categories?.length ? record.categories : null,
+          userMessage,
+          toolCalls: toolCalls.length > 0 ? toolCalls : null,
+          promptTokens: record.promptTokens,
+          completionTokens: record.completionTokens,
+          latencyMs: record.latencyMs ?? null,
+          success: record.success ? 1 : 0,
+          errorMessage: record.errorMessage ?? null,
         });
-      }
+        await this.auditLogRepo.save(entity);
 
-      // 合规脱敏（2026-09-05 找茬审计 #4）：AUDIT_MASK_MESSAGE=true 时对
-      // 对话原文做 PII 掩码（手机号/连续证件号），审计仍可排障但不存明文 PII
-      let userMessage = record.userMessage ?? null;
-      // P2 修复（2026-10-04）：掩码默认开启（此前默认 false，手机号/证件号
-      // 明文入库）；需关闭时显式设 AUDIT_MASK_MESSAGE=false
-      if (
-        userMessage &&
-        (process.env.AUDIT_MASK_MESSAGE || 'true') === 'true'
-      ) {
-        userMessage = userMessage
-          .replace(/1[3-9]\d{9}/g, (m) => m.slice(0, 3) + '****' + m.slice(-2))
-          .replace(/\d{15,18}/g, (m) => m.slice(0, 4) + '****' + m.slice(-3));
-      }
+        // 更新日用量汇总
+        await this.upsertDailyUsage({
+          tenantId: record.tenantId,
+          provider: record.provider ?? null,
+          model: record.model ?? null,
+          chatCount: 1,
+          toolCallCount: record.toolCalls?.length ?? 0,
+          promptTokens: record.promptTokens,
+          completionTokens: record.completionTokens,
+        });
 
-      const entity = this.auditLogRepo.create({
+        this.logger.debug(
+          `审计日志已写入：tenant=${record.tenantId} provider=${record.provider} tokens=${record.promptTokens + record.completionTokens} success=${record.success}`,
+        );
+      },
+      {
+        op: 'audit.logAiCall',
         tenantId: record.tenantId,
-        userId: record.userId ?? null,
-        sessionId: record.sessionId ?? null,
-        provider: record.provider ?? null,
-        model: record.model ?? null,
-        intent: record.intent ?? null,
-        employeeUid: record.employeeUid ?? null,
-        triageLane: record.triageLane ?? null,
-        triageCategories: record.triageCategories ?? null,
-        lane: record.lane ?? null,
-        categories: record.categories?.length ? record.categories : null,
-        userMessage,
-        toolCalls: toolCalls.length > 0 ? toolCalls : null,
-        promptTokens: record.promptTokens,
-        completionTokens: record.completionTokens,
-        latencyMs: record.latencyMs ?? null,
-        success: record.success ? 1 : 0,
-        errorMessage: record.errorMessage ?? null,
-      });
-      await this.auditLogRepo.save(entity);
-
-      // 更新日用量汇总
-      await this.upsertDailyUsage({
-        tenantId: record.tenantId,
-        provider: record.provider ?? null,
-        model: record.model ?? null,
-        chatCount: 1,
-        toolCallCount: record.toolCalls?.length ?? 0,
-        promptTokens: record.promptTokens,
-        completionTokens: record.completionTokens,
-      });
-
-      this.logger.debug(
-        `审计日志已写入：tenant=${record.tenantId} provider=${record.provider} tokens=${record.promptTokens + record.completionTokens} success=${record.success}`,
-      );
-    });
+        detail:
+          `lane=${record.lane ?? '-'} intent=${record.intent ?? '-'} ` +
+          `tokens=${record.promptTokens + record.completionTokens} success=${record.success} ` +
+          `session=${record.sessionId ?? '-'}`,
+      },
+    );
   }
 
   /**
@@ -243,51 +257,60 @@ export class AuditLogger {
    * @param record 工具执行记录（由 ToolExecutor 组装）
    */
   logToolExecution(record: ToolExecutionRecord): void {
-    this.fireAndForget(async () => {
-      // 构造工具调用审计条目
-      const toolCallEntry: ToolCallAuditEntry = {
-        tool_name: record.toolName,
-        is_write_operation: record.isWriteOperation,
-        success: record.success,
-        duration_ms: record.durationMs,
-        error: record.error,
-        args_summary: this.sanitizeArgs(record.args),
-      };
+    this.fireAndForget(
+      async () => {
+        // 构造工具调用审计条目
+        const toolCallEntry: ToolCallAuditEntry = {
+          tool_name: record.toolName,
+          is_write_operation: record.isWriteOperation,
+          success: record.success,
+          duration_ms: record.durationMs,
+          error: record.error,
+          args_summary: this.sanitizeArgs(record.args),
+        };
 
-      const entity = this.auditLogRepo.create({
+        const entity = this.auditLogRepo.create({
+          tenantId: record.context.tenantId,
+          userId: record.context.userId ?? null,
+          sessionId: record.context.sessionId ?? null,
+          provider: null,
+          model: null,
+          intent: 'tool_execution',
+          lane: 'tool',
+          categories: record.category ? [record.category] : null,
+          userMessage: null,
+          toolCalls: [toolCallEntry as unknown as Record<string, unknown>],
+          promptTokens: 0,
+          completionTokens: 0,
+          latencyMs: record.durationMs,
+          success: record.success ? 1 : 0,
+          errorMessage: record.error ?? null,
+        });
+        await this.auditLogRepo.save(entity);
+
+        // 更新日用量汇总（仅 tool_call_count +1）
+        await this.upsertDailyUsage({
+          tenantId: record.context.tenantId,
+          provider: null,
+          model: null,
+          chatCount: 0,
+          toolCallCount: 1,
+          promptTokens: 0,
+          completionTokens: 0,
+        });
+
+        this.logger.debug(
+          `工具审计已写入：tool=${record.toolName} tenant=${record.context.tenantId} success=${record.success} ${record.durationMs}ms`,
+        );
+      },
+      {
+        op: 'audit.logToolExecution',
         tenantId: record.context.tenantId,
-        userId: record.context.userId ?? null,
-        sessionId: record.context.sessionId ?? null,
-        provider: null,
-        model: null,
-        intent: 'tool_execution',
-        lane: 'tool',
-        categories: record.category ? [record.category] : null,
-        userMessage: null,
-        toolCalls: [toolCallEntry as unknown as Record<string, unknown>],
-        promptTokens: 0,
-        completionTokens: 0,
-        latencyMs: record.durationMs,
-        success: record.success ? 1 : 0,
-        errorMessage: record.error ?? null,
-      });
-      await this.auditLogRepo.save(entity);
-
-      // 更新日用量汇总（仅 tool_call_count +1）
-      await this.upsertDailyUsage({
-        tenantId: record.context.tenantId,
-        provider: null,
-        model: null,
-        chatCount: 0,
-        toolCallCount: 1,
-        promptTokens: 0,
-        completionTokens: 0,
-      });
-
-      this.logger.debug(
-        `工具审计已写入：tool=${record.toolName} tenant=${record.context.tenantId} success=${record.success} ${record.durationMs}ms`,
-      );
-    });
+        detail:
+          `tool=${record.toolName} category=${record.category ?? '-'} ` +
+          `success=${record.success} session=${record.context.sessionId ?? '-'}`,
+      },
+    );
   }
 
   /**
@@ -299,38 +322,47 @@ export class AuditLogger {
    * @param record 写审核事件记录
    */
   logWriteGuardEvent(record: WriteGuardAuditRecord): void {
-    this.fireAndForget(async () => {
-      const entity = this.auditLogRepo.create({
-        tenantId: record.tenantId,
-        userId: null,
-        sessionId: record.sessionId ?? null,
-        provider: null,
-        model: null,
-        intent: 'write_guard',
-        userMessage: record.operationLabel,
-        toolCalls: [
-          {
-            event: record.event,
-            token: record.token,
-            tool_name: record.toolName,
-            doc_type: record.docType,
-            risk: record.risk,
-            needs_review: record.needsReview,
-            summary: record.summary,
-          },
-        ],
-        promptTokens: 0,
-        completionTokens: 0,
-        latencyMs: null,
-        success: 1,
-        errorMessage: null,
-      });
-      await this.auditLogRepo.save(entity);
+    this.fireAndForget(
+      async () => {
+        const entity = this.auditLogRepo.create({
+          tenantId: record.tenantId,
+          userId: null,
+          sessionId: record.sessionId ?? null,
+          provider: null,
+          model: null,
+          intent: 'write_guard',
+          userMessage: record.operationLabel,
+          toolCalls: [
+            {
+              event: record.event,
+              token: record.token,
+              tool_name: record.toolName,
+              doc_type: record.docType,
+              risk: record.risk,
+              needs_review: record.needsReview,
+              summary: record.summary,
+            },
+          ],
+          promptTokens: 0,
+          completionTokens: 0,
+          latencyMs: null,
+          success: 1,
+          errorMessage: null,
+        });
+        await this.auditLogRepo.save(entity);
 
-      this.logger.debug(
-        `WriteGuard 审计已写入：event=${record.event} tenant=${record.tenantId} tool=${record.toolName}`,
-      );
-    });
+        this.logger.debug(
+          `WriteGuard 审计已写入：event=${record.event} tenant=${record.tenantId} tool=${record.toolName}`,
+        );
+      },
+      {
+        op: 'audit.logWriteGuardEvent',
+        tenantId: record.tenantId,
+        detail:
+          `event=${record.event} tool=${record.toolName} docType=${record.docType} ` +
+          `risk=${record.risk} needsReview=${record.needsReview}`,
+      },
+    );
   }
 
   /**
@@ -403,10 +435,14 @@ export class AuditLogger {
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
     const totalTokens = params.promptTokens + params.completionTokens;
 
-    try {
-      // 使用原生 SQL UPSERT（TypeORM upsert 在 1.x 版本可能不兼容，用原生 SQL 更可靠）
-      await this.dataSource.query(
-        `INSERT INTO t_ai_usage_daily
+    // P1-C 迁移：此前 catch + logger.warn 静默吞掉，用量汇总失真无任何可观测手段
+    // （报表与超阈值告警随之失真）。改为 bestEffort：仍不阻断主流程，但失败必落
+    // logger.error + 指标 + 死信，运维可据死信补录。
+    await bestEffort(
+      async () => {
+        // 使用原生 SQL UPSERT（TypeORM upsert 在 1.x 版本可能不兼容，用原生 SQL 更可靠）
+        await this.dataSource.query(
+          `INSERT INTO t_ai_usage_daily
           (tenant_id, stat_date, chat_count, tool_call_count, prompt_tokens, completion_tokens, total_tokens, provider, model, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
          ON DUPLICATE KEY UPDATE
@@ -416,24 +452,27 @@ export class AuditLogger {
           completion_tokens = completion_tokens + VALUES(completion_tokens),
           total_tokens = total_tokens + VALUES(total_tokens),
           updated_at = NOW()`,
-        [
-          params.tenantId,
-          today,
-          params.chatCount,
-          params.toolCallCount,
-          params.promptTokens,
-          params.completionTokens,
-          totalTokens,
-          params.provider,
-          params.model,
-        ],
-      );
-    } catch (err) {
-      // UPSERT 失败不影响主流程，仅记日志
-      this.logger.warn(
-        `日用量汇总更新失败（非致命）：${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+          [
+            params.tenantId,
+            today,
+            params.chatCount,
+            params.toolCallCount,
+            params.promptTokens,
+            params.completionTokens,
+            totalTokens,
+            params.provider,
+            params.model,
+          ],
+        );
+      },
+      {
+        op: 'audit.upsertDailyUsage',
+        tenantId: params.tenantId,
+        detail: `statDate=${today} provider=${params.provider ?? '-'} model=${
+          params.model ?? '-'
+        } chat=${params.chatCount} tool=${params.toolCallCount} tokens=${totalTokens}`,
+      },
+    );
   }
 
   /**
@@ -482,15 +521,19 @@ export class AuditLogger {
   /**
    * Fire-and-forget：异步执行，不阻塞调用方，捕获所有异常
    *
-   * 审计日志写入是 best-effort，任何失败都仅记 warn 日志，不抛异常。
+   * P1-C 迁移：审计主流水（t_ai_audit_log）落库失败此前只 logger.warn，
+   * 取证链断点无人可见。改走 bestEffort：失败落 logger.error + 指标 + 死信，
+   * 仍是非阻塞（不 await），主流程不受影响。
+   *
+   * @param fn  审计写入动作
+   * @param ctx bestEffort 上下文（op / tenantId / detail）
    */
-  private fireAndForget(fn: () => Promise<void>): void {
-    Promise.resolve()
-      .then(fn)
-      .catch((err) => {
-        this.logger.warn(
-          `审计日志写入失败（非致命）：${err instanceof Error ? err.message : String(err)}`,
-        );
-      });
+  private fireAndForget(
+    fn: () => Promise<void>,
+    ctx: { op: string; tenantId?: string; detail?: string },
+  ): void {
+    // bestEffort 自身不抛（死信写入失败也只落日志，见 error-semantics），
+    // 因此这里无需再挂 .catch；不 await 以保持 fire-and-forget 非阻塞语义。
+    void bestEffort(fn, ctx);
   }
 }

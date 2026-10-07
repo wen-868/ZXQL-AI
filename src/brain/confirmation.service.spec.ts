@@ -21,6 +21,7 @@ import {
   CONFIRM_TTL_MS,
   REVOKE_TTL_MS,
 } from './confirmation.service';
+import { WriteGuardService } from './write-guard.service';
 
 describe('R70-15 + P0-1 ConfirmationService', () => {
   let service: ConfirmationService;
@@ -561,12 +562,46 @@ describe('R70-15 + P0-1 ConfirmationService', () => {
       });
       expect(out.success).toBe(false);
       expect(evidence.recordWrite).not.toHaveBeenCalled();
+      // 回滚成功 → 重试入口可用，不应提示用户不可用
+      expect(out.retryEntryUnavailable).toBe(false);
 
       const after = await svc.getByTenant(
         created.confirmationId,
         baseInput.tenantId,
       );
       expect(after?.status).toBe('pending');
+    });
+
+    // P1-C 追加（裁定 1）：回滚失败不能静默——用户必须能被上层告知重试入口可能没了
+    it('回滚失败 → retryEntryUnavailable=true，且不顶掉原始业务错误', async () => {
+      const { svc } = createWiredService({
+        success: false,
+        error: '后端 500',
+      });
+      const guard = (svc as unknown as { writeGuardService: WriteGuardService })
+        .writeGuardService;
+      jest
+        .spyOn(guard, 'resetToPending')
+        .mockImplementation(() => Promise.reject(new Error('redis 连接失败')));
+
+      const created = await svc.create(baseInput);
+      const confirmed = await svc.confirm(
+        created.confirmationId,
+        baseInput.tenantId,
+      );
+      if (!confirmed.success || !confirmed.confirmation) {
+        throw new Error('确认失败（测试前置）');
+      }
+
+      // 验收点：bestEffort 不抛，调用方拿得到正常失败结果
+      const out = await svc.executeConfirmed(confirmed.confirmation, {
+        tenantId: baseInput.tenantId,
+      });
+
+      expect(out.success).toBe(false);
+      // 原始业务错误（后端 500）不能被回滚失败掩盖
+      expect(out.error).toBe('后端 500');
+      expect(out.retryEntryUnavailable).toBe(true);
     });
   });
 });

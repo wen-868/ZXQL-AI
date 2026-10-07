@@ -25,6 +25,7 @@ import { DocumentLoaderService } from './document-loader.service';
 import { TextSplitterService } from './text-splitter.service';
 import { EmbeddingService } from './embedding.service';
 import { VectorStoreService } from './vector-store.service';
+import { degrade } from '../common/error-semantics';
 
 /** 默认租户 ID（与 RAG 接口 tenantId 默认值一致） */
 const DEFAULT_TENANT_ID = 'default';
@@ -58,18 +59,17 @@ export class RagSeedService implements OnModuleInit {
       return;
     }
 
-    try {
-      const loaded = await this.seedFromDir(this.knowledgeDir);
-      if (loaded > 0) {
-        this.logger.log(`预置知识库加载完成：${loaded} 份文档已建立索引`);
-      }
-    } catch (err) {
-      this.logger.warn(
-        `预置知识库加载异常（不影响服务启动）：${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
+    // 预置知识库属启动旁路：任何异常都降级，绝不阻塞服务启动
+    await degrade(
+      async () => {
+        const loaded = await this.seedFromDir(this.knowledgeDir);
+        if (loaded > 0) {
+          this.logger.log(`预置知识库加载完成：${loaded} 份文档已建立索引`);
+        }
+      },
+      undefined,
+      { op: 'rag.seedBootstrap', detail: this.knowledgeDir },
+    );
   }
 
   /**
@@ -87,19 +87,12 @@ export class RagSeedService implements OnModuleInit {
         .filter((name): name is string => !!name),
     );
 
-    let files: string[];
-    try {
-      files = (await readdir(dir))
-        .filter((name) => name.endsWith('.md'))
-        .sort();
-    } catch (err) {
-      this.logger.warn(
-        `读取预置知识目录失败（${dir}）：${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-      return 0;
-    }
+    const files = await degrade(
+      async () =>
+        (await readdir(dir)).filter((name) => name.endsWith('.md')).sort(),
+      [],
+      { op: 'rag.readSeedDir', detail: dir },
+    );
     if (files.length === 0) {
       this.logger.log(`预置知识目录 ${dir} 无 markdown 文档，跳过`);
       return 0;
@@ -111,33 +104,34 @@ export class RagSeedService implements OnModuleInit {
         this.logger.log(`预置知识文档已存在（跳过）：${file}`);
         continue;
       }
-      try {
-        const text = await this.loader.loadFromFile(join(dir, file));
-        const chunks = this.splitter.split(text);
-        if (chunks.length === 0) {
-          this.logger.warn(`预置文档无有效内容（跳过）：${file}`);
-          continue;
-        }
-        const embeddings = await Promise.all(
-          chunks.map((chunk) => this.embedding.embed(chunk)),
-        );
-        await this.vectorStore.addChunks(
-          DEFAULT_TENANT_ID,
-          file,
-          chunks.map((text, index) => ({
-            text,
-            embedding: embeddings[index],
-          })),
-        );
-        loaded += 1;
-        this.logger.log(`预置知识文档已加载：${file}（${chunks.length} 分块）`);
-      } catch (err) {
-        this.logger.warn(
-          `预置知识文档加载失败（跳过）：${file}：${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
-      }
+      // 单文档加载失败属旁路降级：跳过该文档，不影响其余文档与启动
+      await degrade(
+        async () => {
+          const text = await this.loader.loadFromFile(join(dir, file));
+          const chunks = this.splitter.split(text);
+          if (chunks.length === 0) {
+            this.logger.warn(`预置文档无有效内容（跳过）：${file}`);
+            return;
+          }
+          const embeddings = await Promise.all(
+            chunks.map((chunk) => this.embedding.embed(chunk)),
+          );
+          await this.vectorStore.addChunks(
+            DEFAULT_TENANT_ID,
+            file,
+            chunks.map((text, index) => ({
+              text,
+              embedding: embeddings[index],
+            })),
+          );
+          loaded += 1;
+          this.logger.log(
+            `预置知识文档已加载：${file}（${chunks.length} 分块）`,
+          );
+        },
+        undefined,
+        { op: 'rag.seedDocument', tenantId: DEFAULT_TENANT_ID, detail: file },
+      );
     }
     return loaded;
   }

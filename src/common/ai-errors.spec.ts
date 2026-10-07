@@ -8,7 +8,7 @@
 import { AI_ERRORS, aiError, aiErrorHttp, AiErrorCode } from './ai-errors';
 
 describe('A3 AI 错误码', () => {
-  it('AI_001~AI_013 全部定义且 HTTP 映射正确', () => {
+  it('AI_001~AI_014 全部定义且 HTTP 映射正确', () => {
     expect(aiErrorHttp('AI_001')).toBe(401);
     expect(aiErrorHttp('AI_002')).toBe(403);
     expect(aiErrorHttp('AI_003')).toBe(429);
@@ -17,7 +17,9 @@ describe('A3 AI 错误码', () => {
     expect(aiErrorHttp('AI_011')).toBe(428);
     expect(aiErrorHttp('AI_012')).toBe(409);
     expect(aiErrorHttp('AI_013')).toBe(423);
-    expect(Object.keys(AI_ERRORS)).toHaveLength(13);
+    // AI_014：三级语义基础设施 mustSucceed 默认错误码（阶段1-批次1 新增）
+    expect(aiErrorHttp('AI_014')).toBe(500);
+    expect(Object.keys(AI_ERRORS)).toHaveLength(14);
   });
 
   it('aiError 构造标准响应结构', () => {

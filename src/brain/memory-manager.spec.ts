@@ -97,7 +97,7 @@ function makeTx(
       payload = { k, val };
       return tx;
     }),
-    exec: jest.fn(async () => {
+    exec: jest.fn(async (): Promise<Array<[string, string]> | null> => {
       execCount += 1;
       if (conflictAt !== null && execCount <= conflictAt) {
         return null;

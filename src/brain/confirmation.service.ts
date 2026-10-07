@@ -33,6 +33,7 @@ import {
   WriteGuardService,
   WRITE_TOKEN_TTL_MS,
 } from './write-guard.service';
+import { bestEffort } from '../common/error-semantics';
 
 /** 确认记录状态（保持与 WriteGuard 状态机对齐） */
 export type ConfirmationStatus =
@@ -183,6 +184,14 @@ export interface ConfirmAndExecuteResult {
   error?: string;
   suggestion?: string;
   needsSecondConfirm?: boolean;
+  /**
+   * true = 确认执行失败后令牌回滚 pending 也失败了，重试入口可能不可用
+   * （令牌滞留 confirmed，再确认与取消都会被拒）。
+   *
+   * 上层据此提示用户「本次操作失败，且重试入口可能不可用，请联系管理员」，
+   * 避免用户在死路上反复重试。仅在 executeConfirmed 失败分支出现。
+   */
+  retryEntryUnavailable?: boolean;
 }
 
 /** 待确认操作 TTL：24 小时（WriteGuard 令牌制，P0-1） */
@@ -423,39 +432,60 @@ export class ConfirmationService {
       );
       // P2 修复（2026-10-04）：令牌回滚 pending——此前滞留 confirmed，
       // 再确认被拒、取消也被拒，用户失去重试入口
-      try {
-        await this.writeGuardService.resetToPending(
-          record.confirmationId,
-          record.tenantId,
-        );
-      } catch (resetErr) {
-        this.logger.warn(
-          `失败令牌回滚异常（忽略）：${
-            resetErr instanceof Error ? resetErr.message : String(resetErr)
-          }`,
-        );
-      }
+      // P1-C 迁移：回滚失败意味着用户失去重试入口（令牌滞留 confirmed），
+      // 此前只 logger.warn 无人可见；改为 bestEffort 落 logger.error + 指标 + 死信，
+      // 仍不阻断主流程（执行失败的返回照常给出）。
+      // retryEntryUnavailable 只做本地标记后重新抛出，让 bestEffort 统一负责
+      // 可观测——不用 ctx.deadLetter 传局部 sink，否则会顶掉全局 sink
+      // （bestEffort 取 ctx.deadLetter ?? defaultDeadLetterSink），
+      // 后续接了持久死信这处会被静默跳过。
+      let retryEntryUnavailable = false;
+      await bestEffort(
+        async () => {
+          try {
+            await this.writeGuardService.resetToPending(
+              record.confirmationId,
+              record.tenantId,
+            );
+          } catch (resetErr) {
+            retryEntryUnavailable = true;
+            throw resetErr;
+          }
+        },
+        {
+          op: 'confirmation.resetToPending',
+          tenantId: record.tenantId,
+          detail: `confirmationId=${record.confirmationId} tool=${record.toolName}`,
+        },
+      );
       return {
         success: false,
         error: result.error ?? '工具执行失败',
         suggestion: result.suggestion,
+        retryEntryUnavailable,
       };
     }
 
     // 执行成功 → 证据台账（P2 修复 2026-10-04：确认执行是写操作真正落地
     // 的主路径，此前只记撤销窗口不进台账，证据链对"已确认的写"是空白的）
-    try {
-      this.evidence?.recordWrite(toolContext, record.toolName, execArgs, {
-        success: true,
-        data: result.data,
-      });
-    } catch (evErr) {
-      this.logger.warn(
-        `确认执行证据台账写入失败（忽略）：${
-          evErr instanceof Error ? evErr.message : String(evErr)
-        }`,
-      );
-    }
+    // P1-C 迁移：已确认的写是合规证据链主路径，台账写失败此前被 warn 静默吞掉；
+    // 改为 bestEffort 落死信，运维可据死信补记，不阻断执行结果返回。
+    await bestEffort(
+      // recordWrite 是同步 void（内部 fire-and-forget 落审计），同步抛出同样被
+      // bestEffort 的 try 捕获，无需 async/await
+      () => {
+        this.evidence?.recordWrite(toolContext, record.toolName, execArgs, {
+          success: true,
+          data: result.data,
+        });
+        return Promise.resolve();
+      },
+      {
+        op: 'confirmation.recordEvidence',
+        tenantId: record.tenantId,
+        detail: `confirmationId=${record.confirmationId} tool=${record.toolName}`,
+      },
+    );
 
     // 注册 3 分钟撤销窗口
     const operation = this.registerExecuted({

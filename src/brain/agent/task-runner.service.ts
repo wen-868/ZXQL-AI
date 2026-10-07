@@ -25,6 +25,7 @@ import { SelfHealLoopService } from './self-heal-loop.service';
 import { PlannerService } from './planner.service';
 import { CaptureService } from '../../evolution/capture.service';
 import { MetricsService } from '../../common/metrics.service';
+import { bestEffort } from '../../common/error-semantics';
 import { AuditLogger } from '../../bridge/audit-logger';
 import { detectIntentCategories } from '../intent-detector';
 import { KnowledgeRulesService } from '../knowledge-rules.service';
@@ -469,6 +470,20 @@ export class TaskRunnerService {
             await this.savePlan(plan);
         }
       } catch (err) {
+        // P1-B 迁移（2026-10-07）：此处语义为 bestEffort——单步容错是本模块的
+        // 显式设计（见类注释「单步容错：长任务不因单步失败整体中断」），失败被
+        // 如实记为 step.failed 并落库，不是虚假成功；改用 mustSucceed 上抛会改变
+        // 行为（整个计划中断）。但"失败真相"必须可追：bestEffort 保证每次失败
+        // 都落 logger.error + 指标 + 死信，运维可据死信复盘是哪一步、为何失败。
+        await bestEffort(
+          () =>
+            Promise.reject(err instanceof Error ? err : new Error(String(err))),
+          {
+            op: 'agent.step',
+            tenantId: plan.tenantId,
+            detail: `plan=${plan.id} step=${step.id} type=${step.type}`,
+          },
+        );
         step.status = 'failed';
         step.error = err instanceof Error ? err.message : String(err);
         step.updatedAt = Date.now();
@@ -958,22 +973,39 @@ export class TaskRunnerService {
     this.metrics.recordAgentIterations(plan.steps.length);
 
     // ai_db 经验回流（best-effort）
-    try {
-      void this.capture.captureTask({
+    //
+    // P1-B 迁移（2026-10-07）：语义定为 bestEffort。
+    // 判据链：① 失败会让用户看到"成功"吗？不会——经验回流是计划收尾的旁路，
+    // 其成败不影响 done 事件与任何业务状态；② 数据丢了会账目不平/合规缺失吗：
+    // 会——ai_experience/ai_sample 是进化飞轮的样本源，丢失即飞轮断链
+    // （阶段0 前这里是 logger.debug 静默吞掉，无人知晓）；③ 故取 bestEffort。
+    //
+    // 顺带修掉一个潜在缺陷：原写法 `void this.capture.captureTask(...)` 把
+    // Promise 丢弃在虚空里，其async 拒绝**不会**被同一层的 try/catch 捕获，
+    // try/catch 形同虚设。bestEffort 内部 await 该Promise，捕获才真正生效。
+    // 注意：captureTask 内部已自带 bestEffort，故这里外层再包一层不会双重计数
+    // 语义指标（外层只在 captureTask 自身抛出时才fail，而它设计上不抛）。
+    // 保持 buildDoneEvent 同步签名（其返回数组被调用方直接 for-await 迭代，
+    // 改成 async 会在 SSE 流上插入额外 await 点）。bestEffort 内部已全捕获
+    // （含死信sink 失败），永不reject，故void 丢弃其Promise 是安全的。
+    void bestEffort(
+      () =>
+        this.capture.captureTask({
+          tenantId: plan.tenantId,
+          domain: failed.length > 0 ? 'write' : 'analysis',
+          intent: `agent_plan_${plan.id}`,
+          userMessage: plan.goal,
+          toolCalls: [],
+          outcome: failed.length > 0 ? 'failed' : 'success',
+          reply: `计划 ${plan.id} 完成：${plan.steps.filter((s) => s.status === 'success').length} 步成功，${failed.length} 步失败`,
+          error: failed[0]?.error,
+        }),
+      {
+        op: 'agent.experience_capture',
         tenantId: plan.tenantId,
-        domain: failed.length > 0 ? 'write' : 'analysis',
-        intent: `agent_plan_${plan.id}`,
-        userMessage: plan.goal,
-        toolCalls: [],
-        outcome: failed.length > 0 ? 'failed' : 'success',
-        reply: `计划 ${plan.id} 完成：${plan.steps.filter((s) => s.status === 'success').length} 步成功，${failed.length} 步失败`,
-        error: failed[0]?.error,
-      });
-    } catch (err) {
-      this.logger.debug(
-        `计划经验回流失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+        detail: `plan=${plan.id} steps=${plan.steps.length}`,
+      },
+    );
 
     // 审计
     this.auditLogger.logAiCall({

@@ -18,13 +18,14 @@
  *
  * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-01
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { ChatMessage } from '../providers/provider.interface';
 import type { ToolRegistry } from '../tools/tool-registry';
 import { RetrieverService } from '../rag/retriever.service';
 import { LongTermMemoryService } from './memory/long-term-memory.service';
 import { LearningService } from './learning/learning.service';
+import { degrade } from '../common/error-semantics';
 
 /** ContextBuilder 构建参数 */
 export interface BuildContextParams {
@@ -128,8 +129,6 @@ export const CUSTOMER_SYSTEM_PROMPT = `你是"智享AI助手"客户服务助手�
 
 @Injectable()
 export class ContextBuilder {
-  private readonly logger = new Logger(ContextBuilder.name);
-
   constructor(
     private readonly retriever: RetrieverService,
     private readonly ltm: LongTermMemoryService,
@@ -181,61 +180,60 @@ export class ContextBuilder {
   private async buildLtmContext(
     params: BuildContextParams,
   ): Promise<string | undefined> {
-    try {
-      const [profiles, hits, hints] = await Promise.all([
-        this.ltm.getProfiles(params.tenantId, params.userId),
-        this.ltm.search(params.tenantId, params.userMessage, 3),
-        this.learning.getHints(params.tenantId, params.userId),
-      ]);
-      const hasHints = hints.toolSelect.length > 0 || hints.routing.length > 0;
-      if (profiles.length === 0 && hits.length === 0 && !hasHints) {
-        return undefined;
-      }
-      const parts: string[] = [];
-      if (profiles.length > 0) {
-        parts.push(
-          // S1 人格一致性：档案不只是事实清单——称呼/指标优先级/详略都按档案来；
-          // 与当前指令冲突时以用户本次要求为准（个性化不越权）
-          `## 租户档案（该租户的稳定偏好/事实）
+    // 长期记忆属旁路增强：检索失败跳过注入，对话主流程不受影响
+    return degrade(
+      async () => {
+        const [profiles, hits, hints] = await Promise.all([
+          this.ltm.getProfiles(params.tenantId, params.userId),
+          this.ltm.search(params.tenantId, params.userMessage, 3),
+          this.learning.getHints(params.tenantId, params.userId),
+        ]);
+        const hasHints =
+          hints.toolSelect.length > 0 || hints.routing.length > 0;
+        if (profiles.length === 0 && hits.length === 0 && !hasHints) {
+          return undefined;
+        }
+        const parts: string[] = [];
+        if (profiles.length > 0) {
+          parts.push(
+            // S1 人格一致性：档案不只是事实清单——称呼/指标优先级/详略都按档案来；
+            // 与当前指令冲突时以用户本次要求为准（个性化不越权）
+            `## 租户档案（该租户的稳定偏好/事实）
 回应时贴合这些偏好：称呼与语气按档案来；用户未指定指标顺序时按档案优先级讲；详略程度按档案习惯。
 与用户本次明确要求冲突时，以本次要求为准。
 ${profiles.map((p) => `- ${p.k}：${JSON.stringify(p.v)}`).join('\n')}`,
-        );
-      }
-      if (hits.length > 0) {
-        parts.push(
-          `## 相关历史经验（该租户过去交互沉淀，可参考）\n${hits
-            .map((h) => `- ${h.text}`)
-            .join('\n')}`,
-        );
-      }
-      if (hasHints) {
-        const hintParts: string[] = [];
-        if (hints.toolSelect.length > 0) {
-          hintParts.push(
-            `工具选择提示：\n${hints.toolSelect
-              .map((h) => `- ${h.tool}：${h.note}`)
+          );
+        }
+        if (hits.length > 0) {
+          parts.push(
+            `## 相关历史经验（该租户过去交互沉淀，可参考）\n${hits
+              .map((h) => `- ${h.text}`)
               .join('\n')}`,
           );
         }
-        if (hints.routing.length > 0) {
-          hintParts.push(
-            `流程提示：\n${hints.routing.map((h) => `- ${h.note}`).join('\n')}`,
+        if (hasHints) {
+          const hintParts: string[] = [];
+          if (hints.toolSelect.length > 0) {
+            hintParts.push(
+              `工具选择提示：\n${hints.toolSelect
+                .map((h) => `- ${h.tool}：${h.note}`)
+                .join('\n')}`,
+            );
+          }
+          if (hints.routing.length > 0) {
+            hintParts.push(
+              `流程提示：\n${hints.routing.map((h) => `- ${h.note}`).join('\n')}`,
+            );
+          }
+          parts.push(
+            `## 学习经验提示（该租户过往任务的已知问题，规避踩坑）\n${hintParts.join('\n')}`,
           );
         }
-        parts.push(
-          `## 学习经验提示（该租户过往任务的已知问题，规避踩坑）\n${hintParts.join('\n')}`,
-        );
-      }
-      return parts.join('\n\n');
-    } catch (err) {
-      this.logger.warn(
-        `长期记忆检索失败（跳过注入）：${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-      return undefined;
-    }
+        return parts.join('\n\n');
+      },
+      undefined,
+      { op: 'context.longTermMemory', tenantId: params.tenantId },
+    );
   }
 
   /**
@@ -256,26 +254,26 @@ ${profiles.map((p) => `- ${p.k}：${JSON.stringify(p.v)}`).join('\n')}`,
     if (!ragEnabled) {
       return undefined;
     }
-    try {
-      const results = await this.retriever.search(
-        params.userMessage,
-        params.tenantId,
-      );
-      if (!results || results.length === 0) {
-        return undefined;
-      }
-      return results
-        .map(
-          (r) =>
-            `【${r.docName} 第${r.chunkIndex + 1}段】(相关度 ${(r.score * 100).toFixed(0)}%) ${r.text}`,
-        )
-        .join('\n');
-    } catch (err) {
-      this.logger.warn(
-        `RAG 检索失败（跳过知识库增强）：${err instanceof Error ? err.message : String(err)}`,
-      );
-      return undefined;
-    }
+    // 检索失败属旁路降级：跳过知识库增强，对话正常进行
+    return degrade(
+      async () => {
+        const results = await this.retriever.search(
+          params.userMessage,
+          params.tenantId,
+        );
+        if (!results || results.length === 0) {
+          return undefined;
+        }
+        return results
+          .map(
+            (r) =>
+              `【${r.docName} 第${r.chunkIndex + 1}段】(相关度 ${(r.score * 100).toFixed(0)}%) ${r.text}`,
+          )
+          .join('\n');
+      },
+      undefined,
+      { op: 'context.ragSearch', tenantId: params.tenantId },
+    );
   }
 
   /**

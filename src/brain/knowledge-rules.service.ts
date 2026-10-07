@@ -105,6 +105,9 @@ export class KnowledgeRulesService {
       }
       this.logger.log(`知识规则已加载：${docs.length} 份（${this.dir}）`);
     } catch (err) {
+      // TODO(P1-D): 本处语义确为 degrade，但 load() 是同步方法（readdirSync/readFileSync），
+      // 而 degrade() 为 async——迁移会波及 getRulesContext() 及其调用方签名。
+      // 待基础设施提供同步版 degradeSync 后再迁，勿在此期间改成 async。
       this.logger.warn(
         `知识规则加载失败（规则注入降级为空）：${err instanceof Error ? err.message : String(err)}`,
       );

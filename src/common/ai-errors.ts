@@ -5,7 +5,8 @@
  * { code: 'AI_xxx', message, detail?, suggestion?, timestamp }
  *
  * HTTP 状态映射：AI_001→401、AI_002/010→403、AI_011→428、AI_013→423、
- * AI_003→429、AI_004/008→503，其余按表。
+ * AI_003→429、AI_004/008→503，AI_014→500（关键操作失败，供 error-semantics 的
+ * mustSucceed 默认使用），其余按表。
  *
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
@@ -25,6 +26,7 @@ export const AI_ERRORS = {
   AI_011: { http: 428, message: '写操作令牌超时或确认缺失' },
   AI_012: { http: 409, message: '写操作被拒或令牌不匹配' },
   AI_013: { http: 423, message: '受控写通道被锁定' },
+  AI_014: { http: 500, message: '关键操作失败' },
 } as const;
 
 export type AiErrorCode = keyof typeof AI_ERRORS;

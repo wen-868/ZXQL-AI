@@ -13,6 +13,7 @@ import {
   ToolDefinition,
 } from './provider.interface';
 import { ProviderError } from './provider-error';
+import { degrade } from '../common/error-semantics';
 
 /**
  * GLM Provider 配置（运行时实际使用的配置）
@@ -265,15 +266,14 @@ export class GlmProvider implements IModelProvider {
             );
           }
 
-          // 解析 JSON
-          let parsed: GlmStreamChunk;
-          try {
-            parsed = JSON.parse(data) as GlmStreamChunk;
-          } catch (err) {
-            // 单行解析失败不中断整个流（部分 Provider 偶发心跳行）
-            this.logger.warn(
-              `SSE 行 JSON 解析失败，跳过：${data.slice(0, 100)}${err instanceof Error ? ` (${err.message})` : ''}`,
-            );
+          // 解析 JSON：单行解析失败降级跳过该行，不中断整个流
+          // （部分 Provider 偶发心跳行；控制流与迁移前一致）
+          const parsed = await degrade<GlmStreamChunk | null>(
+            () => Promise.resolve(JSON.parse(data) as GlmStreamChunk),
+            null,
+            { op: 'provider.parseSseLine', detail: data.slice(0, 100) },
+          );
+          if (parsed === null) {
             continue;
           }
 

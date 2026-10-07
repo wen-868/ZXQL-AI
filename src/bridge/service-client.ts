@@ -8,6 +8,7 @@ import axios, {
   AxiosError,
 } from 'axios';
 import { ToolContext } from '../tools/tool.interface';
+import { degrade } from '../common/error-semantics';
 
 /**
  * 后端统一返回格式（与 backend/src/shared/response.ts 对齐）
@@ -257,6 +258,12 @@ export class ServiceClient {
    * 健康检查（不传 context，不携带认证信息）
    *
    * 供 AdminController GET /health 调用，验证后端可达性。
+   *
+   * P1-B 迁移（2026-10-07）：语义定为 degrade。
+   * 判据链：① 失败会让用户看到"成功"吗？不会——本方法本身就是"如实报告可达性"
+   * 的探针，返回 reachable:false 就是诚实结论，不存在虚假成功；② 数据丢了会
+   * 账目不平/合规缺失吗？不会——纯读探针，无写入；③ 故为纯旁路增强，可降级。
+   * 行为等价：仍返回 reachable:false + error 串，只多出 warn 日志与语义指标。
    */
   async healthCheck(): Promise<{
     reachable: boolean;
@@ -264,19 +271,34 @@ export class ServiceClient {
     error?: string;
   }> {
     const start = Date.now();
-    try {
-      await this.httpClient.get('/api/admin/dashboard/summary', {
-        timeout: 5000,
-        validateStatus: () => true, // 任何状态码都认为后端可达
-      });
-      return { reachable: true, latencyMs: Date.now() - start };
-    } catch (err) {
-      return {
-        reachable: false,
-        latencyMs: Date.now() - start,
-        error: err instanceof Error ? err.message : String(err),
-      };
-    }
+    // degrade 的 fallback 是静态值拿不到 err 对象，而本方法的 error 字段必须
+    // 回传真实错误串（运维靠它区分超时/拒连），故在此暂存后由调用点读取
+    let lastError: unknown;
+    const reachable = await degrade(
+      async () => {
+        try {
+          await this.httpClient.get('/api/admin/dashboard/summary', {
+            timeout: 5000,
+            validateStatus: () => true, // 任何状态码都认为后端可达
+          });
+          return true;
+        } catch (err) {
+          lastError = err;
+          throw err;
+        }
+      },
+      false,
+      { op: 'bridge.healthCheck', detail: this.baseUrl },
+    );
+    const latencyMs = Date.now() - start;
+    return reachable
+      ? { reachable: true, latencyMs }
+      : {
+          reachable: false,
+          latencyMs,
+          error:
+            lastError instanceof Error ? lastError.message : String(lastError),
+        };
   }
 
   /**

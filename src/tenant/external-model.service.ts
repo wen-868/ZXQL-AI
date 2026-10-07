@@ -29,6 +29,7 @@ import { ProviderFactory } from '../providers/provider-factory';
 import { OpenAICompatProvider } from '../providers/openai-compat.provider';
 import { CryptoService } from './crypto.service';
 import { maskApiKey } from './api-key-mask';
+import { degrade } from '../common/error-semantics';
 
 /** 外部模型创建/更新载荷（class 供 Nest ValidationPipe 使用） */
 export class ExternalModelInput {
@@ -78,22 +79,20 @@ export class ExternalModelService implements OnModuleInit {
    * 启动时加载全部启用模型并注册到 ProviderFactory
    */
   async onModuleInit(): Promise<void> {
-    try {
-      const models = await this.repo.find({ where: { enabled: 1 } });
-      for (const model of models) {
-        this.registerModel(model);
-      }
-      if (models.length > 0) {
-        this.logger.log(`已加载 ${models.length} 个外部大模型`);
-      }
-    } catch (err) {
-      // 表不存在（迁移未执行）时不阻塞启动，仅记日志
-      this.logger.warn(
-        `外部模型加载失败（可能是迁移未执行）：${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
+    // 表不存在（迁移未执行）时不阻塞启动：外部模型属可选旁路，仅降级
+    await degrade(
+      async () => {
+        const models = await this.repo.find({ where: { enabled: 1 } });
+        for (const model of models) {
+          this.registerModel(model);
+        }
+        if (models.length > 0) {
+          this.logger.log(`已加载 ${models.length} 个外部大模型`);
+        }
+      },
+      undefined,
+      { op: 'externalModel.loadAll' },
+    );
   }
 
   /**

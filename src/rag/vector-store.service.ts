@@ -23,6 +23,7 @@
 import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { randomUUID } from 'crypto';
+import { degrade } from '../common/error-semantics';
 
 /** 知识库分块（内存存储单元） */
 export interface KnowledgeChunk {
@@ -103,36 +104,37 @@ export class VectorStoreService implements OnModuleInit {
    * DB 异常时 warn 降级为纯内存模式，不抛错。
    */
   async loadAllFromDb(): Promise<void> {
-    try {
-      const rows = await this.dataSource!.query<Row[]>(
-        `SELECT tenant_id, doc_name, chunk_index, chunk_text, embedding, created_at FROM ${TABLE_NAME}`,
-      );
-      const grouped = new Map<string, KnowledgeChunk[]>();
-      for (const row of rows) {
-        const tenantId = VectorStoreService.toStr(row.tenant_id);
-        if (!tenantId) {
-          continue;
+    // DB 不可用时降级为纯内存模式：内存检索仍可用，不阻断启动
+    await degrade(
+      async () => {
+        const rows = await this.dataSource!.query<Row[]>(
+          `SELECT tenant_id, doc_name, chunk_index, chunk_text, embedding, created_at FROM ${TABLE_NAME}`,
+        );
+        const grouped = new Map<string, KnowledgeChunk[]>();
+        for (const row of rows) {
+          const tenantId = VectorStoreService.toStr(row.tenant_id);
+          if (!tenantId) {
+            continue;
+          }
+          const chunk = this.rowToChunk(row);
+          if (!chunk) {
+            continue;
+          }
+          const list = grouped.get(tenantId) ?? [];
+          list.push(chunk);
+          grouped.set(tenantId, list);
         }
-        const chunk = this.rowToChunk(row);
-        if (!chunk) {
-          continue;
+        this.store.clear();
+        for (const [tenantId, chunks] of grouped) {
+          this.store.set(tenantId, chunks);
         }
-        const list = grouped.get(tenantId) ?? [];
-        list.push(chunk);
-        grouped.set(tenantId, list);
-      }
-      this.store.clear();
-      for (const [tenantId, chunks] of grouped) {
-        this.store.set(tenantId, chunks);
-      }
-      this.logger.log(
-        `知识库已从数据库恢复：${grouped.size} 个租户，${rows.length} 个分块`,
-      );
-    } catch (err) {
-      this.logger.warn(
-        `从数据库加载知识库分块失败（降级为纯内存模式）：${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+        this.logger.log(
+          `知识库已从数据库恢复：${grouped.size} 个租户，${rows.length} 个分块`,
+        );
+      },
+      undefined,
+      { op: 'rag.loadAllFromDb' },
+    );
   }
 
   /**
@@ -169,15 +171,15 @@ export class VectorStoreService implements OnModuleInit {
     existing.push(...list);
     this.store.set(tenantId, existing);
 
-    // 可选 MySQL 落盘（失败仅 warn，不影响内存检索）
+    // 可选 MySQL 落盘（失败降级：本次仅内存生效，内存检索不受影响）
     if (this.dataSource) {
-      try {
-        await this.persistChunks(list);
-      } catch (err) {
-        this.logger.warn(
-          `知识库分块写入数据库失败（本次仅内存生效）：${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
+      await degrade(
+        async () => {
+          await this.persistChunks(list);
+        },
+        undefined,
+        { op: 'rag.persistChunks', tenantId, detail: docName },
+      );
     }
 
     this.logger.debug(
@@ -197,16 +199,17 @@ export class VectorStoreService implements OnModuleInit {
     );
 
     if (this.dataSource) {
-      try {
-        await this.dataSource.query(
-          `DELETE FROM ${TABLE_NAME} WHERE tenant_id = ? AND doc_name = ?`,
-          [tenantId, docName],
-        );
-      } catch (err) {
-        this.logger.warn(
-          `删除数据库中的旧分块失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
+      // 旧分块删除失败降级：内存已清，DB 残留由下次覆盖语义兜底
+      await degrade(
+        async () => {
+          await this.dataSource!.query(
+            `DELETE FROM ${TABLE_NAME} WHERE tenant_id = ? AND doc_name = ?`,
+            [tenantId, docName],
+          );
+        },
+        undefined,
+        { op: 'rag.removeDocFromDb', tenantId, detail: docName },
+      );
     }
   }
 

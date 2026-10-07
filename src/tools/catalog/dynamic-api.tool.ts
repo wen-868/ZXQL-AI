@@ -86,6 +86,9 @@ export class DynamicApiTool implements ITool {
 
       return { success: true, data };
     } catch (err) {
+      // TODO(P1-D): 本处降级值依赖异常本身（error 需携带 err.message 给模型），
+      // 而 degrade() 的 fallback 是静态值、拿不到 err。
+      // 待 degrade 增补「带错误上下文的 fallback」能力（如 degrade(op, (err) => fallback, ctx)）后再迁。
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(`${this.def.method} ${this.def.path} 失败：${message}`);
       return {

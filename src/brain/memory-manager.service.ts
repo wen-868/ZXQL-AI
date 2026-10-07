@@ -24,6 +24,7 @@ import { Repository } from 'typeorm';
 import Redis from 'ioredis';
 import type { ChatMessage } from '../providers/provider.interface';
 import { AiSessionArchiveEntity } from '../database/entities/ai-session-archive.entity';
+import { degrade } from '../common/error-semantics';
 
 /** 保留最近 N 轮对话（1 轮 = 1 条 user + 1 条 assistant） */
 const MEMORY_ROUNDS = 10;
@@ -68,32 +69,32 @@ export class MemoryManager implements OnModuleInit {
       this.configService.get<string>('REDIS_PASSWORD') || undefined;
     const db = this.configService.get<number>('REDIS_DB', 1);
 
-    try {
-      this.redis = new Redis({
-        host,
-        port,
-        password,
-        db,
-        // P2 修复（2026-10-04）：不再放弃重连——此前 3 次失败即永久停摆，
-        // 网络恢复后记忆静默失效直到进程重启；指数退避封顶 5s 持续重试
-        retryStrategy: (times) => Math.min(times * 500, 5000),
-        maxRetriesPerRequest: 1,
-      });
+    // Redis 属旁路增强（记忆非对话真相源）：连接失败降级为无记忆模式，不阻塞启动
+    this.redisAvailable = await degrade(
+      async () => {
+        this.redis = new Redis({
+          host,
+          port,
+          password,
+          db,
+          // P2 修复（2026-10-04）：不再放弃重连——此前 3 次失败即永久停摆，
+          // 网络恢复后记忆静默失效直到进程重启；指数退避封顶 5s 持续重试
+          retryStrategy: (times) => Math.min(times * 500, 5000),
+          maxRetriesPerRequest: 1,
+        });
 
-      // 测试连接
-      await this.redis.ping();
-      this.redisAvailable = true;
-      this.logger.log(
-        `Redis 连接成功：${host}:${port} db=${db}（对话记忆服务就绪）`,
-      );
+        // 测试连接
+        await this.redis.ping();
+        this.logger.log(
+          `Redis 连接成功：${host}:${port} db=${db}（对话记忆服务就绪）`,
+        );
 
-      this.bindRedisEvents();
-    } catch (err) {
-      this.logger.warn(
-        `Redis 连接失败，降级为无记忆模式：${err instanceof Error ? err.message : String(err)}`,
-      );
-      this.redisAvailable = false;
-    }
+        this.bindRedisEvents();
+        return true;
+      },
+      false,
+      { op: 'memory.initRedis', detail: `${host}:${port} db=${db}` },
+    );
   }
 
   /**
@@ -149,32 +150,33 @@ export class MemoryManager implements OnModuleInit {
     }
 
     const key = this.buildKey(tenantId, sessionId, customerId);
-    try {
-      const raw = await this.redis.get(key);
-      if (!raw) {
-        return [];
-      }
-      const messages = JSON.parse(raw) as ChatMessage[];
-      if (!Array.isArray(messages)) {
-        this.logger.warn(`对话历史格式异常（非数组），返回空：key=${key}`);
-        return [];
-      }
-      // prompt 减负：单条历史消息超长截断（工具结果 JSON 是大头）
-      for (const msg of messages) {
-        if (
-          typeof msg.content === 'string' &&
-          msg.content.length > MAX_MESSAGE_LENGTH
-        ) {
-          msg.content = `${msg.content.slice(0, MAX_MESSAGE_LENGTH)}…[已截断]`;
+    const redis = this.redis;
+    // 加载失败属旁路降级：降级为空历史，不阻断对话
+    return degrade(
+      async () => {
+        const raw = await redis.get(key);
+        if (!raw) {
+          return [];
         }
-      }
-      return messages;
-    } catch (err) {
-      this.logger.warn(
-        `加载对话历史失败（降级为空历史）：${err instanceof Error ? err.message : String(err)}`,
-      );
-      return [];
-    }
+        const messages = JSON.parse(raw) as ChatMessage[];
+        if (!Array.isArray(messages)) {
+          this.logger.warn(`对话历史格式异常（非数组），返回空：key=${key}`);
+          return [];
+        }
+        // prompt 减负：单条历史消息超长截断（工具结果 JSON 是大头）
+        for (const msg of messages) {
+          if (
+            typeof msg.content === 'string' &&
+            msg.content.length > MAX_MESSAGE_LENGTH
+          ) {
+            msg.content = `${msg.content.slice(0, MAX_MESSAGE_LENGTH)}…[已截断]`;
+          }
+        }
+        return messages;
+      },
+      [],
+      { op: 'memory.loadHistory', tenantId, detail: key },
+    );
   }
 
   /**
@@ -197,6 +199,7 @@ export class MemoryManager implements OnModuleInit {
     }
 
     const key = this.buildKey(tenantId, sessionId, customerId);
+    const redis = this.redis;
     // P2 修复（2026-10-06）：乐观锁 WATCH/MULTI/EXEC 消除读改写竞态——
     // 此前 get → 拼 → setex 三步分离，同会话并发请求（用户快速连发、
     // 或前端重试）后写覆盖前写，整轮对话丢失。
@@ -204,46 +207,50 @@ export class MemoryManager implements OnModuleInit {
     // WATCH_CONFLICT_MAX_RETRIES，超限则按最后一次读到的快照写入
     // （降级：可能丢最新一轮，但绝不抛错打断对话）。
     for (let attempt = 0; attempt <= WATCH_CONFLICT_MAX_RETRIES; attempt++) {
-      try {
-        await this.redis.watch(key);
-        const raw = await this.redis.get(key);
-        let existing: ChatMessage[] = [];
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw) as ChatMessage[];
-            existing = Array.isArray(parsed) ? parsed : [];
-          } catch {
-            this.logger.warn(
-              `对话历史格式异常（非数组），按空历史覆盖：key=${key}`,
+      // 单次尝试结果：done=写入成功 / conflict=WATCH 检测到冲突需整次重试 /
+      // failed=异常已被 degrade 降级（不抛错，保对话不中断）
+      const outcome = await degrade(
+        async () => {
+          await redis.watch(key);
+          const raw = await redis.get(key);
+          let existing: ChatMessage[] = [];
+          if (raw) {
+            const parsed = await degrade<ChatMessage[] | null>(
+              () => Promise.resolve(JSON.parse(raw) as ChatMessage[]),
+              null,
+              { op: 'memory.parseHistory', tenantId, detail: key },
             );
+            if (Array.isArray(parsed)) {
+              existing = parsed;
+            } else if (parsed !== null) {
+              this.logger.warn(
+                `对话历史格式异常（非数组），按空历史覆盖：key=${key}`,
+              );
+            }
           }
-        }
-        const combined = [...existing, ...newMessages];
+          const combined = [...existing, ...newMessages];
 
-        // 截断：保留最近 MAX_MESSAGES 条
-        const truncated =
-          combined.length > MAX_MESSAGES
-            ? combined.slice(-MAX_MESSAGES)
-            : combined;
+          // 截断：保留最近 MAX_MESSAGES 条
+          const truncated =
+            combined.length > MAX_MESSAGES
+              ? combined.slice(-MAX_MESSAGES)
+              : combined;
 
-        const tx = this.redis
-          .multi()
-          .setex(key, TTL_SECONDS, JSON.stringify(truncated));
-        const res = await tx.exec();
-        // exec() 返回 null 表示 WATCH 检测到冲突（key 在 get 与 exec 之间被改）
-        if (res === null) {
-          continue;
-        }
-        return;
-      } catch (err) {
-        this.logger.warn(
-          `保存对话历史失败（非致命）：${err instanceof Error ? err.message : String(err)}`,
-        );
-        this.unwatchQuietly();
-        return;
-      } finally {
-        this.unwatchQuietly();
+          const tx = redis
+            .multi()
+            .setex(key, TTL_SECONDS, JSON.stringify(truncated));
+          const res = await tx.exec();
+          // exec() 返回 null 表示 WATCH 检测到冲突（key 在 get 与 exec 之间被改）
+          return res === null ? 'conflict' : 'done';
+        },
+        'failed',
+        { op: 'memory.saveHistory', tenantId, detail: key },
+      );
+      this.unwatchQuietly();
+      if (outcome === 'conflict') {
+        continue;
       }
+      return;
     }
     this.logger.warn(
       `对话历史并发冲突重试超限（可能丢失最新一轮）：key=${key}`,
@@ -278,16 +285,18 @@ export class MemoryManager implements OnModuleInit {
     // P2 修复（2026-10-04）：透传 customerId——运营客户端记忆 key 含客户
     // 分区，缺了它 clear 删的是不存在的 key（静默无效）
     const key = this.buildKey(tenantId, sessionId, customerId);
-    try {
-      await this.redis.del(key);
-      this.logger.debug(
-        `对话历史已清除：tenant=${tenantId} session=${sessionId}`,
-      );
-    } catch (err) {
-      this.logger.warn(
-        `清除对话历史失败（非致命）：${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    const redis = this.redis;
+    // 清除失败属旁路降级：记忆未清不影响对话继续
+    await degrade(
+      async () => {
+        await redis.del(key);
+        this.logger.debug(
+          `对话历史已清除：tenant=${tenantId} session=${sessionId}`,
+        );
+      },
+      undefined,
+      { op: 'memory.clearHistory', tenantId, detail: key },
+    );
   }
 
   /**
@@ -307,33 +316,34 @@ export class MemoryManager implements OnModuleInit {
     userId: string | undefined,
     messages: ChatMessage[],
   ): Promise<void> {
-    try {
-      const safeMessages = messages.slice(-50).map((m) => ({
-        role: m.role,
-        content:
-          typeof m.content === 'string' && m.content.length > 4000
-            ? `${m.content.slice(0, 4000)}…[截断]`
-            : m.content,
-      }));
-      await this.archiveRepo.save(
-        this.archiveRepo.create({
-          sessionId,
-          tenantId,
-          userId: userId ?? null,
-          messagesJson: safeMessages as Array<Record<string, unknown>>,
-          messageCount: safeMessages.length,
-          startedAt: new Date(),
-          endedAt: new Date(),
-        }),
-      );
-      this.logger.debug(
-        `会话已归档：tenant=${tenantId} session=${sessionId} 消息=${safeMessages.length}`,
-      );
-    } catch (err) {
-      this.logger.warn(
-        `会话归档失败（非致命）：${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    // 冷备归档属旁路（Redis 热记忆按 TTL 管理，归档失败不影响主流程）
+    await degrade(
+      async () => {
+        const safeMessages = messages.slice(-50).map((m) => ({
+          role: m.role,
+          content:
+            typeof m.content === 'string' && m.content.length > 4000
+              ? `${m.content.slice(0, 4000)}…[截断]`
+              : m.content,
+        }));
+        await this.archiveRepo.save(
+          this.archiveRepo.create({
+            sessionId,
+            tenantId,
+            userId: userId ?? null,
+            messagesJson: safeMessages as Array<Record<string, unknown>>,
+            messageCount: safeMessages.length,
+            startedAt: new Date(),
+            endedAt: new Date(),
+          }),
+        );
+        this.logger.debug(
+          `会话已归档：tenant=${tenantId} session=${sessionId} 消息=${safeMessages.length}`,
+        );
+      },
+      undefined,
+      { op: 'memory.archiveSession', tenantId, detail: sessionId },
+    );
   }
 
   /**

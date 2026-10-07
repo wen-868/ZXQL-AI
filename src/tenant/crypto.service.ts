@@ -129,6 +129,9 @@ export class CryptoService {
     try {
       return this.decrypt(encrypted);
     } catch (err) {
+      // TODO(P1-D): 本处语义确为 degrade，但 decryptSafe() 是同步方法（返回 string | null），
+      // 而 degrade() 为 async——迁移会把签名改成 Promise<string | null> 并波及全部调用方。
+      // 待基础设施提供同步版 degradeSync 后再迁，勿在此期间改成 async。
       this.logger.warn(
         `API Key 解密失败：${err instanceof Error ? err.message : String(err)}`,
       );

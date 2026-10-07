@@ -15,6 +15,12 @@
 import { AuditLogger } from './audit-logger';
 import { AiAuditLogEntity } from '../database/entities/ai-audit-log.entity';
 import { ToolExecutionRecord } from '../tools/tool.interface';
+import {
+  errorSemanticsCount,
+  resetErrorSemanticsMetrics,
+  setDefaultDeadLetterSink,
+  type DeadLetterRecord,
+} from '../common/error-semantics';
 
 interface Harness {
   logger: AuditLogger;
@@ -293,5 +299,108 @@ describe('AuditLogger', () => {
     await flush();
     expect(saved).toHaveLength(1);
     expect(usageParams).toHaveLength(1);
+  });
+});
+
+// P1-C 追加（裁定 2）：审计主流水此前 fire-and-forget + logger.warn 静默吞掉，
+// 取证链断点无任何可观测手段。收编后三条主流水失败必须落死信 + 指标，且不阻塞。
+describe('P1-C AuditLogger 主流水 bestEffort 死信', () => {
+  beforeEach(() => resetErrorSemanticsMetrics());
+  afterEach(() => setDefaultDeadLetterSink(null));
+
+  it('logAiCall 落库失败 → 写死信 + 计 fail，且不向调用方抛出', async () => {
+    const deadLetters: DeadLetterRecord[] = [];
+    setDefaultDeadLetterSink((r) => {
+      deadLetters.push(r);
+    });
+    const h = createHarness();
+    h.failSave = true;
+    const logger = h.logger;
+
+    expect(() =>
+      logger.logAiCall({
+        tenantId: 't1',
+        lane: 'chat',
+        promptTokens: 1,
+        completionTokens: 2,
+        success: true,
+      }),
+    ).not.toThrow();
+    await flush();
+
+    expect(deadLetters).toHaveLength(1);
+    expect(deadLetters[0].op).toBe('audit.logAiCall');
+    expect(deadLetters[0].tenantId).toBe('t1');
+    expect(deadLetters[0].level).toBe('best_effort');
+    expect(deadLetters[0].error).toContain('ai_db down');
+    expect(deadLetters[0].detail).toContain('lane=chat');
+    expect(errorSemanticsCount('best_effort', 'audit.logAiCall', 'fail')).toBe(
+      1,
+    );
+  });
+
+  it('logToolExecution 落库失败 → 写死信，且不向调用方抛出', async () => {
+    const deadLetters: DeadLetterRecord[] = [];
+    setDefaultDeadLetterSink((r) => {
+      deadLetters.push(r);
+    });
+    const h = createHarness();
+    h.failSave = true;
+    const logger = h.logger;
+
+    expect(() => logger.logToolExecution(makeToolRecord())).not.toThrow();
+    await flush();
+
+    expect(deadLetters).toHaveLength(1);
+    expect(deadLetters[0].op).toBe('audit.logToolExecution');
+    expect(deadLetters[0].detail).toContain('tool=checkInventory');
+  });
+
+  it('logWriteGuardEvent 落库失败 → 写死信，且不向调用方抛出', async () => {
+    const deadLetters: DeadLetterRecord[] = [];
+    setDefaultDeadLetterSink((r) => {
+      deadLetters.push(r);
+    });
+    const h = createHarness();
+    h.failSave = true;
+    const logger = h.logger;
+
+    expect(() =>
+      logger.logWriteGuardEvent({
+        tenantId: 't1',
+        event: 'pending',
+        token: 'wg_***',
+        toolName: 'createSalesOrder',
+        docType: 'sales_order_create',
+        risk: 'medium',
+        needsReview: false,
+        operationLabel: '创建销售单',
+      }),
+    ).not.toThrow();
+    await flush();
+
+    expect(deadLetters).toHaveLength(1);
+    expect(deadLetters[0].op).toBe('audit.logWriteGuardEvent');
+    expect(deadLetters[0].detail).toContain('event=pending');
+  });
+
+  it('主流水成功 → 不写死信（死信只在失败路径出现）', async () => {
+    const deadLetters: DeadLetterRecord[] = [];
+    setDefaultDeadLetterSink((r) => {
+      deadLetters.push(r);
+    });
+    const { logger } = createHarness();
+
+    logger.logAiCall({
+      tenantId: 't1',
+      lane: 'chat',
+      promptTokens: 1,
+      completionTokens: 2,
+      success: true,
+    });
+    await flush();
+
+    expect(deadLetters).toHaveLength(0);
+    expect(errorSemanticsCount('best_effort', 'audit.logAiCall', 'ok')).toBe(1);
   });
 });
