@@ -60,7 +60,7 @@ src/evolution/capture.service.ts:103:          await this.sampleRepo.save(
 | 14 类 docType | ✅ 成立，14 类，无一遗漏无多 |
 | docType 全部无 `write_schema.` 前缀 | ✅ 成立（已写成断言，见 2.3） |
 | 工具名双射、无歧义 | ✅ 成立，19 个工具名全局唯一 |
-| `promotion` 的 6 个工具名 | ⚠️ **任务卡第 96 行写 `createLimiteddiscount`（小写 d），代码是 `createLimitedDiscount`（大写 D）** |
+| `promotion` 的 6 个工具名 | ⚠️ **任务卡第 97 行写 `createLimiteddiscount`（小写 d），代码是 `createLimitedDiscount`（大写 D）**。已落盘更正（见第八节） |
 
 **以代码为准。** 影响：若照任务卡的拼写回填，`createLimitedDiscount` 的存量样本会被漏掉
 （`WHERE task_type = 'createLimiteddiscount'` 匹配不到驼峰值）。
@@ -456,10 +456,14 @@ d3f4993 fix(阶段4-1): 修复进化飞轮 taskType 口径归一 —— 样本 1
 
 ## 八、给审查方的三个提示
 
-1. **任务卡第 96 行有拼写错误**：`createLimiteddiscount` 应为 `createLimitedDiscount`。
+1. **任务卡第 97 行有拼写错误**：`createLimiteddiscount` 应为 `createLimitedDiscount`。
    若审查方按任务卡原文核对迁移脚本，会误判我的脚本「映射错了」。以代码为准。
-2. **任务卡称工具名 → docType 是「双射」，实测是 1:N**（`promotion` 对应 6 个工具名）。
-   结论方向不变（无二义），但措辞不准。
+   ✅ **已落盘**：任务卡第 96-107 行已更正，并加了带取证命令的更正说明块
+   （任务卡此前是 untracked，`1e3577d` 的提交信息宣称更正了它但实际未带上，
+   已在 `e8f1a2b` 补提交并 `git add` 明确路径）。
+2. **任务卡称工具名 → docType 是「双射」，实测是单射非满射**（19 个工具名无歧义，
+   但 `promotion` 一对 6，函数非满射）。结论方向不变（无二义），但措辞不准。
+   同上，已落盘。
 3. **门禁一（eslint）在本机不可能零输出**：8 条 `.js` 解析错误在基线 `1b40d22` 上一模一样存在，
    已用基线对照+ 归一化 diff 证明零净增。这 8 条 `.js` CI 从来不查（lint glob 只含 `**/*.ts`）。
 
