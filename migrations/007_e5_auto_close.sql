@@ -21,23 +21,34 @@ SET @ddl := IF(
 PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- 2) 进化版本：回归评测结果（基线=上一 active 版本最近一次评测值）
---    注意：ai_evolution_version 位于独立的 ai_db 库，此处显式指定库名
+--    注意：ai_evolution_version 位于独立的 AI 私有库，本段是跨库 DDL，
+--    库名统一取自 @ai_evo_db（默认 ai_db，与 003_ai_db_evolution.sql 建库名一致）。
+--
+--    ⚠️ 2026-10-08 修正：此前判定写 `TABLE_SCHEMA = 'ai_db'`、执行写 `ALTER TABLE ai_db.xxx`
+--    两处各自硬编码库名 —— 私有库改名（如新客户私有化部署不叫 ai_db）时必须同时改两处，
+--    漏改一处就会出现「判定库与执行库不一致」的静默失效。现收敛为单一变量：
+--    改名只需改上面这一行，判定与执行必然同源。
+--    ⚠️ 未改成直接用 @ai_db（= DATABASE()，即业务库）：本文件按 README 的操作手册
+--    是「对业务库执行一次」，业务库里并没有 ai_evolution_version，若按 @ai_db 执行
+--    会对不存在的表 ALTER ⇒ ERROR 1146。故本段仍必须指向 AI 私有库。
+SET @ai_evo_db := 'ai_db';
+
 SET @ddl := IF(
   (SELECT COUNT(*) FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = 'ai_db'
+    WHERE TABLE_SCHEMA = @ai_evo_db
       AND TABLE_NAME = 'ai_evolution_version'
       AND COLUMN_NAME = 'regression_accuracy') = 0,
-  'ALTER TABLE ai_db.ai_evolution_version ADD COLUMN regression_accuracy DECIMAL(5, 4) NULL COMMENT ''最近一次 E5 回归评测准确率（0-1）''',
+  CONCAT('ALTER TABLE ', @ai_evo_db, '.ai_evolution_version ADD COLUMN regression_accuracy DECIMAL(5, 4) NULL COMMENT ''最近一次 E5 回归评测准确率（0-1）'''),
   'SELECT ''regression_accuracy 已存在，跳过'' AS skip_reason'
 );
 PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 SET @ddl := IF(
   (SELECT COUNT(*) FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = 'ai_db'
+    WHERE TABLE_SCHEMA = @ai_evo_db
       AND TABLE_NAME = 'ai_evolution_version'
       AND COLUMN_NAME = 'regression_evaluated_at') = 0,
-  'ALTER TABLE ai_db.ai_evolution_version ADD COLUMN regression_evaluated_at DATETIME NULL COMMENT ''最近一次回归评测时间''',
+  CONCAT('ALTER TABLE ', @ai_evo_db, '.ai_evolution_version ADD COLUMN regression_evaluated_at DATETIME NULL COMMENT ''最近一次回归评测时间'''),
   'SELECT ''regression_evaluated_at 已存在，跳过'' AS skip_reason'
 );
 PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
