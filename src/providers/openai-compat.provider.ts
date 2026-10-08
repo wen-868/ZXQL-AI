@@ -27,6 +27,10 @@ import {
 } from './provider.interface';
 import { ProviderError } from './provider-error';
 import { degrade } from '../common/error-semantics';
+import {
+  assertAllowedRedirectTarget,
+  createGuardedLookup,
+} from '../common/outbound-target.guard';
 
 /** OpenAI 兼容请求体 */
 interface OpenAICompatRequestBody {
@@ -104,6 +108,14 @@ export class OpenAICompatProvider implements IModelProvider {
   readonly name: string;
   private readonly logger: Logger;
   private config!: RuntimeConfig;
+  /**
+   * R101-AI-04：连接期出站目标校验（仅公网 HTTPS）
+   *
+   * `lookup` 由 Node 在真正建连时调用 ⇒ 校验的就是连接使用的那次解析
+   * （防 DNS rebinding）；重定向目标由 beforeRedirect 同步校验后再跟随。
+   * 构造期不触发任何 DNS。
+   */
+  private readonly guardedLookup = createGuardedLookup();
 
   constructor(name: string, config: ProviderConfig) {
     this.name = name;
@@ -174,6 +186,9 @@ export class OpenAICompatProvider implements IModelProvider {
           responseType: 'stream',
           timeout: cfg.timeoutMs,
           signal: options?.signal,
+          // R101-AI-04：出站目标仅公网 HTTPS（连接期 DNS 校验 + 重定向校验）
+          lookup: this.guardedLookup,
+          beforeRedirect: assertAllowedRedirectTarget,
         },
       );
     } catch (err) {
@@ -320,6 +335,9 @@ export class OpenAICompatProvider implements IModelProvider {
           headers: this.buildHeaders(),
           timeout: cfg.timeoutMs,
           signal: options?.signal,
+          // R101-AI-04：出站目标仅公网 HTTPS（连接期 DNS 校验 + 重定向校验）
+          lookup: this.guardedLookup,
+          beforeRedirect: assertAllowedRedirectTarget,
         },
       );
     } catch (err) {

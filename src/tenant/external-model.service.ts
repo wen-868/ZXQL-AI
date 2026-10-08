@@ -30,6 +30,10 @@ import { OpenAICompatProvider } from '../providers/openai-compat.provider';
 import { CryptoService } from './crypto.service';
 import { maskApiKey } from './api-key-mask';
 import { degrade } from '../common/error-semantics';
+import {
+  assertAllowedOutboundUrl,
+  assertPublicResolvableTarget,
+} from '../common/outbound-target.guard';
 
 /** 外部模型创建/更新载荷（class 供 Nest ValidationPipe 使用） */
 export class ExternalModelInput {
@@ -232,6 +236,9 @@ export class ExternalModelService implements OnModuleInit {
   /**
    * 连通性测试（不落库，直接以传入配置发起调用）
    *
+   * R101-AI-04：出站目标收敛为「仅公网 HTTPS」，本方法同时覆盖
+   * 传入 URL（a/b/c 同步 + d 解析全部 A/AAAA）。
+   *
    * @param config 测试配置（baseUrl + apiKey + modelName）
    */
   async testConnection(config: {
@@ -239,8 +246,9 @@ export class ExternalModelService implements OnModuleInit {
     apiKey: string;
     modelName: string;
   }): Promise<{ success: boolean; message: string; latencyMs: number }> {
+    const baseUrl = await this.assertEgressTarget(config.providerBaseUrl);
     const provider = new OpenAICompatProvider('external_test', {
-      baseUrl: this.normalizeBaseUrl(config.providerBaseUrl),
+      baseUrl,
       apiKey: config.apiKey,
       model: config.modelName.trim(),
     });
@@ -254,6 +262,9 @@ export class ExternalModelService implements OnModuleInit {
 
   /**
    * 按 ID 测试已保存的外部模型（后端解密真实密钥后调用，前端不接触明文）
+   *
+   * R101-AI-04：库里**已存**的 providerBaseUrl 同样是出站目标，必须与传入路径
+   * 走同一个收口（此前只校验入参、放过存量行）。
    */
   async testById(id: number): Promise<{
     success: boolean;
@@ -264,8 +275,9 @@ export class ExternalModelService implements OnModuleInit {
     if (!entity || !entity.apiKey) {
       throw new NotFoundException(`外部模型不存在或未配置 API Key：id=${id}`);
     }
+    const baseUrl = await this.assertEgressTarget(entity.providerBaseUrl);
     const provider = new OpenAICompatProvider(entity.name, {
-      baseUrl: entity.providerBaseUrl,
+      baseUrl,
       apiKey: this.crypto.decrypt(entity.apiKey),
       model: entity.modelName,
     });
@@ -275,6 +287,17 @@ export class ExternalModelService implements OnModuleInit {
       message: result.message,
       latencyMs: result.latencyMs,
     };
+  }
+
+  /**
+   * 出站目标收口（R101-AI-04）
+   *
+   * 先走 normalizeBaseUrl（保留旧口径的协议错误文案），再做「仅公网 HTTPS」
+   * 全量校验（含域名解析全部 A/AAAA）。
+   */
+  private async assertEgressTarget(raw: string): Promise<string> {
+    const normalized = this.normalizeBaseUrl(raw);
+    return assertPublicResolvableTarget(normalized);
   }
 
   /** 解密并注册单个模型到 ProviderFactory */
@@ -332,12 +355,18 @@ export class ExternalModelService implements OnModuleInit {
     return normalized;
   }
 
-  /** 规范化 baseUrl：去尾部斜杠，必须 http(s) 开头 */
+  /**
+   * 规范化 baseUrl：去尾部斜杠，必须 http(s) 开头
+   *
+   * R101-AI-04：保存前（create/update）在此收口出站目标规则 a/b/c
+   * —— 只允许 `https:`、拒绝内嵌凭据、拒绝受限网段 IP 字面量。
+   * 规则 d（域名解析全部 A/AAAA）在出站前与连接期判定，见 assertEgressTarget。
+   */
   private normalizeBaseUrl(raw: string): string {
     const url = raw.trim().replace(/\/+$/, '');
     if (!/^https?:\/\//.test(url)) {
       throw new ConflictException('API 地址必须以 http:// 或 https:// 开头');
     }
-    return url;
+    return assertAllowedOutboundUrl(url);
   }
 }
