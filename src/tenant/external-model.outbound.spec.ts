@@ -14,7 +14,7 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-10-09
  */
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import { lookup } from 'node:dns/promises';
@@ -409,5 +409,56 @@ describe('R101-AI-04 ExternalModelService 收口（入参 / 存量 / 保存前�
     });
     expect(view.providerBaseUrl).toBe('https://api.example.com/v1');
     expect(repo.save).toHaveBeenCalled();
+  });
+});
+
+describe('R101-AI-04 补充：拒绝时打印被拒 host + 命中规则（不含凭据）', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('同步拒绝：日志含 rule + host，且不含真实凭据', () => {
+    const warnSpy = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+
+    expect(() =>
+      assertAllowedOutboundUrl('https://alice:secret@10.0.0.5/v1'),
+    ).toThrow(BadRequestException);
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const line = String(warnSpy.mock.calls[0][0]);
+    expect(line).toContain('出站目标被拒');
+    expect(line).toContain('rule=url-embedded-credentials');
+    expect(line).toContain('host=10.0.0.5');
+    expect(line).not.toContain('secret');
+  });
+
+  it('IP 字面量拒绝：日志含 host-ip-literal-blocked + host', () => {
+    const warnSpy = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+
+    expect(() => assertAllowedOutboundUrl('https://169.254.169.254/x')).toThrow(
+      BadRequestException,
+    );
+    const line = String(warnSpy.mock.calls[0][0]);
+    expect(line).toContain('rule=host-ip-literal-blocked');
+    expect(line).toContain('host=169.254.169.254');
+  });
+
+  it('解析类拒绝：日志含 rule + host（不解析失败也留痕）', async () => {
+    const warnSpy = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    dnsLookup.mockResolvedValue([{ address: '10.1.2.3', family: 4 }]);
+
+    await expect(
+      assertPublicResolvableTarget('https://evil.example.com/v1'),
+    ).rejects.toThrow(BadRequestException);
+
+    const line = String(warnSpy.mock.calls[0][0]);
+    expect(line).toContain('rule=dns-blocked-address');
+    expect(line).toContain('host=evil.example.com');
   });
 });

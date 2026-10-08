@@ -11,6 +11,7 @@ import { CryptoService } from './crypto.service';
 import { TenantAiConfigEntity } from '../database/entities/tenant-ai-config.entity';
 import { PlatformAiConfigEntity } from '../database/entities/platform-ai-config.entity';
 import { ExternalModelService } from './external-model.service';
+import { AiModelPriceEntity } from '../database/entities/ai-model-price.entity';
 
 const ENCRYPTION_KEY =
   '14804bc70a2fcff7125aca977139aa5a92e3bff867e5aa1c5ebf1c3219db7359';
@@ -38,6 +39,7 @@ describe('AiConfigService', () => {
   let tenantContext: TenantContext;
   let crypto: CryptoService;
   let externalModelService: { getRuntimeConfig: jest.Mock };
+  let modelPriceRepo: jest.Mocked<Repository<AiModelPriceEntity>>;
 
   beforeEach(() => {
     tenantRepo = createMockRepo<TenantAiConfigEntity>();
@@ -47,12 +49,15 @@ describe('AiConfigService', () => {
     externalModelService = {
       getRuntimeConfig: jest.fn().mockResolvedValue(null),
     };
+    // R101-AI-07：单价仓库为本轮新增依赖（既有用例不触达，仅补齐构造参数）
+    modelPriceRepo = createMockRepo<AiModelPriceEntity>();
     service = new AiConfigService(
       tenantRepo,
       platformRepo,
       tenantContext,
       crypto,
       externalModelService as unknown as ExternalModelService,
+      modelPriceRepo,
     );
   });
 
@@ -94,7 +99,10 @@ describe('AiConfigService', () => {
       enabled: 1,
       provider: 'ollama',
       apiKey: encryptedKey,
-      apiEndpoint: 'http://localhost:11434',
+      // R101-AI-08：商家可写 apiEndpoint 只允许公网 HTTPS（原 fixture 为
+      // `http://localhost:11434`，在新口径下会被守卫显式拒绝 ⇒ 属过期 fixture，
+      // 断言口径不变，仅换为合法公网 HTTPS 端点）
+      apiEndpoint: 'https://tenant-llm.example.com/v1',
       model: 'qwen2.5:7b',
       temperature: 0.5,
       maxTokens: 4096,
@@ -130,7 +138,9 @@ describe('AiConfigService', () => {
       expect(result.maxTokens).toBe(4096);
       expect(result.source).toBe('tenant');
       expect(result.providerConfig.apiKey).toBe('sk-tenant-custom');
-      expect(result.providerConfig.baseUrl).toBe('http://localhost:11434');
+      expect(result.providerConfig.baseUrl).toBe(
+        'https://tenant-llm.example.com/v1',
+      );
       expect(result.systemPrompt).toBe('你是租户自定义助手');
     });
 

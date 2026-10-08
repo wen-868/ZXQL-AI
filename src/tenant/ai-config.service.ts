@@ -18,10 +18,12 @@
  */
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { LessThanOrEqual, Repository } from 'typeorm';
 import { TenantAiConfigEntity } from '../database/entities/tenant-ai-config.entity';
 import { PlatformAiConfigEntity } from '../database/entities/platform-ai-config.entity';
+import { AiModelPriceEntity } from '../database/entities/ai-model-price.entity';
 import { ProviderConfig } from '../providers/provider.interface';
+import { assertAllowedOutboundUrl } from '../common/outbound-target.guard';
 import { TenantContext } from './tenant-context';
 import { CryptoService } from './crypto.service';
 import { ExternalModelService } from './external-model.service';
@@ -46,6 +48,28 @@ export interface ResolvedAiConfig {
   source: 'tenant' | 'platform';
 }
 
+/**
+ * 模型分档单价（元/千Token）——`t_ai_model_price` 的运行时视图（R101-AI-07）
+ *
+ * ⚠️ 本接口只表达「**已配置**」的一行单价。**未配置时调用方拿到的必须是
+ * `null`，禁止回落成 0 冒充已配置**（0 只有作为「显式配置的 0 元」时才有意义，
+ * 例如本地 ollama / 免费额度档）。
+ */
+export interface ModelPrice {
+  /** AI 服务商（与 t_ai_usage_daily.provider 同口径） */
+  provider: string;
+  /** 模型名（精确匹配） */
+  model: string;
+  /** 输入单价（元/千Token） */
+  promptPrice: number;
+  /** 输出单价（元/千Token） */
+  completionPrice: number;
+  /** 币种（ISO 4217） */
+  currency: string;
+  /** 该单价的生效时间 */
+  effectiveFrom: Date;
+}
+
 @Injectable()
 export class AiConfigService {
   private readonly logger = new Logger(AiConfigService.name);
@@ -60,7 +84,52 @@ export class AiConfigService {
     // 显式 @Inject：避免 Nest 反射解析歧义（同模块 provider，本地容器复现 undefined dependency）
     @Inject(ExternalModelService)
     private readonly externalModelService: ExternalModelService,
+    // R101-AI-07：分档单价来源（t_ai_model_price，平台级配置，与租户上下文无关）
+    @InjectRepository(AiModelPriceEntity)
+    private readonly modelPriceRepo: Repository<AiModelPriceEntity>,
   ) {}
+
+  /**
+   * 读取 (provider, model) 当前生效的分档单价（R101-AI-07）
+   *
+   * 解析口径：`enabled=1` 且 `effective_from <= 当前时间` 的多行中取
+   * `effective_from` 最大者（支持调价留痕，未来行不提前生效）。
+   *
+   * ⚠️ 未配置（无匹配行）→ 返回 `null`，**绝不**回落成 0：
+   * 0 元与「未配置」是两种语义，用 0 冒充会让用量费用列静默失真。
+   * 本方法不依赖租户上下文（单价是平台级配置）。
+   *
+   * @param provider AI 服务商（与 t_ai_usage_daily.provider 同口径）
+   * @param model    模型名（精确匹配；不可用用量表的 model 代表值定价）
+   * @returns 生效单价；未配置返回 null
+   */
+  async getModelPrice(
+    provider: string,
+    model: string,
+  ): Promise<ModelPrice | null> {
+    const row = await this.modelPriceRepo.findOne({
+      where: {
+        provider,
+        model,
+        enabled: 1,
+        effectiveFrom: LessThanOrEqual(new Date()),
+      },
+      order: { effectiveFrom: 'DESC' },
+    });
+    if (!row) {
+      // 未配置：显式返回 null（不落 0，不猜测）
+      return null;
+    }
+    return {
+      provider: row.provider,
+      model: row.model,
+      // decimal 列经 mysql2 以字符串返回，此处显式转数值
+      promptPrice: Number(row.promptPrice),
+      completionPrice: Number(row.completionPrice),
+      currency: row.currency,
+      effectiveFrom: row.effectiveFrom,
+    };
+  }
 
   /**
    * 获取当前租户的解析后 AI 配置
@@ -120,6 +189,8 @@ export class AiConfigService {
           model: external.model,
           temperature: resolved.temperature,
           max_tokens: resolved.maxTokens,
+          // R101-AI-08：来源为商家可写端点时保留连接期守卫标记
+          strictEgress: resolved.providerConfig.strictEgress,
         },
       };
     }
@@ -164,9 +235,21 @@ export class AiConfigService {
     }
 
     // 端点与密钥同源：租户密钥配租户端点；平台密钥配平台端点
-    const baseUrl = tenantApiKey
-      ? (tenantConfig.apiEndpoint ?? undefined)
-      : (platformConfig.defaultEndpoint ?? undefined);
+    //
+    // R101-AI-08：`api_endpoint` 是**商家可写**的（PUT tenants/:tenantId +
+    // requireTenantAccess），必须过「仅公网 HTTPS」守卫（规则 a/b/c 同步拒绝；
+    // 规则 d 由 strictEgress 在连接期用同一次解析校验）。平台 default_endpoint
+    // 是平台维护的端点 ⇒ 只记录 + 告警，**不拒绝**（信任边界，无法读取生产取值）。
+    const tenantEndpoint = tenantConfig.apiEndpoint;
+    let baseUrl: string | undefined;
+    let strictEgress = false;
+    if (tenantApiKey && tenantEndpoint) {
+      baseUrl = assertAllowedOutboundUrl(tenantEndpoint); // 违规即显式失败（400 语义）
+      strictEgress = true;
+    } else {
+      baseUrl = platformConfig.defaultEndpoint ?? undefined;
+      this.observePlatformEndpoint(tenantConfig.tenantId, baseUrl);
+    }
 
     if (!apiKey) {
       this.logger.warn(
@@ -182,6 +265,8 @@ export class AiConfigService {
         model: tenantConfig.model,
         temperature: Number(tenantConfig.temperature),
         max_tokens: tenantConfig.maxTokens,
+        // R101-AI-08：租户自填端点 ⇒ 连接期仍需同源校验（防 DNS 重绑定）
+        strictEgress,
       },
       model: tenantConfig.model,
       temperature: Number(tenantConfig.temperature),
@@ -209,6 +294,9 @@ export class AiConfigService {
       );
     }
 
+    // R101-AI-08：平台端点只记录 + 告警，不拒绝（信任边界）
+    this.observePlatformEndpoint(tenantId, platformConfig.defaultEndpoint);
+
     return {
       provider: platformConfig.defaultProvider,
       providerConfig: {
@@ -217,6 +305,8 @@ export class AiConfigService {
         model: platformConfig.defaultModel,
         temperature: Number(platformConfig.defaultTemperature),
         max_tokens: platformConfig.defaultMaxTokens,
+        // 平台端点：不挂 strictEgress（本卡明确不得擅自拒绝）
+        strictEgress: false,
       },
       model: platformConfig.defaultModel,
       temperature: Number(platformConfig.defaultTemperature),
@@ -224,6 +314,41 @@ export class AiConfigService {
       systemPrompt: platformConfig.defaultSystemPrompt,
       source: 'platform',
     };
+  }
+
+  /**
+   * 平台端点「记录 + 告警」（R101-AI-08 信任边界）
+   *
+   * 平台 `t_platform_ai_config.default_endpoint` 由平台管理员维护 ⇒ 本卡**不得**
+   * 擅自拒绝（生产取值读取不到，贸然拒绝可能误伤在用链路）。此处只做同步可判定
+   * 的观察：scheme 非 https / 内嵌凭据 / 受限 IP 字面量 ⇒ WARN 留痕，不抛错。
+   *
+   * ⚠️ 残余风险：以**内网域名**形式配置的平台端点，在不产生额外 DNS 查询的前提下
+   * 无法观察（连接期守卫按卡内要求不对平台端点生效）；需要时改用周期性审计任务。
+   */
+  private observePlatformEndpoint(
+    tenantId: string,
+    endpoint: string | null | undefined,
+  ): void {
+    if (!endpoint) {
+      return;
+    }
+    try {
+      assertAllowedOutboundUrl(endpoint);
+    } catch (err) {
+      // 只记 host，不记完整 URL（避免把内嵌凭据写进日志）
+      let host = '(unparsable)';
+      try {
+        host = new URL(endpoint).hostname;
+      } catch {
+        host = '(unparsable)';
+      }
+      this.logger.warn(
+        `平台端点不合「仅公网 HTTPS」口径（tenant=${tenantId} host=${host}）：` +
+          `${err instanceof Error ? err.message : String(err)}` +
+          ` —— 按 R101-AI-08 信任边界仅记录告警，不拒绝`,
+      );
+    }
   }
 
   /**

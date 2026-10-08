@@ -10,10 +10,14 @@ import { Type } from 'class-transformer';
 import {
   IsIn,
   IsInt,
+  IsISO8601,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  Length,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 

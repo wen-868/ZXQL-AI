@@ -29,6 +29,7 @@ import { PlatformAiConfigEntity } from '../database/entities/platform-ai-config.
 import { AiUsageDailyEntity } from '../database/entities/ai-usage-daily.entity';
 import { TenantAiBillingEntity } from '../database/entities/tenant-ai-billing.entity';
 import { AiExternalModelEntity } from '../database/entities/ai-external-model.entity';
+import { AiModelPriceEntity } from '../database/entities/ai-model-price.entity';
 import { CommonModule } from '../common/common.module';
 import { ProvidersModule } from '../providers/providers.module';
 import { RateLimiterMiddleware } from '../common/rate-limiter.middleware';
@@ -51,6 +52,7 @@ import { BillingService } from './billing.service';
       AiUsageDailyEntity,
       TenantAiBillingEntity,
       AiExternalModelEntity,
+      AiModelPriceEntity,
     ]),
   ],
   providers: [

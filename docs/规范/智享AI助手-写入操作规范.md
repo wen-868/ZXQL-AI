@@ -1099,10 +1099,10 @@ AI调用发生:
        → UPSERT INTO ai_usage_daily
 ```
 
-**费用计算**：
+**费用计算**（⚠️ 下方为**示例**，不是实现依据 —— 真实单价来自 `t_ai_model_price` 表配置，见本节末「实现依据」）：
 
 ```typescript
-// 费用计算逻辑
+// 费用计算逻辑（示例）
 
 function calculateCost(usage: {
   promptTokens: number;
@@ -1110,15 +1110,16 @@ function calculateCost(usage: {
   provider: string;
 }): { promptCost: number; completionCost: number; totalCost: number } {
   
-  // 各服务商价格（元/千Token）
-  const PRICING: Record<string, { prompt: number; completion: number }> = {
+  // ⚠️ 示例数据，不是定价依据：真实单价从 t_ai_model_price 表读取（R101-AI-07）
+  // ⚠️ 禁止把下表照抄进代码（红线：价格只能来自库里配置，不得硬编码价格表）
+  const EXAMPLE_PRICING: Record<string, { prompt: number; completion: number }> = {
     deepseek:  { prompt: 0.001,  completion: 0.002  },
     qwen:      { prompt: 0.002,  completion: 0.006  },
     zhipu:     { prompt: 0.000,  completion: 0.000  },  // 免费额度
     ollama:    { prompt: 0,      completion: 0      },  // 本地免费
   };
 
-  const price = PRICING[usage.provider] || PRICING.deepseek;
+  const price = EXAMPLE_PRICING[usage.provider] || EXAMPLE_PRICING.deepseek;
   
   const promptCost = (usage.promptTokens / 1000) * price.prompt;
   const completionCost = (usage.completionTokens / 1000) * price.completion;
@@ -1130,6 +1131,15 @@ function calculateCost(usage: {
   };
 }
 ```
+
+> **实现依据（2026-10-09 R101-AI-07 更正）**：单价**不来自代码常量**，而来自业务库表
+> `t_ai_model_price`（迁移 `migrations/015_ai_model_price.sql`），按
+> `provider + model + effective_from` 留痕；运行时取「`enabled=1` 且
+> `effective_from <= 当前时间`」中 `effective_from` 最大者。
+> 读取入口：`AiConfigService.getModelPrice(provider, model)`（R101-AI-03 据此补写
+> `t_ai_usage_daily` 的费用三列）。
+> ⚠️ **未配置单价 → 必须返回 `null`，不得回落成 0**：0 元只表示**显式配置**的免费档。
+> ⚠️ 上方 `EXAMPLE_PRICING` 仅供理解公式形状，**不是定价依据，不得照抄**。
 
 ### 9.4 总台统计页面
 

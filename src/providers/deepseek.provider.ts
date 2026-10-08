@@ -14,6 +14,7 @@ import {
 } from './provider.interface';
 import { ProviderError } from './provider-error';
 import { degrade } from '../common/error-semantics';
+import { axiosEgressOptions } from '../common/outbound-target.guard';
 
 /**
  * DeepSeek Provider 配置（运行时实际使用的配置）
@@ -25,6 +26,8 @@ interface DeepSeekRuntimeConfig {
   temperature: number;
   maxTokens: number;
   timeoutMs: number;
+  /** R101-AI-08：baseUrl 来自商家可写配置时为 true（连接期过公网 HTTPS 守卫） */
+  strictEgress: boolean;
 }
 
 /**
@@ -159,6 +162,8 @@ export class DeepSeekProvider implements IModelProvider {
       temperature,
       maxTokens,
       timeoutMs,
+      // env 默认端点 = 平台/环境维护 ⇒ 不挂商家端点守卫
+      strictEgress: false,
     };
     // 即使 API Key 为空也标记为已配置（推迟到调用时报错，便于 testConnection 给出友好提示）
     this.configured = true;
@@ -177,6 +182,8 @@ export class DeepSeekProvider implements IModelProvider {
       temperature: config.temperature ?? this.config.temperature,
       maxTokens: config.max_tokens ?? this.config.maxTokens,
       timeoutMs: config.timeoutMs ?? this.config.timeoutMs,
+      // R101-AI-08：仅在显式声明为商家可写端点时开启连接期守卫
+      strictEgress: config.strictEgress ?? this.config.strictEgress,
     };
     this.configured = true;
   }
@@ -217,6 +224,8 @@ export class DeepSeekProvider implements IModelProvider {
           responseType: 'stream',
           timeout: cfg.timeoutMs,
           signal: options?.signal,
+          // R101-AI-08：商家可写端点 ⇒ 连接期同源校验（仅公网 HTTPS）
+          ...axiosEgressOptions(cfg.strictEgress),
         },
       );
     } catch (err) {
@@ -378,6 +387,8 @@ export class DeepSeekProvider implements IModelProvider {
           headers: this.buildHeaders(),
           timeout: cfg.timeoutMs,
           signal: options?.signal,
+          // R101-AI-08：商家可写端点 ⇒ 连接期同源校验（仅公网 HTTPS）
+          ...axiosEgressOptions(cfg.strictEgress),
         },
       );
     } catch (err) {

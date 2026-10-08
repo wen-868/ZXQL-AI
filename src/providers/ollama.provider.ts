@@ -12,6 +12,7 @@ import {
   ToolCall,
 } from './provider.interface';
 import { ProviderError } from './provider-error';
+import { axiosEgressOptions } from '../common/outbound-target.guard';
 
 /**
  * Ollama Provider（本地模型，OpenAI 兼容协议）
@@ -26,6 +27,8 @@ interface OllamaRuntimeConfig {
   temperature: number;
   maxTokens: number;
   timeoutMs: number;
+  /** R101-AI-08：baseUrl 来自商家可写配置时为 true（连接期过公网 HTTPS 守卫） */
+  strictEgress: boolean;
 }
 
 interface OllamaChatResponse {
@@ -93,6 +96,8 @@ export class OllamaProvider implements IModelProvider {
       temperature: this.configService.get<number>('DEFAULT_TEMPERATURE', 0.3),
       maxTokens: this.configService.get<number>('DEFAULT_MAX_TOKENS', 2048),
       timeoutMs: this.configService.get<number>('OLLAMA_TIMEOUT_MS', 30000),
+      // env 默认端点（本地 ollama）= 平台/环境维护 ⇒ 不挂商家端点守卫
+      strictEgress: false,
     };
   }
 
@@ -103,6 +108,8 @@ export class OllamaProvider implements IModelProvider {
       temperature: config.temperature ?? this.config.temperature,
       maxTokens: config.max_tokens ?? this.config.maxTokens,
       timeoutMs: config.timeoutMs ?? this.config.timeoutMs,
+      // R101-AI-08：仅在显式声明为商家可写端点时开启连接期守卫
+      strictEgress: config.strictEgress ?? this.config.strictEgress,
     };
   }
 
@@ -165,6 +172,8 @@ export class OllamaProvider implements IModelProvider {
           responseType: 'stream',
           timeout: cfg.timeoutMs,
           signal: options?.signal,
+          // R101-AI-08：商家可写端点 ⇒ 连接期同源校验（仅公网 HTTPS）
+          ...axiosEgressOptions(cfg.strictEgress),
         },
       );
     } catch (err) {
@@ -279,6 +288,8 @@ export class OllamaProvider implements IModelProvider {
           headers: { 'Content-Type': 'application/json' },
           timeout: cfg.timeoutMs,
           signal: options?.signal,
+          // R101-AI-08：商家可写端点 ⇒ 连接期同源校验（仅公网 HTTPS）
+          ...axiosEgressOptions(cfg.strictEgress),
         },
       );
       const choice = resp.data.choices?.[0];
@@ -320,6 +331,8 @@ export class OllamaProvider implements IModelProvider {
         {
           headers: { 'Content-Type': 'application/json' },
           timeout: cfg.timeoutMs,
+          // R101-AI-08：商家可写端点 ⇒ 连接期同源校验（仅公网 HTTPS）
+          ...axiosEgressOptions(cfg.strictEgress),
         },
       );
       const emb = resp.data.data?.[0]?.embedding;
@@ -343,6 +356,8 @@ export class OllamaProvider implements IModelProvider {
       await axios.get(`${cfg.baseUrl}/models`, {
         headers: { 'Content-Type': 'application/json' },
         timeout: Math.min(cfg.timeoutMs, 8000),
+        // R101-AI-08：商家可写端点 ⇒ 连接期同源校验（仅公网 HTTPS）
+        ...axiosEgressOptions(cfg.strictEgress),
       });
       return {
         success: true,

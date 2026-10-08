@@ -35,6 +35,7 @@
      | 005_session_archive_billing.sql | `t_ai_session_archive` / `t_tenant_ai_billing` | 业务库侧，本仓独占 |
      | 006_ai_execution_plan.sql | `ai_execution_plan` | 业务库侧，本仓独占（**注意**：表名无 `t_` 前缀，但**在业务库**，不是 `ai_db`） |
      | 008_digital_employee.sql | `t_ai_employee` / `t_ai_employee_task` | 业务库侧，本仓独占 |
+     | 015_ai_model_price.sql | `t_ai_model_price` | 业务库侧，本仓独占（AI 分档单价来源，R101-AI-07） |
 
      对照：`003_ai_db_evolution.sql` 的四张表（`ai_experience` / `ai_correction` / `ai_sample` / `ai_evolution_version`）
      是 `ai_db` 私有库对象，**全部显式写 `ai_db.`**；`013_backfill_sample_task_type.sql` 的回填/核验同样显式限定。
@@ -75,6 +76,7 @@
 | 009 | t_ai_audit_log 补 lane VARCHAR(16) / categories **JSON**（取证埋点，方案 12.4）+ idx_lane 索引 | 业务库 | ✅ 已建（009_audit_lane_categories.sql） |
 | 010 | t_ai_employee_task 补 task_type / rating_result（评分回流产品化）+ t_ai_audit_log 补 triage_lane / triage_categories（意图分诊埋点） | 业务库 | ✅ 已建（010_rating_and_triage.sql） |
 | 014 | t_ai_usage_daily 存量按三列合并 + provider/model 收敛为 NOT NULL DEFAULT 'unknown' + 补齐 `uk_tenant_date_provider (tenant_id, stat_date, provider)`（用量表去重，P0） | 业务库 |✅ 已建（014_usage_daily_unique_key.sql） |
+| 015 | t_ai_model_price（AI 分档单价：prompt/completion 元/千Token，按 provider+model+生效时间留痕；R101-AI-03 的单价来源，R101-AI-07） | 业务库 | ✅ 已建（015_ai_model_price.sql） |
 
 > ⚠️ **014 的顺序依赖（P0，R6）**：写入侧 `src/bridge/audit-logger.ts` 的 `upsertDailyUsage`
 > 用 `INSERT ... ON DUPLICATE KEY UPDATE` 汇总日用量，**去重能力完全依赖本迁移建立的唯一键**；

@@ -22,7 +22,7 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-10-09
  */
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import type { AxiosRequestConfig } from 'axios';
 import type { LookupAddress } from 'node:dns';
 import { lookup as dnsLookup } from 'node:dns/promises';
@@ -31,10 +31,25 @@ import { isIP, type LookupFunction } from 'node:net';
 /** 拒绝文案前缀（调用方可据此前缀识别「出站目标被拒」） */
 export const OUTBOUND_REJECT_PREFIX = '出站目标被拒';
 
-/** 统一拒绝：HTTP 400 + 「规则 + 实际值」的可排查文案 */
-function reject(detail: string): BadRequestException {
+/**
+ * R101-AI-04 补充（凌舟 2026-10-09 裁定）：每次拒绝都要留下
+ * 「被拒 host + 命中规则」，生产上线后 10 分钟内可定位。
+ *
+ * ⚠️ 日志与异常文案都**不含凭据**：不打印原始 URL（可能带 user:pass@），
+ * 只打印 host 与规则码；无法解析的 URL 也不回显原文。
+ */
+const logger = new Logger('OutboundTargetGuard');
+
+/** 统一拒绝：落 WARN 日志（host + 规则）后抛 BadRequestException(400) */
+function reject(
+  rule: string,
+  host: string,
+  detail: string,
+): BadRequestException {
+  const safeHost = host || '-';
+  logger.warn(`出站目标被拒 rule=${rule} host=${safeHost} detail=${detail}`);
   return new BadRequestException(
-    `${OUTBOUND_REJECT_PREFIX}（仅允许公网 HTTPS）：${detail}`,
+    `${OUTBOUND_REJECT_PREFIX}（仅允许公网 HTTPS）：${detail} [rule=${rule} host=${safeHost}]`,
   );
 }
 
@@ -49,21 +64,38 @@ export function assertAllowedOutboundUrl(raw: string): string {
   try {
     parsed = new URL(trimmed);
   } catch {
-    throw reject(`无法解析的 URL「${trimmed}」`);
+    // 不回显原文：无法解析的串里可能带凭据
+    throw reject(
+      'url-unparsable',
+      '',
+      'URL 无法解析（已隐去原文，避免回显凭据）',
+    );
   }
 
+  const hostname = stripBrackets(parsed.hostname);
   // a. 仅 https:
   if (parsed.protocol !== 'https:') {
-    throw reject(`scheme 必须为 https:（实际 ${parsed.protocol}）`);
+    throw reject(
+      'scheme-not-https',
+      hostname,
+      `scheme 必须为 https:（实际 ${parsed.protocol}）`,
+    );
   }
   // b. 拒绝内嵌凭据
   if (parsed.username !== '' || parsed.password !== '') {
-    throw reject('URL 不得内嵌凭据（user:pass@）');
+    throw reject(
+      'url-embedded-credentials',
+      hostname,
+      'URL 不得内嵌凭据（user:pass@）',
+    );
   }
   // c. IP 字面量按网段拒绝（域名留给 d 解析后判定）
-  const hostname = stripBrackets(parsed.hostname);
   if (isBlockedHostLiteral(hostname)) {
-    throw reject(`host「${hostname}」命中受限网段`);
+    throw reject(
+      'host-ip-literal-blocked',
+      hostname,
+      `host「${hostname}」命中受限网段`,
+    );
   }
   return trimmed.replace(/\/+$/, '');
 }
@@ -84,7 +116,11 @@ export async function assertPublicResolvableTarget(
   const addresses = await resolveAll(hostname);
   const blocked = addresses.find((a) => isBlockedIp(a.address));
   if (blocked) {
-    throw reject(`域名 ${hostname} 解析到受限地址 ${blocked.address}`);
+    throw reject(
+      'dns-blocked-address',
+      hostname,
+      `域名 ${hostname} 解析到受限地址 ${blocked.address}`,
+    );
   }
   return normalized;
 }
@@ -105,6 +141,8 @@ export function createGuardedLookup(): NonNullable<
         if (blocked) {
           callback(
             reject(
+              'dns-blocked-address-connect',
+              hostname,
               `域名 ${hostname} 解析到受限地址 ${blocked.address}（连接期校验，防 DNS 重绑定）`,
             ),
             '',
@@ -136,22 +174,57 @@ export function assertAllowedRedirectTarget(
   options: Record<string, unknown>,
 ): void {
   const protocol = typeof options.protocol === 'string' ? options.protocol : '';
+  const rawHost = options.hostname ?? options.host;
+  const host =
+    typeof rawHost === 'string' ? hostnameFromHostField(rawHost) : '';
   if (protocol !== 'https:') {
     throw reject(
+      'redirect-scheme-not-https',
+      host,
       `重定向目标 scheme 必须为 https:（实际 ${protocol || '未知'}）`,
     );
   }
   if (typeof options.auth === 'string' && options.auth !== '') {
-    throw reject('重定向目标不得内嵌凭据（user:pass@）');
+    throw reject(
+      'redirect-embedded-credentials',
+      host,
+      '重定向目标不得内嵌凭据（user:pass@）',
+    );
   }
-  const rawHost = options.hostname ?? options.host;
   if (typeof rawHost !== 'string' || rawHost === '') {
-    throw reject('重定向目标缺少 host');
+    throw reject('redirect-missing-host', '', '重定向目标缺少 host');
   }
-  const hostname = hostnameFromHostField(rawHost);
-  if (isBlockedHostLiteral(hostname)) {
-    throw reject(`重定向目标 host「${hostname}」命中受限网段`);
+  if (isBlockedHostLiteral(host)) {
+    throw reject(
+      'redirect-ip-literal-blocked',
+      host,
+      `重定向目标 host「${host}」命中受限网段`,
+    );
   }
+}
+
+/**
+ * axios 请求选项片段（R101-AI-08）
+ *
+ * `strict=true` ⇒ 挂上「仅公网 HTTPS」的连接期校验（DNS 同源校验 + 重定向校验）。
+ * `strict` 为假/缺省 ⇒ 返回空对象，**不改变**该请求行为。
+ *
+ * 信任边界（凌舟 2026-10-09 裁定）：只有**商家可写**的端点
+ * （`t_tenant_ai_config.api_endpoint`）才置 strict；平台 `default_endpoint`
+ * 与环境变量端点只做「记录 + 告警」，**不得擅自拒绝**（无法读取生产取值，
+ * 贸然拒绝可能误伤在用链路）。
+ */
+export function axiosEgressOptions(strict: boolean | undefined): {
+  lookup?: NonNullable<AxiosRequestConfig['lookup']>;
+  beforeRedirect?: (options: Record<string, unknown>) => void;
+} {
+  if (strict !== true) {
+    return {};
+  }
+  return {
+    lookup: createGuardedLookup(),
+    beforeRedirect: assertAllowedRedirectTarget,
+  };
 }
 
 /** 是否为受限网段的 IP 字面量（域名返回 false） */
@@ -287,10 +360,18 @@ async function resolveAll(hostname: string): Promise<LookupAddress[]> {
     addresses = await dnsLookup(hostname, { all: true, verbatim: true });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    throw reject(`域名 ${hostname} 解析失败（${detail}）`);
+    throw reject(
+      'dns-resolve-failed',
+      hostname,
+      `域名 ${hostname} 解析失败（${detail}）`,
+    );
   }
   if (addresses.length === 0) {
-    throw reject(`域名 ${hostname} 未解析到任何地址`);
+    throw reject(
+      'dns-no-address',
+      hostname,
+      `域名 ${hostname} 未解析到任何地址`,
+    );
   }
   return addresses;
 }

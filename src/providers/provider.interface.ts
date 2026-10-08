@@ -131,6 +131,17 @@ export interface ProviderConfig {
   max_tokens?: number;
   /** 请求超时毫秒（可选，默认 30000） */
   timeoutMs?: number;
+  /**
+   * 连接期出站守卫（R101-AI-08）
+   *
+   * `true` = 本 `baseUrl` 来自**商家可写**配置（`t_tenant_ai_config.api_endpoint`）
+   * ⇒ 连接期必须再过一次「仅公网 HTTPS」校验（校验的就是连接使用的那次解析，
+   * 防 DNS 重绑定），由 `axiosEgressOptions()` 统一挂载。
+   *
+   * 缺省 / `false` = 平台或环境维护的端点（`t_platform_ai_config.default_endpoint`、
+   * 各 Provider 的 env 默认地址）⇒ 只记录 + 告警，**不得拒绝**（R101-AI-08 信任边界）。
+   */
+  strictEgress?: boolean;
 }
 
 /**

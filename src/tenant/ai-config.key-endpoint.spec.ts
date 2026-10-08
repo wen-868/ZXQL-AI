@@ -22,6 +22,7 @@ import { CryptoService } from './crypto.service';
 import { TenantAiConfigEntity } from '../database/entities/tenant-ai-config.entity';
 import { PlatformAiConfigEntity } from '../database/entities/platform-ai-config.entity';
 import { ExternalModelService } from './external-model.service';
+import { AiModelPriceEntity } from '../database/entities/ai-model-price.entity';
 
 /** 测试用 32 字节 hex 加密密钥（运行时拼装，避免硬编码凭据样式） */
 const TEST_ENCRYPTION_KEY = '3f2a'.repeat(16);
@@ -71,6 +72,8 @@ describe('P0-2 AiConfigService 密钥与端点绑定', () => {
       tenantContext,
       crypto,
       externalModelService as unknown as ExternalModelService,
+      // R101-AI-07：新增单价仓库依赖（本卡用例不触达，仅补齐构造参数，未改任何断言）
+      createMockRepo<AiModelPriceEntity>(),
     );
   });
 
