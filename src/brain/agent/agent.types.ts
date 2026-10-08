@@ -75,6 +75,17 @@ export interface ExecutionPlan {
   createdBy?: string;
   createdAt?: Date;
   updatedAt?: Date;
+  /**
+   * 本次从数据库读到的 state —— 条件 UPDATE 的 WHERE 依据（阶段 3-A）。
+   *
+   * 由 TaskRunnerService.toPlan 填充（= 落库时的 state）、savePlan 每次
+   * 成功写入后推进到新 state。调用方读它即可知道"我这份快照是基于哪个
+   * 状态读出来的"，从而让 savePlan 能判断期间有没有被并发改过。
+   *
+   * ⚠️ 属并发保护的内部账本：业务代码不要读写它（会随计划对象一起出现在
+   * /api/ai/agent/plans* 的响应里，是只读的加载时状态镜像）。
+   */
+  persistedState?: PlanState;
 }
 
 /** 自愈动作 */

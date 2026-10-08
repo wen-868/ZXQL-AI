@@ -15,13 +15,6 @@ import { PlatformAiConfigEntity } from '../database/entities/platform-ai-config.
 import { EvolutionVersionService } from './evolution-version.service';
 
 function createService() {
-  const repo = {
-    create: jest.fn((data) => data),
-    save: jest.fn(async (data) => ({ ...data })),
-    findOne: jest.fn(),
-    find: jest.fn().mockResolvedValue([]),
-    createQueryBuilder: jest.fn(),
-  } as unknown as Repository<AiEvolutionVersionEntity>;
   // activate 事务化（P2 修复回归）：manager.transaction 把回调里的
   // em.getRepository 指回带链式 QB mock 的 repo；条件更新默认成功（affected:1）
   const updateQb = {
@@ -30,6 +23,14 @@ function createService() {
     where: jest.fn().mockReturnThis(),
     execute: jest.fn(async () => ({ affected: 1 })),
   };
+  const repo = {
+    create: jest.fn((data) => data),
+    save: jest.fn(async (data) => ({ ...data })),
+    findOne: jest.fn(),
+    find: jest.fn().mockResolvedValue([]),
+    // 阶段 3-A：rollback 也改为条件更新（与 activate 同范式），指向同一个 QB 链
+    createQueryBuilder: jest.fn(() => updateQb),
+  } as unknown as Repository<AiEvolutionVersionEntity>;
   (repo as unknown as Record<string, unknown>).manager = {
     transaction: jest.fn(
       async (cb: (em: unknown) => Promise<unknown>): Promise<unknown> =>
@@ -240,6 +241,73 @@ describe('P1-1 EvolutionVersionService', () => {
     });
     const entity = await service.rollback(1, 'admin');
     expect(entity.status).toBe('rolled_back');
+  });
+
+  // 阶段 3-A（2026-10-09）新增：rollback 的 B 类丢失更新并发用例。
+  // 反测方向：把 rollback 的条件 WHERE 里的 status 去掉 / 退回裸 save(entity)，
+  // 下面两条必须变红（不再抛 409；且整行回写会调用 repo.save）。
+  it('rollback：并发下状态已被抢先修改 → ConflictException(409)，不得静默覆盖', async () => {
+    const { service, repo, updateQb } = createService();
+    const row: Record<string, unknown> = {
+      id: 7,
+      artifact: 'write_schema.customer_create',
+      status: 'active',
+      regressionAccuracy: 0.8,
+      approvedBy: null,
+    };
+    // 快照在运维读到它的那一刻固定：此后库内被并发改成 rolled_back，
+    // findOne 仍返回 active 的旧快照 ⇒ assertStatus 会放行（它不是防线），
+    // 真正拦住这次写入的必须是条件 UPDATE 的 WHERE status 判定。
+    const snapshot: Record<string, unknown> = { ...row };
+    repo.findOne = jest.fn(async () => ({ ...snapshot })) as never;
+
+    // execute 忠实模拟 SQL WHERE：带 status 条件时按库内当前 status 裁决命中行数
+    (updateQb.execute as jest.Mock).mockImplementation(async () => {
+      const whereCalls = updateQb.where.mock.calls as Array<
+        [string, Record<string, unknown>]
+      >;
+      const setCalls = updateQb.set.mock.calls as Array<
+        [Record<string, unknown>]
+      >;
+      const params = whereCalls[whereCalls.length - 1][1];
+      const patch = setCalls[setCalls.length - 1][0];
+      if (params.status !== undefined && row.status !== params.status) {
+        return { affected: 0 };
+      }
+      Object.assign(row, patch);
+      return { affected: 1 };
+    });
+
+    // 并发：另一方（同 artifact 单活退役 / 另一次回滚）已把 active → rolled_back
+    row.status = 'rolled_back';
+
+    const err = await service.rollback(7, 'ops').catch((e: unknown) => e);
+    // 区分力：必须是 ConflictException 且 HTTP 409（只断言消息的话抛任何 Error 都绿）
+    expect(err).toBeInstanceOf(ConflictException);
+    expect((err as ConflictException).getStatus()).toBe(409);
+    // 库内状态未被这次回滚改写（它本就已是 rolled_back，但不得再记一次审批人）
+    expect(row.approvedBy).toBeNull();
+  });
+
+  it('rollback：只 SET 本次要改的两列，不得整行回写（含 regression_accuracy）', async () => {
+    const { service, repo, updateQb } = createService();
+    repo.findOne = jest.fn().mockResolvedValue({
+      id: 7,
+      artifact: 'write_schema.customer_create',
+      status: 'active',
+      regressionAccuracy: 0.8,
+    }) as never;
+
+    await service.rollback(7, 'ops');
+
+    const setCalls = updateQb.set.mock.calls as Array<
+      [Record<string, unknown>]
+    >;
+    const patch = setCalls[setCalls.length - 1][0];
+    expect(patch).toEqual({ status: 'rolled_back', approvedBy: 'ops' });
+    // 反测信号：裸 save(entity) 会把整行（含评测基线）一并盖回
+    expect(patch).not.toHaveProperty('regressionAccuracy');
+    expect(repo.save).not.toHaveBeenCalled();
   });
 
   it('currentVersion：返回最近 active 版本', async () => {

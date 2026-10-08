@@ -13,7 +13,12 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -145,6 +150,18 @@ export class TaskRunnerService {
 
   /**
    * 保存计划（步骤 JSON + 计划状态）
+   *
+   * 阶段 3-A（2026-10-09）：条件 UPDATE——WHERE 带「本次读到的旧状态」。
+   *
+   * 此前 WHERE 只有 id + tenantId：两个并发写者（如 run() 的续跑与
+   * approveStep/rejectStep/cancelPlan 的人工介入）各自持有一份旧快照，
+   * 后写者整段覆盖先写者的 steps + state ⇒ 先写者的状态流转被抹掉。
+   * 典型业务后果：用户审批了挂起步骤（suspended→pending）后，仍在跑的
+   * run() 用旧快照回写 ⇒ 步骤被打回 suspended，永久卡死、无人再唤醒。
+   *
+   * 现以「读到的旧 state」（plan.persistedState，由 toPlan 填充）作为
+   * WHERE 条件：期间被并发改过 ⇒ affected=0 ⇒ 抛 ConflictException(409)，
+   * 而不是静默覆盖。调用方（controller / run 循环）据此提示重试。
    */
   async savePlan(plan: ExecutionPlan): Promise<void> {
     const now = new Date();
@@ -152,14 +169,31 @@ export class TaskRunnerService {
     for (const step of plan.steps) {
       step.updatedAt = Date.now();
     }
-    await this.planRepo.update(
-      { id: plan.id, tenantId: plan.tenantId },
+    const expected = plan.persistedState;
+    const result = await this.planRepo.update(
+      { id: plan.id, tenantId: plan.tenantId, state: expected },
       {
         steps: JSON.stringify(plan.steps),
         state: plan.state,
         updatedAt: now,
       },
     );
+    if ((result.affected ?? 0) === 0) {
+      // MySQL 的 affectedRows 记的是「实际变化的行」而非「匹配的行」：
+      // 内容完全一致（连 updated_at 到秒都相同）的重写同样返回 0。
+      // 故 affected=0 时回读一次，区分「被并发抢先改了状态」（真冲突 → 409）
+      // 与「内容一致的空写」（不算冲突，放行）。
+      const current = await this.planRepo.findOne({
+        where: { id: plan.id, tenantId: plan.tenantId },
+      });
+      if (current?.state !== expected) {
+        throw new ConflictException(
+          `执行计划写入冲突：id=${plan.id} 状态已由 ${expected ?? '未知'} 变为 ${current?.state ?? '（记录已不存在）'}，本次写入已放弃（可能被并发的续跑/审批/取消抢先修改）`,
+        );
+      }
+    }
+    // 写入成功（或幂等空写）后推进账本：下一次 savePlan 以新状态为基准
+    plan.persistedState = plan.state;
   }
 
   /**
@@ -1076,6 +1110,8 @@ export class TaskRunnerService {
       createdBy: entity.createdBy ?? undefined,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
+      // 并发账本：记下"这份快照是基于哪个落库状态读出来的"（savePlan 的 WHERE 依据）
+      persistedState: entity.state,
     };
   }
 

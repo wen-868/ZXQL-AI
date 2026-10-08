@@ -351,6 +351,18 @@ export class AiConfigAdminService {
 
   /**
    * 更新租户计费套餐（不存在则创建）
+   *
+   * 阶段 3-A（2026-10-09）：partial UPDATE——只写本次 input 里真正传入的列。
+   *
+   * 此前是「findOne → 内存改 → save(整行)」：`save()` 会把整行所有列写回，
+   * 其中 `balance` / `free_chat_count` 是 BillingService.deduct（billing.service.ts
+   * 的 raw SQL 原子 UPDATE）在并发扣减的列。管理员在总台改一次套餐
+   * （哪怕只改 monthly_price），就会把读到的旧 balance 整行盖回去，
+   * 抹掉这期间并发 deduct 已扣减的金额 ⇒ **漏计费**。
+   *
+   * ⚠️ 这里的性质不是状态机，是「写了不该写的列」，故不套
+   * `WHERE status = ...` 的条件更新范式；正解是收窄写集合：
+   * 未被本次修改的列（尤其 balance / free_chat_count）一个都不进 SET。
    */
   async updateBilling(
     tenantId: string,
@@ -365,39 +377,52 @@ export class AiConfigAdminService {
       enabled?: number;
     },
   ): Promise<TenantAiBillingEntity> {
-    let billing = await this.billingRepo.findOne({ where: { tenantId } });
-    if (!billing) {
-      billing = this.billingRepo.create({ tenantId });
-    }
-
+    // 只收集本次真正传入的列（undefined = 调用方未要求改动，不进 SET）
+    const patch: Partial<TenantAiBillingEntity> = {};
     if (input.planType !== undefined) {
-      billing.planType = input.planType;
+      patch.planType = input.planType;
     }
     if (input.freeChatCount !== undefined) {
-      billing.freeChatCount = input.freeChatCount;
+      patch.freeChatCount = input.freeChatCount;
     }
     if (input.freeTokenLimit !== undefined) {
-      billing.freeTokenLimit = input.freeTokenLimit;
+      patch.freeTokenLimit = input.freeTokenLimit;
     }
     if (input.overagePrice !== undefined) {
-      billing.overagePrice = input.overagePrice;
+      patch.overagePrice = input.overagePrice;
     }
     if (input.monthlyChatLimit !== undefined) {
-      billing.monthlyChatLimit = input.monthlyChatLimit;
+      patch.monthlyChatLimit = input.monthlyChatLimit;
     }
     if (input.monthlyTokenLimit !== undefined) {
-      billing.monthlyTokenLimit = input.monthlyTokenLimit;
+      patch.monthlyTokenLimit = input.monthlyTokenLimit;
     }
     if (input.monthlyPrice !== undefined) {
-      billing.monthlyPrice = input.monthlyPrice;
+      patch.monthlyPrice = input.monthlyPrice;
     }
     if (input.enabled !== undefined) {
-      billing.enabled = input.enabled;
+      patch.enabled = input.enabled;
     }
 
-    const saved = await this.billingRepo.save(billing);
-    this.logger.log(`租户 ${tenantId} 的计费套餐已更新（id=${saved.id}）`);
-    return saved;
+    const existing = await this.billingRepo.findOne({ where: { tenantId } });
+    // 记录不存在：仍需 create（保留原 upsert 语义），此时可整行写入（新行无并发扣减历史）
+    if (!existing) {
+      const created = this.billingRepo.create({ tenantId, ...patch });
+      const saved = await this.billingRepo.save(created);
+      this.logger.log(`租户 ${tenantId} 的计费套餐已创建（id=${saved.id}）`);
+      return saved;
+    }
+
+    // 一个字段都没传 ⇒ 一条 UPDATE 都不发（原实现会空写整行，同样会盖掉 balance）
+    if (Object.keys(patch).length === 0) {
+      return existing;
+    }
+
+    await this.billingRepo.update({ id: existing.id }, patch);
+    this.logger.log(
+      `租户 ${tenantId} 的计费套餐已更新（id=${existing.id} 列=${Object.keys(patch).join(',')}）`,
+    );
+    return { ...existing, ...patch };
   }
 
   // ──────────────────────────────────────────────────────────────

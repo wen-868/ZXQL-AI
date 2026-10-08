@@ -41,6 +41,8 @@ function createMockRepo<T extends ObjectLiteral>(): MockRepo<T> {
     create: jest.fn((entity: Partial<T>): T => ({ ...entity }) as T),
     // save 默认返回传入的实体，便于断言"写入数据库的内容"（如 apiKey 是否为密文）
     save: jest.fn((entity: T) => Promise.resolve(entity)),
+    // 阶段 3-A：updateBilling 改为 partial UPDATE，默认命中 1 行
+    update: jest.fn(() => Promise.resolve({ affected: 1 })),
     findAndCount: jest.fn(),
     find: jest.fn(),
   } as unknown as MockRepo<T>;
@@ -500,8 +502,44 @@ describe('AiConfigAdminService', () => {
   });
 
   describe('updateBilling', () => {
-    it('更新全部字段', async () => {
-      billingRepo.findOne.mockResolvedValue(makeBilling());
+    /**
+     * 计费行的内存库（阶段 3-A 并发用例用）
+     *
+     * 忠实模拟两种写法的差异——这也正是丢失更新的成因：
+     * - `update(criteria, patch)`：只写 patch 里的列（partial UPDATE）
+     * - `save(entity)`：**整行回写**，实体上有什么列就写什么列
+     * findOne 返回拷贝：service 拿到的是快照，与库内当前值可分离。
+     */
+    function makeBillingStore(row: TenantAiBillingEntity) {
+      const db: TenantAiBillingEntity = { ...row };
+      // 快照在"管理员打开页面"那一刻就固定了：此后库内被并发 deduct 改动，
+      // findOne 仍返回旧快照（这正是丢失更新的成因——快照里的旧值会被写回）
+      const snapshot: TenantAiBillingEntity = { ...row };
+      /** 落库的 SET 集合（按调用顺序） */
+      const patches: Array<Partial<TenantAiBillingEntity>> = [];
+      billingRepo.findOne = jest.fn(() => ({ ...snapshot })) as never;
+      billingRepo.update = jest.fn(
+        (
+          criteria: { id: number },
+          patch: Partial<TenantAiBillingEntity>,
+        ): { affected: number } => {
+          patches.push(patch);
+          if (db.id !== criteria.id) {
+            return { affected: 0 };
+          }
+          Object.assign(db, patch);
+          return { affected: 1 };
+        },
+      ) as never;
+      billingRepo.save = jest.fn((entity: TenantAiBillingEntity) => {
+        Object.assign(db, entity);
+        return entity;
+      }) as never;
+      return { db, patches };
+    }
+
+    it('更新全部字段（只写本次传入的列，不得整行回写）', async () => {
+      const { patches } = makeBillingStore(makeBilling());
 
       const result = await service.updateBilling('tenant-001', {
         planType: 'monthly',
@@ -514,11 +552,24 @@ describe('AiConfigAdminService', () => {
         enabled: 0,
       });
 
-      const saved = billingRepo.save.mock.calls[0][0];
-      expect(saved.planType).toBe('monthly');
-      expect(saved.monthlyPrice).toBe(99);
-      expect(saved.enabled).toBe(0);
+      // 阶段 3-A：写入方式是 partial UPDATE，不再是 save(整行)
+      expect(patches).toHaveLength(1);
+      expect(patches[0]).toEqual({
+        planType: 'monthly',
+        freeChatCount: 500,
+        freeTokenLimit: 500000,
+        overagePrice: 0.002,
+        monthlyChatLimit: 10000,
+        monthlyTokenLimit: 10000000,
+        monthlyPrice: 99,
+        enabled: 0,
+      });
+      // balance 未被本次修改 ⇒ 一个都不许进 SET
+      expect(patches[0]).not.toHaveProperty('balance');
+      expect(billingRepo.save).not.toHaveBeenCalled();
       expect(result.planType).toBe('monthly');
+      expect(result.monthlyPrice).toBe(99);
+      expect(result.enabled).toBe(0);
     });
 
     it('不存在时创建新记录（upsert）', async () => {
@@ -528,12 +579,51 @@ describe('AiConfigAdminService', () => {
         planType: 'prepaid',
       });
 
+      // 新行没有并发扣减历史，可整行写入（保留原 create 语义）
       expect(billingRepo.create).toHaveBeenCalledWith({
         tenantId: 'tenant-999',
+        planType: 'prepaid',
       });
       const saved = billingRepo.save.mock.calls[0][0];
       expect(saved.planType).toBe('prepaid');
       expect(result.tenantId).toBe('tenant-999');
+    });
+
+    it('未传任何字段时一条 UPDATE 都不发（空写同样会盖掉并发扣减）', async () => {
+      makeBillingStore(makeBilling({ id: 1, balance: 100 }));
+
+      await service.updateBilling('tenant-001', {});
+
+      expect(billingRepo.update).not.toHaveBeenCalled();
+      expect(billingRepo.save).not.toHaveBeenCalled();
+    });
+
+    // 阶段 3-A（2026-10-09）新增：A 类丢失更新的并发用例。
+    // 反测方向：把 updateBilling 改回「findOne → 内存改 → save(整行)」，
+    // 本用例必须变红（db.balance 会被快照值 100 盖回）。
+    it('并发 deduct 已扣减的 balance 不得被 updateBilling 整行回写覆盖（漏计费）', async () => {
+      const { db, patches } = makeBillingStore(
+        makeBilling({ id: 1, balance: 100, freeChatCount: 50 }),
+      );
+
+      // 时序：
+      // t0 管理员打开套餐页 → service 读到快照（balance=100 / freeChatCount=50）
+      // t1 期间有对话在跑：BillingService.deduct 用 raw SQL 原子扣减
+      //    （billing.service.ts:137/157，绕过 ORM，不更新任何内存快照）
+      db.balance = 90;
+      db.freeChatCount = 49;
+      // t2 管理员只提交「月费」一项改动
+      await service.updateBilling('tenant-001', { monthlyPrice: 199 });
+
+      // 反测信号：修复前 save(整行) 会把快照里的 balance=100 / freeChatCount=50
+      // 一并盖回 ⇒ 这 10 元扣减凭空消失（用户白嫖，账目不平）
+      expect(db.balance).toBe(90);
+      expect(db.freeChatCount).toBe(49);
+      expect(db.monthlyPrice).toBe(199);
+      // SET 里只应有本次传入的那一列
+      expect(Object.keys(patches[0])).toEqual(['monthlyPrice']);
+      expect(patches[0]).not.toHaveProperty('balance');
+      expect(patches[0]).not.toHaveProperty('freeChatCount');
     });
   });
 

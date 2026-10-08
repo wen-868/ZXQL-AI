@@ -201,6 +201,18 @@ export class EvolutionVersionService {
 
   /**
    * 回滚：active → rolled_back（按版本指针还原代码常量，发布流程落盘）
+   *
+   * 阶段 3-A（2026-10-09）：条件更新——与同文件 activate（:176-190）同一范式。
+   *
+   * 此前是 getOrThrow + assertStatus 之后 `this.repo.save(entity)` 裸整行回写：
+   * ① assertStatus 的判据是内存快照、不在数据库侧，并发的另一方同样能
+   *    通过断言 ⇒ 两次回滚都"成功"落库（后写覆盖先写，无冲突信号）；
+   * ② save(整行) 还会把本次快照里的其它列一并盖回去——典型是与
+   *    evaluateRegressionById 回写 regression_accuracy 交错时，把刚落库的
+   *    评测基线抹成旧值（E5 自治依赖该列做基线 ⇒ 基线丢失后恒判"无基线"）。
+   *
+   * 现改为：WHERE 带原状态（active）的条件 UPDATE，且只 SET 本次真正要改
+   * 的两列；affected=0 ⇒ 状态已被并发抢先改掉 ⇒ 抛 409。
    */
   async rollback(
     id: number,
@@ -208,9 +220,23 @@ export class EvolutionVersionService {
   ): Promise<AiEvolutionVersionEntity> {
     const entity = await this.getOrThrow(id);
     this.assertStatus(entity, ['active']);
+    // 条件回滚：并发回滚/退役只有一个能把 active → rolled_back
+    const result = await this.repo
+      .createQueryBuilder()
+      .update(AiEvolutionVersionEntity)
+      .set({ status: 'rolled_back', approvedBy: reviewer })
+      .where('id = :id AND status = :status', { id, status: 'active' })
+      .execute();
+    if ((result.affected ?? 0) === 0) {
+      // 口径与 activate（:182-190）一致：并发回滚属状态冲突，抛
+      // ConflictException（409）；抛通用 Error 会被全局过滤器兜成 500，
+      // 前端无法区分"真的服务端故障"与"有人抢先回滚了"。
+      throw new ConflictException(
+        `版本回滚冲突：id=${id} 已非 active 状态（可能被并发操作抢先回滚/退役）`,
+      );
+    }
     entity.status = 'rolled_back';
     entity.approvedBy = reviewer;
-    await this.repo.save(entity);
     this.logger.warn(
       `版本已回滚：id=${id} artifact=${entity.artifact} 还原至 ${entity.fromVersion ?? '上一版本'}`,
     );

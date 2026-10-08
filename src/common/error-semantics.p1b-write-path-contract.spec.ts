@@ -380,10 +380,24 @@ describe('P1-B 写路径迁移契约（业务模块确实走三级语义）', ()
         find: jest.fn(({ where }: { where: { tenantId: string } }) =>
           [...store.values()].filter((e) => e.tenantId === where.tenantId),
         ),
+        // 阶段 3-A：savePlan 改为条件 UPDATE（WHERE 带 tenantId + state），
+        // 桩必须与真实 SQL 语义一致（口径对齐 task-runner.service.spec.ts）：
+        // criteria 带 state 且库内不符 ⇒ 命中 0 行（affected:0），由调用方判冲突。
+        // 不能图省事恒返回 {affected:1}，否则「并发覆盖」在测试里永远不红。
         update: jest.fn(
-          (criteria: { id: number }, patch: Record<string, unknown>) => {
+          (
+            criteria: { id: number; tenantId: string; state?: string },
+            patch: Record<string, unknown>,
+          ): { affected: number } => {
             const e = store.get(criteria.id);
-            if (e) store.set(criteria.id, { ...e, ...patch });
+            if (!e || e.tenantId !== criteria.tenantId) {
+              return { affected: 0 };
+            }
+            if (criteria.state !== undefined && e.state !== criteria.state) {
+              return { affected: 0 };
+            }
+            store.set(criteria.id, { ...e, ...patch });
+            return { affected: 1 };
           },
         ),
         create: jest.fn((e: Record<string, unknown>) => e),

@@ -6,6 +6,7 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
+import { ConflictException } from '@nestjs/common';
 import { TaskRunnerService } from './task-runner.service';
 import { AiExecutionPlanEntity } from '../../database/entities/ai-execution-plan.entity';
 import type { PlanStep } from './agent.types';
@@ -34,12 +35,23 @@ function makeRepo() {
     find: jest.fn(({ where }: { where: { tenantId: string } }) =>
       [...store.values()].filter((e) => e.tenantId === where.tenantId),
     ),
+    // 阶段 3-A：savePlan 改为条件 UPDATE（WHERE 带 state），mock 必须与真实
+    // SQL 语义一致：criteria 带了 state 且库内 state 不符 ⇒ 命中 0 行。
+    // （反测把 state 条件去掉 ⇒ criteria.state 为 undefined ⇒ 这里不再拦截）
     update: jest.fn(
-      (criteria: { id: number }, patch: Partial<AiExecutionPlanEntity>) => {
+      (
+        criteria: { id: number; tenantId: string; state?: string },
+        patch: Partial<AiExecutionPlanEntity>,
+      ): { affected: number } => {
         const e = store.get(criteria.id);
-        if (e) {
-          store.set(criteria.id, { ...e, ...patch });
+        if (!e || e.tenantId !== criteria.tenantId) {
+          return { affected: 0 };
         }
+        if (criteria.state !== undefined && e.state !== criteria.state) {
+          return { affected: 0 };
+        }
+        store.set(criteria.id, { ...e, ...patch });
+        return { affected: 1 };
       },
     ),
     create: jest.fn((entity: Partial<AiExecutionPlanEntity>) => entity),
@@ -436,6 +448,59 @@ describe('TaskRunnerService', () => {
     const persisted = await runner.getPlan(plan.id, 't1');
     expect(persisted?.steps[0].status).toBe('failed');
     expect(persisted?.steps[1].status).toBe('success');
+  });
+
+  // 阶段 3-A（2026-10-09）新增：B 类丢失更新的并发用例。
+  // 反测方向：把 savePlan 的 WHERE 里的 state 条件去掉（退回裸 update），
+  // 本用例必须变红（不再抛 409，且库内 A 的取消结果被 B 的旧快照覆盖）。
+  it('savePlan：并发下状态已被抢先修改 → ConflictException(409)，不得整段覆盖', async () => {
+    const { runner, repo } = makeRunner();
+    const plan = await runner.createPlan({
+      tenantId: 't1',
+      goal: '开单',
+      steps: [
+        makeStep(),
+        makeStep({ id: 'end', type: 'end', tool: undefined, label: '完成' }),
+      ],
+    });
+
+    // B：另一路请求（如 SSE 续跑）先读到快照（state=pending，步骤均 pending）
+    const b = await runner.getPlan(plan.id, 't1');
+    if (!b) throw new Error('前置条件失败：计划应存在');
+    // A 抢先落库：用户取消计划（pending → skipped，步骤全部 skipped）
+    await runner.cancelPlan(plan.id, 't1');
+
+    // B 仍持旧快照（persistedState=pending），回写"第一步执行成功"
+    b.steps[0].status = 'success';
+    b.state = 'success';
+    const err = await runner.savePlan(b).catch((e: unknown) => e);
+
+    // 区分力：必须是 ConflictException 且 HTTP 409（只断言消息的话抛任何 Error 都绿）
+    expect(err).toBeInstanceOf(ConflictException);
+    expect((err as ConflictException).getStatus()).toBe(409);
+
+    // 库内保住 A 的取消结果，未被 B 的旧快照整段覆盖
+    const row = repo.store.get(plan.id)!;
+    expect(row.state).toBe('skipped');
+    const steps = JSON.parse(row.steps ?? '[]') as Array<{ status: string }>;
+    expect(steps[0].status).toBe('skipped');
+  });
+
+  it('savePlan：内容一致的幂等重写（affected=0 但状态未变）不算冲突', async () => {
+    const { runner, repo } = makeRunner();
+    const plan = await runner.createPlan({
+      tenantId: 't1',
+      goal: '查库存',
+      steps: [makeStep()],
+    });
+    const loaded = await runner.getPlan(plan.id, 't1');
+    if (!loaded) throw new Error('前置条件失败：计划应存在');
+    // MySQL 的 affectedRows 记"实际变化的行"：同秒内内容一致的重写返回 0
+    repo.update = jest.fn(() => ({ affected: 0 })) as never;
+
+    await expect(runner.savePlan(loaded)).resolves.toBeUndefined();
+    // 幂等空写后仍推进账本，下一次写入以新状态为基准
+    expect(loaded.persistedState).toBe('pending');
   });
 
   it('run：已结束计划拒绝再次执行', async () => {
