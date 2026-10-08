@@ -120,10 +120,12 @@ describe('AuditLogger', () => {
     expect(saved[0].categories).toBeNull();
   });
 
-  // D-2 闭环守卫：唯一索引视每个 NULL 互不相同，用量行若带 NULL 的
-  // provider/model 不会被 uk_usage_daily 去重，表会重新按请求数膨胀。
-  // 写入侧必须落空串 —— 这条断言防的是「改回传 null」这类回归。
-  it('upsertDailyUsage：provider/model 为 null 时落空串而非 NULL（唯一键可去重）', async () => {
+  // P0-014 重做闭环守卫：唯一索引视每个 NULL 互不相同，用量行若带 NULL 的
+  // provider/model 不会被唯一键去重，表会重新按请求数膨胀；且 014 第 6 步已把两列
+  // 改为 NOT NULL DEFAULT 'unknown'，传 NULL 会被数据库直接拒绝。
+  // 写入侧必须落哨兵值 'unknown' —— 这条断言防的是「改回传 null」与「改回落空串」
+  // 两类回归：哨兵必须与库默认值、迁移回填值三处完全一致。
+  it('upsertDailyUsage：provider/model 为 null 时落哨兵值 unknown（唯一键可去重且列非空）', async () => {
     const { logger, usageParams } = createHarness();
 
     logger.logAiCall({
@@ -138,8 +140,8 @@ describe('AuditLogger', () => {
     expect(usageParams).toHaveLength(1);
     const p = usageParams[0];
     // 入参顺序：tenantId, statDate, chat, tool, prompt, completion, total, provider, model
-    expect(p[7]).toBe('');
-    expect(p[8]).toBe('');
+    expect(p[7]).toBe('unknown');
+    expect(p[8]).toBe('unknown');
   });
 
   it('logAiCall：未传 lane/categories → 落 null（历史调用方不受影响）', async () => {

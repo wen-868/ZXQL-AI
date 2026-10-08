@@ -417,20 +417,34 @@ export class AuditLogger {
   /**
    * UPSERT 日用量汇总
    *
-   * 按 (tenant_id, stat_date, provider, model) 唯一键：
+   * 按 (tenant_id, stat_date, provider) **三列**唯一键：
    * - 命中唯一键则累加（chat_count / tool_call_count / tokens）
    * - 未命中则插入
    *
-   * ⚠️ 该唯一键由 migrations/014_usage_daily_unique_key.sql 建立（D-2）。
+   * ⚠️ 该唯一键由 migrations/014_usage_daily_unique_key.sql 建立（D-2 / P0-014 重做）。
    *   **键建立之前，本 UPSERT 并不具备去重能力**：INSERT 不带 id，主键自增
    *   永不冲突，而表上其余索引全是非唯一的 ⇒ ON DUPLICATE KEY UPDATE 分支
-   *   永不命中 ⇒ 每次调用都 INSERT 新行，t_ai_usage_daily 按请求数而非
-   *   「租户×日期×模型」膨胀，用量报表与超阈值告警静默失真。
+   *   永不命中 ⇒ 每次调用都INSERT 新行，t_ai_usage_daily 按请求数而非
+   *   「租户×日期×服务商」膨胀，用量报表与超阈值告警静默失真。
    *   014 执行后行为才与上面的描述一致。
    *
-   * ⚠️ provider / model 传空串而非 NULL：MySQL 唯一索引视每个 NULL 互不相同，
-   *   传 NULL 的行不会被唯一键去重（会重新膨胀）。空串是普通值，可被去重。
-   *   列的 nullable 未改，约定由本方法保证。
+   * ⚠️ 为什么是三列而不是四列（含 model）：生产上已存在的唯一键就是三列
+   *   （uk_tenant_date_provider），本UPSERT 命中哪一列的唯一键就按哪一列累加
+   *   ⇒ 生产实际的累加口径**早已是三列**，不同 model 的用量早已被累加进同一行。
+   *   014 的存量合并同样按三列口径，两者一致；四元组键比真实口径更宽，
+   *   既拦不住分叉，也与合并口径不一致。
+   *   ⚠️ 代价（不可逆）：合并后 model退化为「代表值」，**本表不能再按 model 拆分**。
+   *   需要按 model 分析用量时必须查明细表 t_ai_audit_log。
+   *
+   * ⚠️ provider / model 传哨兵值 'unknown' 而非 NULL：MySQL 唯一索引视每个 NULL
+   *   互不相同，传 NULL 的行不会被唯一键去重（会重新膨胀）；且列定义已是
+   *   NOT NULL DEFAULT 'unknown'（014 第6 步），传 NULL 会被直接拒绝。
+   *   'unknown' 是普通值，可被唯一键正常去重。
+   *   ⚠️ 哨兵值三处必须完全一致，缺一处即静默失效（库里一种、约定另一种，
+   *   报表与唯一键口径随之分叉）：
+   *     1. 库默认值：provider/model 均 NOT NULL DEFAULT 'unknown'（014 第 6 步）
+   *     2. 迁移回填值：NULL 与 '' 一律回填 'unknown'（014 第 5 步）
+   *     3. 写入侧兜底：此处`?? 'unknown'`
    *
    * 使用 MySQL INSERT ... ON DUPLICATE KEY UPDATE 语法（TypeORM 的 upsert 方法封装）
    */
@@ -471,10 +485,11 @@ export class AuditLogger {
             params.promptTokens,
             params.completionTokens,
             totalTokens,
-            // D-2：唯一索引对每个 NULL 视为互不相同 ⇒ 传 NULL 的行不会被去重。
-            // 统一用空串表示「未指定」，配合 014 的唯一键对所有行生效。
-            params.provider ?? '',
-            params.model ?? '',
+            // P0-014 重做：唯一索引对每个 NULL 视为互不相同 ⇒ 传 NULL 的行不会被去重；
+            // 且列定义已是 NOT NULL DEFAULT 'unknown'（014 第 6 步），传 NULL 会被拒绝。
+            // 哨兵值 'unknown' 与「库默认值 / 迁移回填值」三处完全一致（见上方注释）。
+            params.provider ?? 'unknown',
+            params.model ?? 'unknown',
           ],
         );
       },
