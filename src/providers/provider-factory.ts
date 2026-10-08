@@ -13,11 +13,15 @@ import { OpenAICompatProvider } from './openai-compat.provider';
  * 职责：
  * - 根据 provider 名称返回对应实例（DeepSeek / Ollama / ...）
  * - 支持运行时切换：通过 configure(config) 注入租户级配置（API Key / 模型 / 温度等）
- * - 缓存已创建的实例：DeepSeek/Ollama Provider 均为 NestJS 单例，工厂复用同一实例
+ * - create() 每次构造「调用方独占」的实例，实例级配置互不影响
  *
- * 设计权衡：
- * - 当前阶段（R70-03）所有调用方共享单例，configure() 会切换全局配置
- * - 多租户并发隔离问题留待 R70-07 多租户任务解决（届时改用 AsyncLocalStorage + 请求级实例）
+ * 设计（P0-3 跨租户配置隔离后）：
+ * - create(type, config) 返回新建实例：传入 config 则注入租户配置，不传则使用 env 默认配置；
+ *   因此「未显式传 config 的取用」永远不会带走上一个调用方（上一个租户）的 apiKey/baseUrl，
+ *   并发场景下 A 的实例也不会被 B 的 create() 就地改写。
+ * - providers Map 保存「环境基线 / 外部模型注册配置」实例，供 get()/getDefault()/
+ *   testConnection()/list 等只读场景使用；这些基线实例不再被 configure() 就地改写。
+ * - builders Map 保存各类型的实例构造器，保证每次 create() 拿到独立实例。
  *
  * 用法：
  *   const provider = factory.create('deepseek', { apiKey, model });
@@ -28,8 +32,10 @@ import { OpenAICompatProvider } from './openai-compat.provider';
 @Injectable()
 export class ProviderFactory {
   private readonly logger = new Logger(ProviderFactory.name);
-  /** 单例池：type → provider 实例 */
+  /** 基线实例池：type → provider 实例（env 默认配置 / 外部模型注册配置，只读使用） */
   private readonly providers = new Map<string, IModelProvider>();
+  /** 实例构造器池：type → 新建独立实例（create() 每次调用都取新实例，避免配置串用） */
+  private readonly builders = new Map<string, () => IModelProvider>();
   /** 默认 provider 类型（从 DEFAULT_MODEL_PROVIDER 读取） */
   private readonly defaultType: string;
 
@@ -44,6 +50,15 @@ export class ProviderFactory {
     this.providers.set('deepseek', this.deepseek);
     this.providers.set('ollama', this.ollama);
 
+    // 每种内置 Provider 提供一个「新实例」构造器：create() 每次取用都新建实例，
+    // 使租户配置只作用于本次取用，不污染并发中的其他调用方（P0-3）
+    this.builders.set('glm', () => new GlmProvider(this.configService));
+    this.builders.set(
+      'deepseek',
+      () => new DeepSeekProvider(this.configService),
+    );
+    this.builders.set('ollama', () => new OllamaProvider(this.configService));
+
     this.defaultType = this.configService.get<string>(
       'DEFAULT_MODEL_PROVIDER',
       'glm',
@@ -57,23 +72,28 @@ export class ProviderFactory {
   }
 
   /**
-   * 创建（或获取缓存的）Provider 实例
+   * 创建 Provider 实例（每次调用返回独立实例）
    *
-   * @param type   Provider 类型（'glm' | 'deepseek' | 'ollama' | ...）
-   * @param config 运行时配置（覆盖默认 env 配置，支持租户级切换）
-   * @returns Provider 实例（已 configure）
+   * P0-3：不再返回共享单例。传入 config 时只作用于本次返回的实例；
+   * 不传 config 时使用 env 默认配置（外部模型使用注册配置），
+   * 不会复用上一次调用注入的租户配置，避免「租户 B 带着租户 A 的 apiKey/baseUrl 发出」。
+   *
+   * @param type   Provider 类型（'glm' | 'deepseek' | 'ollama' | 外部模型名）
+   * @param config 运行时配置（覆盖 env 默认配置，支持租户级切换）
+   * @returns Provider 实例（已 configure，独占配置）
    *
    * @throws ProviderError 未知 provider 时抛 400
    */
   create(type: string, config?: ProviderConfig): IModelProvider {
-    const provider = this.providers.get(type);
-    if (!provider) {
+    const build = this.builders.get(type);
+    if (!build) {
       throw new ProviderError(
         `未知的 Provider 类型：${type}，已注册：[${this.list().join(', ')}]`,
         400,
         type,
       );
     }
+    const provider = build();
     if (config) {
       provider.configure(config);
     }
@@ -93,6 +113,9 @@ export class ProviderFactory {
   registerExternal(name: string, config: ProviderConfig): void {
     const provider = new OpenAICompatProvider(name, config);
     this.providers.set(name, provider);
+    // 外部模型同样按「每次 create 新建实例 + 注册配置为基线」处理，
+    // 避免某个调用方传入的运行时配置就地改写注册实例（P0-3）
+    this.builders.set(name, () => new OpenAICompatProvider(name, config));
     this.logger.log(
       `外部模型已注册：${name}（model=${config.model}, baseUrl=${config.baseUrl ?? '(默认)'}）`,
     );
@@ -104,6 +127,7 @@ export class ProviderFactory {
    * @param name 外部模型唯一标识
    */
   unregisterExternal(name: string): void {
+    this.builders.delete(name);
     if (this.providers.delete(name)) {
       this.logger.log(`外部模型已注销：${name}`);
     }
@@ -119,7 +143,8 @@ export class ProviderFactory {
   /**
    * 获取默认 Provider（从 DEFAULT_MODEL_PROVIDER 读取）
    *
-   * 不传 config 时使用 env 中的默认配置（DeepSeekProvider 构造时已读取）。
+   * 返回环境基线实例（env 默认配置 / 外部模型注册配置），不承载任何租户运行时配置。
+   * 需要租户配置请使用 create(type, config)。
    */
   getDefault(): IModelProvider {
     if (this.providers.has(this.defaultType)) {
@@ -130,7 +155,7 @@ export class ProviderFactory {
   }
 
   /**
-   * 获取指定 Provider（不 configure，用于 testConnection 等只读操作）
+   * 获取指定 Provider 的环境基线实例（不 configure，用于 testConnection 等只读操作）
    *
    * @throws ProviderError 未知 provider 时抛 400
    */

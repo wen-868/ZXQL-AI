@@ -111,9 +111,22 @@ export class OpenAICompatProvider implements IModelProvider {
     this.applyConfig(config);
   }
 
-  /** 注入运行时配置（ProviderFactory.create() 调用） */
+  /**
+   * 注入运行时配置（ProviderFactory.create() 调用）
+   *
+   * 以构造时的注册配置为基线做字段级覆盖：传入为空/缺省的字段保留基线值，
+   * 避免租户运行时配置缺字段时把已注册的 baseUrl/apiKey 清空。
+   * （其余内置 Provider 采用同样的「基线 + 非空覆盖」语义）
+   */
   configure(config: ProviderConfig): void {
-    this.applyConfig(config);
+    this.applyConfig({
+      apiKey: config.apiKey || this.config.apiKey,
+      baseUrl: config.baseUrl ?? this.config.baseUrl,
+      model: config.model || this.config.model,
+      temperature: config.temperature ?? this.config.temperature,
+      max_tokens: config.max_tokens ?? this.config.maxTokens,
+      timeoutMs: config.timeoutMs ?? this.config.timeoutMs,
+    });
   }
 
   private applyConfig(config: ProviderConfig): void {

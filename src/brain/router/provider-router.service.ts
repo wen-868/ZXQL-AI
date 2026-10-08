@@ -107,11 +107,23 @@ export class ProviderRouterService {
 
     // 1. 用户指定模型（对话级切换）
     if (requested && this.factory.isRegistered(requested)) {
-      return {
-        providerName: requested,
-        provider: this.factory.create(requested),
-        reason: `用户指定模型：${requested}`,
-      };
+      // P0-3：用户指定的恰是租户/平台配置的 Provider 时，带上本租户配置，
+      // 使用租户自己的凭证；指定的其他 Provider 则用 env 默认配置，
+      // 绝不借用其他租户上一次注入的配置（路由优先级不变）
+      return requested === input.resolved.provider
+        ? {
+            providerName: requested,
+            provider: this.factory.create(
+              requested,
+              input.resolved.providerConfig,
+            ),
+            reason: `用户指定模型：${requested}`,
+          }
+        : {
+            providerName: requested,
+            provider: this.factory.create(requested),
+            reason: `用户指定模型：${requested}`,
+          };
     }
 
     // 2. 租户/平台配置

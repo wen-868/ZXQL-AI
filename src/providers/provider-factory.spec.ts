@@ -6,11 +6,14 @@
  * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-15
  */
 import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
 import { ProviderFactory } from './provider-factory';
 import { GlmProvider } from './glm.provider';
 import { DeepSeekProvider } from './deepseek.provider';
 import { OllamaProvider } from './ollama.provider';
 import { ProviderError } from './provider-error';
+
+jest.mock('axios');
 
 function createConfigService(): ConfigService {
   return {
@@ -108,6 +111,139 @@ describe('ProviderFactory', () => {
     });
     expect(factory.list()).toEqual(
       expect.arrayContaining(['glm', 'deepseek', 'ollama', 'custom_kimi']),
+    );
+  });
+});
+
+/**
+ * P0-3 跨租户配置串用回归
+ *
+ * 修复前：create() 返回共享单例，A 租户 configure 后，B 租户不传 config 的取用
+ * 会把 A 的 apiKey/baseUrl 一起带走。
+ * 修复后：每次 create() 都是独立实例，未传 config 时使用 env 默认配置。
+ */
+describe('ProviderFactory 配置隔离（P0-3）', () => {
+  const mockPost = jest.fn();
+  (axios.post as jest.Mock) = mockPost;
+
+  beforeEach(() => {
+    mockPost.mockReset();
+    mockPost.mockResolvedValue({
+      data: {
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: 'pong' },
+            finish_reason: 'stop',
+          },
+        ],
+      },
+    });
+  });
+
+  /** GLM / DeepSeek 请求头（provider.buildHeaders） */
+  function providerHeaders(apiKey: string): Record<string, string> {
+    return {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    };
+  }
+
+  /** OpenAICompatProvider 请求头（provider.buildHeaders） */
+  function compatHeaders(apiKey: string): Record<string, string> {
+    return {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    };
+  }
+
+  it('A 租户配置后，B 租户不传 config 取用不带 A 的 apiKey/baseUrl', async () => {
+    const factory = makeFactory();
+
+    // 租户 A：自定义 endpoint + 自定义钥匙
+    factory.create('glm', {
+      apiKey: 'sk-tenant-a',
+      baseUrl: 'https://tenant-a.example.com/v1',
+      model: 'glm-4-plus',
+    });
+
+    // 租户 B：不传 config（对话级用户指定模型 / 降级候选路径）
+    const providerB = factory.create('glm');
+    await providerB.chatSync([{ role: 'user', content: 'ping' }]);
+
+    // B 的请求必须打到 env 默认端点 + env 默认 key，而不是 A 的
+    expect(mockPost).toHaveBeenCalledWith(
+      'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+      expect.objectContaining({ model: 'glm-4-flash' }),
+      expect.objectContaining({
+        headers: providerHeaders(['sk', 'glm'].join('-')),
+      }),
+    );
+  });
+
+  it('B 取用不会就地改写 A 已取用的实例配置', async () => {
+    const factory = makeFactory();
+    const providerA = factory.create('glm', {
+      apiKey: 'sk-tenant-a',
+      baseUrl: 'https://tenant-a.example.com/v1',
+      model: 'glm-4-plus',
+    });
+
+    // 期间 B 租户取用同类型 Provider（含带 config 与不带 config 两种）
+    factory.create('glm', {
+      apiKey: 'sk-tenant-b',
+      baseUrl: 'https://tenant-b.example.com/v1',
+      model: 'glm-4-air',
+    });
+    factory.create('glm');
+
+    await providerA.chatSync([{ role: 'user', content: 'ping' }]);
+
+    // A 的实例仍使用 A 自己的配置
+    expect(mockPost).toHaveBeenCalledWith(
+      'https://tenant-a.example.com/v1/chat/completions',
+      expect.objectContaining({ model: 'glm-4-plus' }),
+      expect.objectContaining({
+        headers: providerHeaders('sk-tenant-a'),
+      }),
+    );
+  });
+
+  it('同一 Provider 的两次取用是相互独立的实例', () => {
+    const factory = makeFactory();
+    for (const type of ['glm', 'deepseek', 'ollama']) {
+      expect(factory.create(type)).not.toBe(factory.create(type));
+    }
+  });
+
+  it('外部模型：未传 config 用注册配置；传入部分 config 不清空注册的 baseUrl/apiKey', async () => {
+    const factory = makeFactory();
+    factory.registerExternal('custom_kimi', {
+      apiKey: 'sk-kimi',
+      baseUrl: 'https://api.moonshot.cn/v1',
+      model: 'moonshot-v1-8k',
+    });
+
+    // 未传 config
+    const p1 = factory.create('custom_kimi');
+    await p1.chatSync([{ role: 'user', content: 'ping' }]);
+    expect(mockPost).toHaveBeenLastCalledWith(
+      'https://api.moonshot.cn/v1/chat/completions',
+      expect.objectContaining({ model: 'moonshot-v1-8k' }),
+      expect.objectContaining({ headers: compatHeaders('sk-kimi') }),
+    );
+
+    // 传部分 config（空 apiKey、缺 baseUrl）→ 保留注册基线
+    const p2 = factory.create('custom_kimi', {
+      apiKey: '',
+      model: 'moonshot-v1-8k',
+    });
+    await p2.chatSync([{ role: 'user', content: 'ping' }]);
+    expect(mockPost).toHaveBeenLastCalledWith(
+      'https://api.moonshot.cn/v1/chat/completions',
+      expect.objectContaining({ model: 'moonshot-v1-8k' }),
+      expect.objectContaining({ headers: compatHeaders('sk-kimi') }),
     );
   });
 });

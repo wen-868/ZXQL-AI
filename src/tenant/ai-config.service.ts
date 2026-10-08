@@ -147,11 +147,26 @@ export class AiConfigService {
     // 读取平台默认配置（用于降级）
     const platformConfig = await this.getPlatformConfig();
 
-    // 解密 API Key（租户未配置则用平台默认）
-    const apiKey =
-      this.crypto.decryptSafe(tenantConfig.apiKey) ??
-      this.crypto.decryptSafe(platformConfig.defaultApiKey) ??
-      '';
+    // P0-2（2026-10-09）：密钥与端点必须**同源**，禁止"平台密钥 + 租户端点"拼接。
+    // 甲口径：租户自带 apiKey → 用租户 apiEndpoint；密钥降级到平台默认 → 端点
+    // 钉死平台默认端点，显式忽略租户自填 apiEndpoint（告警留痕，不静默混搭），
+    // 否则平台凭证会被发往租户指定地址。
+    const tenantApiKey = this.crypto.decryptSafe(tenantConfig.apiKey);
+    const platformApiKey = this.crypto.decryptSafe(
+      platformConfig.defaultApiKey,
+    );
+    const apiKey = tenantApiKey ?? platformApiKey ?? '';
+
+    if (!tenantApiKey && tenantConfig.apiEndpoint) {
+      this.logger.warn(
+        `租户 ${tenantConfig.tenantId} 未配置自有 API Key，已忽略其 apiEndpoint=${tenantConfig.apiEndpoint}，端点回退平台默认（禁止平台密钥发往租户指定地址）`,
+      );
+    }
+
+    // 端点与密钥同源：租户密钥配租户端点；平台密钥配平台端点
+    const baseUrl = tenantApiKey
+      ? (tenantConfig.apiEndpoint ?? undefined)
+      : (platformConfig.defaultEndpoint ?? undefined);
 
     if (!apiKey) {
       this.logger.warn(
@@ -163,7 +178,7 @@ export class AiConfigService {
       provider: tenantConfig.provider,
       providerConfig: {
         apiKey,
-        baseUrl: tenantConfig.apiEndpoint ?? undefined,
+        baseUrl,
         model: tenantConfig.model,
         temperature: Number(tenantConfig.temperature),
         max_tokens: tenantConfig.maxTokens,
