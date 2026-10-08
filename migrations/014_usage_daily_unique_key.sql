@@ -15,15 +15,22 @@
 --   MySQL 唯一索引**允许多个 NULL** ⇒ 含可空列 provider 的唯一键对
 --   `provider IS NULL` 的行**完全不生效** ⇒ 生产那 124 行的重复**全部是 NULL 行**。
 --   旧脚本第 87 行 `SET provider = ''` 的**瞬间**，这些行第一次真正受该键约束
---   ⇒ 而它们彼此重复 ⇒ 1062。**修 A 单独做不够**（换任何哨兵值都会在同一处炸）。
+--   ⇒ 而它们彼此重复 ⇒ 1062。原因 A **无法靠「只换哨兵值」绕过**：
+--   必须**先按归一化值合并、再归一化**，才能让归一化不产生新重复。
 --
--- 原因 B（去重口径比唯一键更宽 ⇒ 独立第二条失败路径，落在建键语句）：
---   旧脚本按四元组 (tenant_id, stat_date, provider, model) 去重，而生产键是**三列**。
---   三列更严格 ⇒ 同一 (tenant, date, provider) 下若有不同 model 的两行，
---   四元组去重**不会合并它们** ⇒ 建 uk_usage_daily 时撞上已有三列键。
---   已在 MySQL 8.0.28 上单独复现（provider 全非 NULL、模型各不相同）
---   ⇒ ERROR 1062 at line 27（建键语句），与原因 A 的 line 87 是两条独立路径。
---   **修 B 单独做也不够**（三列键下 NULL 行仍需合并）。
+-- 原因 B（去重口径比唯一键更宽 ⇒ 仅在**无三列键环境**发生，非生产当前路径）：
+--   旧脚本按四元组 (tenant_id, stat_date, provider, model) 去重，而唯一键是**三列**。
+--   ⚠️ 定性更正（2026-10-08 林夕独立验收实测）：在**已有三列键**的表上（probe_b 库），
+--   插入第二行同 (tenant_id, stat_date, provider)、不同 model 的数据，
+--   数据库直接拒绝 ⇒ ERROR 1062 (23000): Duplicate entry 't2-2026-08-11-openai'
+--   for key 't.uk_tenant_date_provider' ⇒ 生产上这种行**根本不可能存在**——
+--   三列键早就在拦。原先的「独立复现」必是在**没有三列键**的表上做的
+--   （新库从零建、或键尚未建立），该环境与生产结构不符。
+--   ⇒ 生产 1062 只有原因 A 一条路径（归一化瞬间让原本不受约束的 NULL 行突然受约束），
+--   本条**不是**生产当前 1062 的第二条失败路径。
+--   **结论保留**：合并仍必须按归一化后的三列做（四元组 / 原值分组都不对）——
+--   在无三列键环境下若存在不同 model 的行，四元组去重不会合并它们，
+--   建三列键时仍会撞键。
 --
 -- 原因 C（守卫漏检已存在的键）：
 --   旧脚本 @uk_exists 只查 `uk_usage_daily` 这一个名字，不查生产已有的
@@ -103,8 +110,8 @@
 --   （费用列必须一起合并：UPSERT 之外的通路会写费用，只合并计数与 token
 --     会让被删行携带的 cost 永久丢失。）
 --   🚫 不使用 INSERT IGNORE / REPLACE —— 二者都会静默丢行，本脚本一律
---     「UPDATE 合并回保留行 + DELETE 多余行」，且 DELETE 严格在 UPDATE 之前
---     （理由见第五步）。
+--     「UPDATE 合并回保留行 + DELETE 多余行」，且 DELETE 在 UPDATE 之前
+--     （更保险的写法，非正确性必需前提，见第五节说明）。
 --
 -- 保留行：组内 MIN(id)；created_at 取组内 MIN(created_at)。
 --
@@ -122,13 +129,18 @@
 --     字典序最小的极可能就是它，会把同组内真实的 model 掩盖掉。
 --
 -- ═══════════════════════════════════════════════════════════════════════════
--- 五、执行顺序（**先 DELETE 后 UPDATE**，不可颠倒）
+-- 五、执行顺序（先 DELETE 后 UPDATE —— 更保险的写法，非正确性必需前提）
 -- ═══════════════════════════════════════════════════════════════════════════
--- 若先 UPDATE 再 DELETE：把保留行的 provider 改成 'unknown' 的瞬间，
---   同组尚未删除的兄弟行会造成 (tenant, date, 'unknown') 瞬时重复
---   ⇒ 若表上已有三列键（生产就是），UPDATE 语句内触发 1062。
+-- ⚠️ 消歧（2026-10-08 林夕独立验收实测更正）：本脚本当前实现下 UPDATE 只写
+--   度量列与 model，**不碰 provider**（唯一键列，见第 5 步注释）⇒ 即使先 UPDATE
+--   后 DELETE 也不会在唯一键上产生瞬时重复。**DELETE 先于 UPDATE 不是正确性
+--   必需前提**，只是一种更保险的写法（若日后 UPDATE 被改成触碰 provider，
+--   先 DELETE 仍可避免瞬时撞键——该因果链已由反测证实，见执行报告变体 2c）。
+--   真正必需的前提是**合并分组键用归一化值**：把分组键从
+--   COALESCE(NULLIF(provider,''),'unknown') 还原成 provider 原值，
+--   立即 ERROR 1062 at line 36（归一化 UPDATE 处，反测已证实）。
 --   本脚本先把聚合结果落临时表，再 DELETE 掉除 MIN(id) 外的全部行，
---   最后才 UPDATE 保留行 ⇒ UPDATE 执行时每组只剩一行，物理上不可能重复。
+--   最后才 UPDATE 保留行 ⇒ UPDATE 执行时每组只剩一行，更不易出错。
 --
 -- ⚠️ 幂等：临时表只收 COUNT(*)>1 的组，无重复时为空 ⇒ DELETE/UPDATE 命中 0 行；
 --   归一化 UPDATE 第二次跑命中 0 行；ALTER 与建键均有 information_schema 守卫。
@@ -138,7 +150,7 @@
 --   多连接逐条执行（否则会话变量丢失，动态 SQL 全部失败）。
 --
 -- ⚠️ 执行前必须备份：
---   CREATE TABLE t_ai_usage_daily_bak_014 AS SELECT * FROM t_ai_usage_daily;
+--   CREATE TABLE t_ai_usage_daily_bak_014 AS SELECT * FROM t_ai_usage_daily
 --   或 mysqldump 单表备份。合并步骤会 DELETE 多余行（数值已先 SUM 合并回保留行）。
 --
 -- ⚠️ 缺表处理：本脚本**不做缺表跳过**，缺表直接 ERROR 1146 让部署红。
@@ -252,10 +264,11 @@ SELECT COUNT(*)                AS groups_to_merge,
        COALESCE(SUM(dup_cnt - 1), 0)  AS rows_to_delete
   FROM tmp_usage_daily_merge;
 
--- ── 5) 先 DELETE 多余行，再 UPDATE 保留行（顺序不可颠倒）───────────────
+-- ── 5) 先 DELETE 多余行，再 UPDATE 保留行（更保险的写法）────────────────
 --   数值已在本步之前的临时表里聚合好，DELETE 不丢数值。
---   必须先 DELETE：否则 UPDATE 保留行的 provider 时，同组兄弟行还在，
---   生产三列键会在 UPDATE 语句内触发 1062（详见文件头第五节）。
+--   先 DELETE 是更保险的写法而非必需前提：本脚本的 UPDATE 不碰 provider
+--   （唯一键列），先 UPDATE 也不会撞键；真正必需的是合并分组键用归一化值
+--   （详见文件头第五节）。
 DELETE t
   FROM t_ai_usage_daily t
   JOIN tmp_usage_daily_merge d
