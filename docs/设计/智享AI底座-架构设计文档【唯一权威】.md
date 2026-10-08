@@ -873,6 +873,9 @@ function getTenantContext(): TenantContext {
 | DELETE | `/ai/admin/memory/:tenantId/:sessionId` | 清除对话记忆 | 管理员 | JSON |
 | GET | `/ai/admin/health` | 健康检查 | 无 | JSON |
 | GET | `/ai/admin/usage` | 用量统计 | 管理员 | JSON |
+| GET | `/api/admin/ai-config/model-prices` | AI 单价列表（可按 provider/model 过滤） | **平台** | JSON |
+| POST | `/api/admin/ai-config/model-prices` | 新增/调价（插新 `effective_from` 行，不覆盖历史） | **平台** | JSON |
+| PUT | `/api/admin/ai-config/model-prices/:id/enabled` | 启用/停用单价 | **平台** | JSON |
 | POST | `/ai/v2/handle` | **自然语言入口（读自动 / 写挂起）**：分析直接返回；写意图返回待确认草稿+令牌 | JWT | JSON / SSE |
 | POST | `/ai/v2/confirm` | **受控写确认**：带令牌确认执行挂起的写操作 | JWT | JSON |
 | POST | `/ai/v2/report` | 生成并导出报表（A/B/C/D 类） | JWT | JSON |

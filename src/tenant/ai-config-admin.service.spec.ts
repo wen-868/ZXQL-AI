@@ -19,6 +19,7 @@ import { PlatformAiConfigEntity } from '../database/entities/platform-ai-config.
 import { TenantAiConfigEntity } from '../database/entities/tenant-ai-config.entity';
 import { AiUsageDailyEntity } from '../database/entities/ai-usage-daily.entity';
 import { TenantAiBillingEntity } from '../database/entities/tenant-ai-billing.entity';
+import { AiModelPriceEntity } from '../database/entities/ai-model-price.entity';
 
 const ENCRYPTION_KEY =
   '14804bc70a2fcff7125aca977139aa5a92e3bff867e5aa1c5ebf1c3219db7359';
@@ -53,6 +54,7 @@ describe('AiConfigAdminService', () => {
   let tenantRepo: MockRepo<TenantAiConfigEntity>;
   let usageRepo: MockRepo<AiUsageDailyEntity>;
   let billingRepo: MockRepo<TenantAiBillingEntity>;
+  let priceRepo: MockRepo<AiModelPriceEntity>;
   let crypto: CryptoService;
   let aiConfigService: jest.Mocked<AiConfigService>;
   let service: AiConfigAdminService;
@@ -62,6 +64,8 @@ describe('AiConfigAdminService', () => {
     tenantRepo = createMockRepo<TenantAiConfigEntity>();
     usageRepo = createMockRepo<AiUsageDailyEntity>();
     billingRepo = createMockRepo<TenantAiBillingEntity>();
+    // R101-AI-09：单价仓库为新增依赖（既有用例不触达，仅补齐构造参数）
+    priceRepo = createMockRepo<AiModelPriceEntity>();
     crypto = new CryptoService(createConfigService());
     aiConfigService = {
       clearCache: jest.fn(),
@@ -71,6 +75,7 @@ describe('AiConfigAdminService', () => {
       tenantRepo,
       usageRepo,
       billingRepo,
+      priceRepo,
       crypto,
       aiConfigService,
     );

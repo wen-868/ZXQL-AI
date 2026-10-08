@@ -24,7 +24,12 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-08-02
  */
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   Between,
@@ -37,6 +42,7 @@ import { PlatformAiConfigEntity } from '../database/entities/platform-ai-config.
 import { TenantAiConfigEntity } from '../database/entities/tenant-ai-config.entity';
 import { AiUsageDailyEntity } from '../database/entities/ai-usage-daily.entity';
 import { TenantAiBillingEntity } from '../database/entities/tenant-ai-billing.entity';
+import { AiModelPriceEntity } from '../database/entities/ai-model-price.entity';
 import { CryptoService } from './crypto.service';
 import { AiConfigService } from './ai-config.service';
 import { maskApiKey } from './api-key-mask';
@@ -77,6 +83,25 @@ export interface TenantConfigView {
   updatedAt: Date;
 }
 
+/**
+ * AI 模型单价对外视图（R101-AI-09）
+ *
+ * `promptPrice` / `completionPrice` 为元/千Token；`enabled=0` 表示该行已停用
+ * （运行时 `AiConfigService.getModelPrice` 会跳过停用行）。
+ */
+export interface ModelPriceView {
+  id: number;
+  provider: string;
+  model: string;
+  promptPrice: number;
+  completionPrice: number;
+  currency: string;
+  effectiveFrom: Date;
+  enabled: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 /** 用量统计汇总 */
 export interface UsageSummary {
   chatCount: number;
@@ -98,6 +123,9 @@ export class AiConfigAdminService {
     private readonly usageRepo: Repository<AiUsageDailyEntity>,
     @InjectRepository(TenantAiBillingEntity)
     private readonly billingRepo: Repository<TenantAiBillingEntity>,
+    // R101-AI-09：AI 单价（t_ai_model_price）产品化写入口
+    @InjectRepository(AiModelPriceEntity)
+    private readonly priceRepo: Repository<AiModelPriceEntity>,
     private readonly crypto: CryptoService,
     private readonly aiConfigService: AiConfigService,
   ) {}
@@ -426,6 +454,107 @@ export class AiConfigAdminService {
   }
 
   // ──────────────────────────────────────────────────────────────
+  // AI 单价（t_ai_model_price，R101-AI-09）
+  //
+  // 平台级配置：调用方（controller）必须先显式判平台身份（identityType
+  // !== 'platform' → 403 + AI_010），本服务不承担鉴权，但**不得**被
+  // 非平台身份经其他入口调用。
+  //
+  // ⚠️ 调价语义 = **插入新行**（不覆盖历史）：唯一键
+  // (provider, model, effective_from) 保留调价痕迹；同生效时间重复提交 → 409。
+  // ──────────────────────────────────────────────────────────────
+
+  /**
+   * 单价列表（可按 provider / model 过滤；默认只返回启用行）
+   */
+  async listModelPrices(options: {
+    provider?: string;
+    model?: string;
+    includeDisabled?: boolean;
+  }): Promise<ModelPriceView[]> {
+    const where: FindOptionsWhere<AiModelPriceEntity> = {};
+    if (options.provider) {
+      where.provider = options.provider;
+    }
+    if (options.model) {
+      where.model = options.model;
+    }
+    if (!options.includeDisabled) {
+      where.enabled = 1;
+    }
+    const rows = await this.priceRepo.find({
+      where,
+      order: { provider: 'ASC', model: 'ASC', effectiveFrom: 'DESC' },
+    });
+    return rows.map((row) => this.toModelPriceView(row));
+  }
+
+  /**
+   * 新增 / 调价（插入新 effective_from 行，**不覆盖历史**）
+   *
+   * @throws ConflictException 同 (provider, model, effective_from) 已存在
+   */
+  async createModelPrice(input: {
+    provider: string;
+    model: string;
+    promptPrice: number;
+    completionPrice: number;
+    currency?: string;
+    effectiveFrom?: string;
+    enabled?: number;
+  }): Promise<ModelPriceView> {
+    const provider = input.provider.trim();
+    const model = input.model.trim();
+    const effectiveFrom = input.effectiveFrom
+      ? new Date(input.effectiveFrom)
+      : new Date();
+
+    const duplicate = await this.priceRepo.findOne({
+      where: { provider, model, effectiveFrom },
+    });
+    if (duplicate) {
+      throw new ConflictException(
+        `该生效时间已存在同价目（${provider} / ${model} / ${effectiveFrom.toISOString()}）；` +
+          `调价请指定更晚的 effectiveFrom（新单价插入新行，不覆盖历史）`,
+      );
+    }
+
+    const saved = await this.priceRepo.save(
+      this.priceRepo.create({
+        provider,
+        model,
+        promptPrice: input.promptPrice,
+        completionPrice: input.completionPrice,
+        currency: input.currency ?? 'CNY',
+        effectiveFrom,
+        enabled: input.enabled ?? 1,
+      }),
+    );
+    this.logger.log(
+      `AI 单价已新增：${provider}/${model} prompt=${input.promptPrice} ` +
+        `completion=${input.completionPrice} effective_from=${effectiveFrom.toISOString()}（id=${saved.id}）`,
+    );
+    return this.toModelPriceView(saved);
+  }
+
+  /**
+   * 启用 / 停用某条单价（只改 enabled，不动价格与生效时间）
+   */
+  async setModelPriceEnabled(
+    id: number,
+    enabled: number,
+  ): Promise<ModelPriceView> {
+    const row = await this.priceRepo.findOne({ where: { id } });
+    if (!row) {
+      throw new NotFoundException(`单价记录不存在：id=${id}`);
+    }
+    row.enabled = enabled;
+    const saved = await this.priceRepo.save(row);
+    this.logger.log(`AI 单价已${enabled === 1 ? '启用' : '停用'}：id=${id}`);
+    return this.toModelPriceView(saved);
+  }
+
+  // ──────────────────────────────────────────────────────────────
   // 私有工具
   // ──────────────────────────────────────────────────────────────
 
@@ -470,6 +599,24 @@ export class AiConfigAdminService {
       apiKeyMasked: apiKey ? maskApiKey(apiKey) : null,
       createdAt: config.createdAt,
       updatedAt: config.updatedAt,
+    };
+  }
+
+  /**
+   * 单价实体 → 视图（decimal 列经 mysql2 以字符串返回，此处显式转数值）
+   */
+  private toModelPriceView(row: AiModelPriceEntity): ModelPriceView {
+    return {
+      id: row.id,
+      provider: row.provider,
+      model: row.model,
+      promptPrice: Number(row.promptPrice),
+      completionPrice: Number(row.completionPrice),
+      currency: row.currency,
+      effectiveFrom: row.effectiveFrom,
+      enabled: row.enabled,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
     };
   }
 }

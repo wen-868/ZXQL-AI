@@ -27,6 +27,8 @@ import {
   ForbiddenException,
   Get,
   Param,
+  ParseIntPipe,
+  Post,
   Put,
   Query,
   Req,
@@ -37,9 +39,11 @@ import { AdminGuard, getAdminIdentity } from '../tenant/admin-auth.guard';
 import { aiError } from '../common/ai-errors';
 import { AiConfigAdminService } from '../tenant/ai-config-admin.service';
 import {
+  SetModelPriceEnabledDto,
   UpdatePlatformAiConfigDto,
   UpdateTenantAiConfigDto,
   UpdateTenantBillingDto,
+  UpsertModelPriceDto,
 } from './dto/ai-config.dto';
 
 /** 默认分页大小 */
@@ -229,6 +233,58 @@ export class AiConfigController {
   ) {
     this.requirePlatformIdentity(req);
     return this.adminService.updateBilling(tenantId, dto);
+  }
+
+  // ── AI 单价（t_ai_model_price，R101-AI-09）───────────────────────
+  //
+  // 单价是平台的成本/售价口径 ⇒ **全部端点仅限平台身份**（identityType
+  // !== 'platform' → 403 + AI_010），不得只挂 AdminGuard（P0-1 教训：
+  // AdminGuard 同时放行商家 4 类管理角色）。
+
+  /**
+   * 单价列表（可按 provider / model 过滤）
+   *
+   * GET /api/admin/ai-config/model-prices?provider=deepseek&model=deepseek-chat&includeDisabled=1
+   */
+  @Get('model-prices')
+  listModelPrices(
+    @Req() req: Request,
+    @Query('provider') provider?: string,
+    @Query('model') model?: string,
+    @Query('includeDisabled') includeDisabled?: string,
+  ) {
+    this.requirePlatformIdentity(req);
+    return this.adminService.listModelPrices({
+      provider,
+      model,
+      includeDisabled: includeDisabled === '1' || includeDisabled === 'true',
+    });
+  }
+
+  /**
+   * 新增 / 调价（插入新 effective_from 行，不覆盖历史）
+   *
+   * POST /api/admin/ai-config/model-prices
+   */
+  @Post('model-prices')
+  createModelPrice(@Req() req: Request, @Body() dto: UpsertModelPriceDto) {
+    this.requirePlatformIdentity(req);
+    return this.adminService.createModelPrice(dto);
+  }
+
+  /**
+   * 启用 / 停用某条单价
+   *
+   * PUT /api/admin/ai-config/model-prices/:id/enabled
+   */
+  @Put('model-prices/:id/enabled')
+  setModelPriceEnabled(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetModelPriceEnabledDto,
+  ) {
+    this.requirePlatformIdentity(req);
+    return this.adminService.setModelPriceEnabled(id, dto.enabled);
   }
 
   /**

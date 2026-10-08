@@ -19,7 +19,38 @@ import {
   Max,
   MaxLength,
   Min,
+  registerDecorator,
+  ValidateIf,
+  type ValidationOptions,
 } from 'class-validator';
+
+/**
+ * 单价小数位校验（≤ 6，与 DECIMAL(12,6) 对齐）
+ *
+ * ⚠️ 不能用 `@IsNumber({ maxDecimalPlaces: 6 })`：class-validator 0.15 在该选项下
+ * 遇到科学计数法（如 `1e-7`）会抛 `TypeError`（`toString().split('.')[1]` 为
+ * undefined）⇒ 非法输入变成 500 而不是 400。此处用 `toFixed(6)` 定点比较规避。
+ */
+function IsPriceScale(
+  validationOptions?: ValidationOptions,
+): PropertyDecorator {
+  return (object: object, propertyName: string | symbol): void => {
+    registerDecorator({
+      name: 'isPriceScale',
+      target: object.constructor,
+      propertyName: String(propertyName),
+      options: validationOptions,
+      validator: {
+        validate(value: unknown): boolean {
+          if (typeof value !== 'number' || !Number.isFinite(value)) {
+            return false;
+          }
+          return Math.abs(value - Number(value.toFixed(6))) < 1e-9;
+        },
+      },
+    });
+  };
+}
 
 /** 更新平台默认配置 */
 export class UpdatePlatformAiConfigDto {
@@ -154,4 +185,75 @@ export class UpdateTenantBillingDto {
   @IsOptional()
   @IsIn([0, 1])
   enabled?: number;
+}
+
+/** 新增 / 调价 AI 模型单价（R101-AI-09；平台身份专属） */
+export class UpsertModelPriceDto {
+  /** AI 服务商（与 t_ai_usage_daily.provider 同口径；外部模型用其注册标识） */
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(32)
+  provider!: string;
+
+  /** 模型名（精确匹配，不使用通配） */
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(64)
+  model!: string;
+
+  /**
+   * 输入单价（元/千Token）
+   *
+   * 允许**显式 0**（免费档），禁止负数；非 0 时最小 `0.000001` 元/千Token
+   * （更小的值在 `DECIMAL(12,6)` 下会被静默舍入成 0，且科学计数法会绕过
+   * `maxDecimalPlaces` 判定）；小数位不超过 6（与 DECIMAL(12,6) 对齐）。
+   */
+  @Type(() => Number)
+  @IsNumber()
+  @IsPriceScale()
+  @ValidateIf((o: UpsertModelPriceDto) => o.promptPrice !== 0)
+  @Min(0.000001)
+  @Max(999999.999999)
+  promptPrice!: number;
+
+  /**
+   * 输出单价（元/千Token）
+   *
+   * 规则同 `promptPrice`：显式 0（免费档）/ 禁止负数 / 非 0 时 ≥ 0.000001。
+   */
+  @Type(() => Number)
+  @IsNumber()
+  @IsPriceScale()
+  @ValidateIf((o: UpsertModelPriceDto) => o.completionPrice !== 0)
+  @Min(0.000001)
+  @Max(999999.999999)
+  completionPrice!: number;
+
+  /** 币种（ISO 4217 三字母，缺省 CNY） */
+  @IsOptional()
+  @IsString()
+  @Length(3, 3)
+  currency?: string;
+
+  /**
+   * 生效时间（ISO 8601）
+   *
+   * 缺省 = 服务端当前时间。**调价请给更晚的时间**：新单价会**插入新行**，
+   * 不覆盖历史；同 (provider, model, effective_from) 重复提交会被 409 拒绝。
+   */
+  @IsOptional()
+  @IsISO8601()
+  effectiveFrom?: string;
+
+  /** 是否启用：1=启用 0=停用（缺省 1） */
+  @IsOptional()
+  @IsIn([0, 1])
+  enabled?: number;
+}
+
+/** 启用 / 停用 AI 模型单价（R101-AI-09；平台身份专属） */
+export class SetModelPriceEnabledDto {
+  /** 是否启用：1=启用 0=停用 */
+  @IsIn([0, 1])
+  enabled!: number;
 }
