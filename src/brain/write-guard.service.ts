@@ -573,6 +573,12 @@ export class WriteGuardService {
             JSON.stringify(write),
           )
           .sadd(this.buildIndexKey(write.tenantId), write.token)
+          // 索引集合 TTL（P1 修复 2026-10-10）：与令牌 key 同一 ttlSeconds，
+          // 同一 MULTI 内下发 ⇒ 两者 TTL 起点一致、同步刷新（confirm 改写
+          // 令牌时 setex 与 expire 一并续期）。取值 = 令牌 TTL（不得更短）：
+          // 索引若早于令牌失效，令牌还在却被 listPending 漏掉；索引若长于
+          // 令牌，仅多留一个空 Set 至其自然过期，无正确性代价。
+          .expire(this.buildIndexKey(write.tenantId), ttlSeconds)
           .exec();
         return;
       } catch (err) {

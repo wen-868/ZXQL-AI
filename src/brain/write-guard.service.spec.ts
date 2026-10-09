@@ -380,3 +380,222 @@ describe('WriteGuardService 令牌锁（NX + owner CAS）', () => {
     expect(again.ok).toBe(true);
   });
 });
+
+/**
+ * P1 修复回归（2026-10-10）：write-guard Redis 索引集合 TTL
+ *
+ * 缺陷：`save()` 的 MULTI 只给令牌 key 下发 setex，索引集合 `sadd` 后无
+ * expire ⇒ 索引永驻内存；smembers 读索引时把早已过期的陈旧 token 读回，
+ * 写令牌互斥判定失真（全仓 `.expire(` 零命中）。
+ *
+ * 本组用例对「带 TTL 语义的模拟 Redis」下发的命令序列与读回结果双向取值：
+ * - 结构：MULTI 内必须有 expire(indexKey, ttl)，且 ttl 与 setex 同一取值
+ * - 行为：令牌 TTL 走完后索引必须一并消失（陈旧 token 不再被读回）
+ *
+ * 反测方向：删掉 `.expire(` 或把 ttl 改成 0 ⇒ 第 1、2 条断言变红。
+ */
+describe('P1 修复：WriteGuard Redis 索引集合 TTL', () => {
+  /** 管道内单条命令 */
+  interface Op {
+    kind: 'setex' | 'sadd' | 'expire' | 'del' | 'srem';
+    args: unknown[];
+  }
+
+  /** 带 TTL 语义的模拟 Redis：无 expire 的键永不过期（复现缺陷现场） */
+  function createTtlAwareRedis(env: Record<string, string> = {}) {
+    const kv = new Map<string, { value: string; expireAt: number | null }>();
+    const sets = new Map<
+      string,
+      { members: Set<string>; expireAt: number | null }
+    >();
+    /** 全部已执行管道命令（断言 expire 是否下发） */
+    const executed: Op[] = [];
+
+    const sweep = (
+      m: Map<string, { expireAt: number | null }>,
+      key: string,
+    ): void => {
+      const entry = m.get(key);
+      if (entry && entry.expireAt !== null && Date.now() > entry.expireAt) {
+        m.delete(key);
+      }
+    };
+
+    const apply = (ops: Op[]): void => {
+      for (const op of ops) {
+        if (op.kind === 'setex') {
+          const [key, ttl, value] = op.args as [string, number, string];
+          kv.set(key, { value, expireAt: Date.now() + ttl * 1000 });
+        } else if (op.kind === 'sadd') {
+          const [key, member] = op.args as [string, string];
+          const entry = sets.get(key) ?? {
+            members: new Set<string>(),
+            expireAt: null, // 无 expire ⇒ 永不过期（缺陷原状）
+          };
+          entry.members.add(member);
+          sets.set(key, entry);
+        } else if (op.kind === 'expire') {
+          const [key, ttl] = op.args as [string, number];
+          const setEntry = sets.get(key);
+          if (setEntry) {
+            setEntry.expireAt = Date.now() + ttl * 1000;
+          }
+          const kvEntry = kv.get(key);
+          if (kvEntry) {
+            kvEntry.expireAt = Date.now() + ttl * 1000;
+          }
+        } else if (op.kind === 'del') {
+          kv.delete(op.args[0] as string);
+        } else {
+          const [key, member] = op.args as [string, string];
+          sets.get(key)?.members.delete(member);
+        }
+      }
+    };
+
+    const multi = () => {
+      const ops: Op[] = [];
+      const pipeline: Record<string, unknown> = {
+        setex: (key: string, ttl: number, value: string) => {
+          ops.push({ kind: 'setex', args: [key, ttl, value] });
+          return pipeline;
+        },
+        sadd: (key: string, member: string) => {
+          ops.push({ kind: 'sadd', args: [key, member] });
+          return pipeline;
+        },
+        expire: (key: string, ttl: number) => {
+          ops.push({ kind: 'expire', args: [key, ttl] });
+          return pipeline;
+        },
+        del: (key: string) => {
+          ops.push({ kind: 'del', args: [key] });
+          return pipeline;
+        },
+        srem: (key: string, member: string) => {
+          ops.push({ kind: 'srem', args: [key, member] });
+          return pipeline;
+        },
+        exec: () => {
+          executed.push(...ops);
+          apply(ops);
+          return Promise.resolve([]);
+        },
+      };
+      return pipeline;
+    };
+
+    const redis = {
+      multi,
+      get: (key: string) => {
+        sweep(kv, key);
+        return Promise.resolve(kv.get(key)?.value ?? null);
+      },
+      smembers: (key: string) => {
+        sweep(sets, key);
+        return Promise.resolve([...(sets.get(key)?.members ?? [])]);
+      },
+    };
+
+    const svc = createService(env);
+    const slot = svc as unknown as Record<string, unknown>;
+    slot.redis = redis;
+    slot.redisAvailable = true;
+
+    return { svc, executed, redis };
+  }
+
+  const INDEX_KEY = 'ai:writeguard:idx:tenant-A';
+
+  /** 本组用例自带输入（baseInput 属上一 describe 作用域，不可跨块引用） */
+  const ttlInput = {
+    tenantId: 'tenant-A',
+    conversationId: 'conv-ttl',
+    toolName: 'createSalesOrder',
+    docType: 'sales_order_create',
+    risk: 'medium' as const,
+    needsReview: false,
+    args: { customerId: 1 },
+    operationLabel: '创建销售单',
+  };
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('suspend 的 MULTI 必须对索引集合下发 expire，且 TTL 与令牌 key 同一取值', async () => {
+    const { svc, executed } = createTtlAwareRedis();
+    await svc.suspend(ttlInput);
+
+    const setex = executed.find((op) => op.kind === 'setex');
+    const expire = executed.find((op) => op.kind === 'expire');
+
+    // 反测锚点：删掉 .expire( ⇒ 此条变红
+    expect(expire).toBeDefined();
+    expect(expire!.args[0]).toBe(INDEX_KEY);
+    // 与令牌 key 对齐（秒）：24h ⇒ 86400
+    expect(expire!.args[1]).toBe(Math.ceil(WRITE_TOKEN_TTL_MS / 1000));
+    expect(expire!.args[1]).toBe(setex!.args[1]);
+  });
+
+  it('索引 TTL 不得短于令牌有效期（令牌还在、索引不能被先清）', async () => {
+    const { svc, executed } = createTtlAwareRedis();
+    await svc.suspend(ttlInput);
+
+    const setex = executed.find((op) => op.kind === 'setex')!;
+    const expire = executed.find((op) => op.kind === 'expire')!;
+
+    expect(expire.args[1] as number).toBeGreaterThanOrEqual(
+      setex.args[1] as number,
+    );
+    // 且必须为正：ttl=0 会立即清键 ⇒ 索引形同不存在
+    expect(expire.args[1] as number).toBeGreaterThan(0);
+  });
+
+  it('TTL 可配时索引 TTL 同步跟随（WRITE_TOKEN_TTL_HOURS=2 ⇒ 7200s）', async () => {
+    const { svc, executed } = createTtlAwareRedis({
+      [WRITE_TOKEN_TTL_HOURS_KEY]: '2',
+    });
+    await svc.suspend(ttlInput);
+
+    const setex = executed.find((op) => op.kind === 'setex')!;
+    const expire = executed.find((op) => op.kind === 'expire')!;
+
+    expect(setex.args[1]).toBe(7200);
+    expect(expire.args[1]).toBe(7200);
+    expect(expire.args[0]).toBe(INDEX_KEY);
+  });
+
+  it('行为：令牌 TTL 走完后索引一并过期，smembers 不再读回陈旧 token', async () => {
+    const { svc, redis } = createTtlAwareRedis();
+    const write = await svc.suspend(ttlInput);
+
+    // TTL 内：索引在，令牌可读
+    expect(await redis.smembers(INDEX_KEY)).toEqual([write.token]);
+    expect(await svc.listPending('tenant-A')).toHaveLength(1);
+
+    // 越过 24h：索引随 TTL 消失（无 expire 时此处仍返回陈旧 token）
+    jest.advanceTimersByTime(WRITE_TOKEN_TTL_MS + 1000);
+    expect(await redis.smembers(INDEX_KEY)).toEqual([]);
+    expect(await svc.listPending('tenant-A')).toHaveLength(0);
+  });
+
+  it('行为：连续挂起共享同一索引，expire 每次续期（不早于最后一条令牌过期）', async () => {
+    const { svc, redis } = createTtlAwareRedis();
+    const first = await svc.suspend(ttlInput);
+    jest.advanceTimersByTime(12 * 60 * 60 * 1000); // 推进 12h
+    const second = await svc.suspend(ttlInput);
+
+    expect(await redis.smembers(INDEX_KEY)).toHaveLength(2);
+
+    // 首个令牌已过 24h，但索引已被第二次写入续期 ⇒ 两条都还在
+    jest.advanceTimersByTime(12 * 60 * 60 * 1000 + 1000);
+    const remaining = await redis.smembers(INDEX_KEY);
+    expect(remaining).toContain(second.token);
+    expect(remaining).toContain(first.token); // 索引未早于令牌被清
+  });
+});
