@@ -19,6 +19,7 @@
  * 负责人: AI底座 | 创建日期: 2026-08-02（P0-1 重构 2026-08-25）
  */
 import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { RedisProvider } from '../common/redis.provider';
 import { randomUUID } from 'crypto';
@@ -543,8 +544,21 @@ export class ConfirmationService {
   /**
    * 清理过期记录（WriteGuard 内存模式 + 本服务撤销窗口）
    *
+   * **真实清理机制（R101-AI-17，2026-10-10）**：本方法由下方 `@Cron` 每 5 分钟调度
+   * 一次（此前无任何生产调用方 ⇒ `executedMap` 只增不减，P1-3）。
+   *
+   * 粒度取值依据：撤销窗口 `REVOKE_TTL_MS` = 3 分钟；5 分钟与同仓既有定时任务
+   * 最细粒度一致（`src/ops/health-monitor.service.ts` 用
+   * `CronExpression.EVERY_5_MINUTES`），且本方法只做两次 Map 遍历、成本可忽略。
+   *
+   * ⇒ 内存上界：条目最多驻留「窗口 3 分钟 + 一个清理周期 5 分钟」≈ 8 分钟，
+   *    即 `executedMap` 条目数 ≤ 最近 8 分钟内 `registerExecuted()` 的次数（有界）。
+   *
    * @returns 清理数量
    */
+  @Cron(CronExpression.EVERY_5_MINUTES, {
+    name: 'confirmation-cleanup-expired',
+  })
   cleanupExpired(): number {
     const now = Date.now();
     let cleaned = this.writeGuardService.cleanupExpired();
@@ -700,7 +714,9 @@ export class ConfirmationService {
    * 仅累计尝试次数与失败原因。原因是删除记录会让用户在 3 分钟窗口内
    * 失去重试入口——单据仍在执行态却无法撤销，属静默数据不一致。
    *
-   * 记录最终仍由 cleanupExpired() 在窗口到期后清理，不会泄漏。
+   * 记录由 `cleanupExpired()` 在窗口到期后清理（R101-AI-17 起该方法由
+   * `@Cron(EVERY_5_MINUTES)` **真实调度**，不再是"无人调用的假保证"），
+   * 内存上界 = 窗口 3 分钟 + 清理周期 5 分钟，不会泄漏。
    *
    * @param operationId 操作 ID
    * @param tenantId    租户 ID
