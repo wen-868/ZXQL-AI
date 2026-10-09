@@ -23,6 +23,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { RedisProvider } from './redis.provider';
 
 /** 限流窗口（毫秒）= 1 分钟 */
 const WINDOW_MS = 60_000;
@@ -106,7 +107,11 @@ export class RateLimiterService implements OnModuleInit {
   /** 内存令牌桶（Redis 不可用时的降级实现） */
   private readonly memoryBuckets = new Map<string, MemoryBucket>();
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    // R101-AI-10：Redis 连接统一取用共享 provider（本模块原为独立 new Redis）
+    private readonly redisProvider: RedisProvider,
+  ) {
     const ratePerMinute = this.configService.get<number>(
       'RATE_LIMIT_PER_MINUTE',
       60,
@@ -121,26 +126,15 @@ export class RateLimiterService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     const host = this.configService.get<string>('REDIS_HOST', '127.0.0.1');
     const port = this.configService.get<number>('REDIS_PORT', 6379);
-    const password =
-      this.configService.get<string>('REDIS_PASSWORD') || undefined;
     const db = this.configService.get<number>('REDIS_DB', 1);
 
     try {
-      this.redis = new Redis({
-        host,
-        port,
-        password,
-        db,
-        retryStrategy: (times) => {
-          if (times > 3) {
-            this.logger.warn(
-              'Redis 重连次数超过 3 次，降级为内存令牌桶（限流计数不跨实例共享）',
-            );
-            return null;
-          }
-          return Math.min(times * 500, 2000);
-        },
-        maxRetriesPerRequest: 1,
+      // 共享实例（stop-after-3 策略）：与 checkpointer / write-guard 同一连接；
+      // 「超过 3 次停止重连」的告警文案原样保留
+      this.redis = this.redisProvider.getSharedClient('stop-after-3', () => {
+        this.logger.warn(
+          'Redis 重连次数超过 3 次，降级为内存令牌桶（限流计数不跨实例共享）',
+        );
       });
 
       // 先注册错误监听，避免 ping 失败后 error 事件无人处理

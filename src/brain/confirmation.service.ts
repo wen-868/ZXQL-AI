@@ -20,6 +20,7 @@
  */
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { RedisProvider } from '../common/redis.provider';
 import { randomUUID } from 'crypto';
 import type {
   ToolContext,
@@ -243,11 +244,19 @@ export class ConfirmationService {
     @Optional() private readonly evidence?: EvidenceLedgerService,
   ) {
     // 未注入（单测/独立使用）时创建内存降级实例
-    this.writeGuardService =
-      writeGuard ??
-      new WriteGuardService({
+    if (writeGuard) {
+      this.writeGuardService = writeGuard;
+    } else {
+      const fallbackConfig = {
         get: () => undefined,
-      } as unknown as ConfigService);
+      } as unknown as ConfigService;
+      // R101-AI-10：WriteGuardService 的 Redis 连接取自共享 provider；
+      // 本兜底实例从不调用 onModuleInit ⇒ 不会建立任何连接（保持原内存降级语义）
+      this.writeGuardService = new WriteGuardService(
+        fallbackConfig,
+        new RedisProvider(fallbackConfig),
+      );
+    }
   }
 
   // ── 待确认操作管理（WriteGuard 令牌制）──

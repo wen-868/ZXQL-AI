@@ -9,6 +9,7 @@
 import Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
 import { RateLimiterService } from './rate-limiter';
+import { RedisProvider } from './redis.provider';
 
 /**
  * mock ioredis 模块：
@@ -51,11 +52,20 @@ function createConfigService(
   } as unknown as ConfigService;
 }
 
+/**
+ * 构造 RateLimiterService（R101-AI-10：Redis 连接改由共享 provider 提供；
+ * 本文件已 mock `ioredis`，故 provider 仍会拿到同一 mock 实例）
+ */
+function makeService(
+  config: ConfigService = createConfigService(),
+): RateLimiterService {
+  return new RateLimiterService(config, new RedisProvider(config));
+}
+
 /** 让 Redis 连接成功（ping 通过） */
 function enableRedis(): void {
   mockRedisInstance.ping.mockResolvedValue('PONG');
 }
-
 /** 让 Redis 连接失败（ping 拒绝） */
 function disableRedis(): void {
   mockRedisInstance.ping.mockRejectedValue(new Error('ECONNREFUSED'));
@@ -72,20 +82,20 @@ describe('RateLimiterService', () => {
 
   describe('容量配置', () => {
     it('默认每分钟 60 次', () => {
-      const service = new RateLimiterService(createConfigService());
+      const service = makeService(createConfigService());
       expect(service.capacity).toBe(60);
       expect(service.windowMs).toBe(60_000);
     });
 
     it('读取 RATE_LIMIT_PER_MINUTE 环境变量', () => {
-      const service = new RateLimiterService(
+      const service = makeService(
         createConfigService({ RATE_LIMIT_PER_MINUTE: 10 }),
       );
       expect(service.capacity).toBe(10);
     });
 
     it('非法值（0）回退为 1', () => {
-      const service = new RateLimiterService(
+      const service = makeService(
         createConfigService({ RATE_LIMIT_PER_MINUTE: 0 }),
       );
       expect(service.capacity).toBe(1);
@@ -96,7 +106,7 @@ describe('RateLimiterService', () => {
     it('Redis 连接成功：输出成功日志并走 Redis 计数', async () => {
       enableRedis();
       mockRedisInstance.eval.mockResolvedValue([1, 59]);
-      const service = new RateLimiterService(createConfigService());
+      const service = makeService(createConfigService());
       await service.onModuleInit();
 
       const result = await service.consume('tenant:t1');
@@ -107,7 +117,7 @@ describe('RateLimiterService', () => {
 
     it('Redis 连接失败：降级为内存令牌桶', async () => {
       disableRedis();
-      const service = new RateLimiterService(
+      const service = makeService(
         createConfigService({ RATE_LIMIT_PER_MINUTE: 2 }),
       );
       await service.onModuleInit();
@@ -121,7 +131,7 @@ describe('RateLimiterService', () => {
 
     it('retryStrategy：超过 3 次停止重连，否则指数退避', async () => {
       disableRedis();
-      const service = new RateLimiterService(createConfigService());
+      const service = makeService(createConfigService());
       await service.onModuleInit();
 
       const options = (
@@ -146,7 +156,7 @@ describe('RateLimiterService', () => {
         },
       );
 
-      const service = new RateLimiterService(
+      const service = makeService(
         createConfigService({ RATE_LIMIT_PER_MINUTE: 1 }),
       );
       await service.onModuleInit();
@@ -166,7 +176,7 @@ describe('RateLimiterService', () => {
     it('Redis 返回 [1, remaining] 时放行', async () => {
       enableRedis();
       mockRedisInstance.eval.mockResolvedValue([1, 42]);
-      const service = new RateLimiterService(createConfigService());
+      const service = makeService(createConfigService());
       await service.onModuleInit();
 
       const result = await service.consume('tenant:t1');
@@ -176,7 +186,7 @@ describe('RateLimiterService', () => {
     it('Redis 返回 [0, 0] 时超限', async () => {
       enableRedis();
       mockRedisInstance.eval.mockResolvedValue([0, 0]);
-      const service = new RateLimiterService(createConfigService());
+      const service = makeService(createConfigService());
       await service.onModuleInit();
 
       const result = await service.consume('tenant:t1');
@@ -186,7 +196,7 @@ describe('RateLimiterService', () => {
     it('eval 执行失败时本次降级内存令牌桶', async () => {
       enableRedis();
       mockRedisInstance.eval.mockRejectedValue(new Error('NOSCRIPT'));
-      const service = new RateLimiterService(
+      const service = makeService(
         createConfigService({ RATE_LIMIT_PER_MINUTE: 1 }),
       );
       await service.onModuleInit();
@@ -202,7 +212,7 @@ describe('RateLimiterService', () => {
     });
 
     it('连续消耗令牌，超过容量后拒绝', async () => {
-      const service = new RateLimiterService(
+      const service = makeService(
         createConfigService({ RATE_LIMIT_PER_MINUTE: 3 }),
       );
       await service.onModuleInit();
@@ -216,7 +226,7 @@ describe('RateLimiterService', () => {
     });
 
     it('窗口期内时间推进会按速率补充令牌', async () => {
-      const service = new RateLimiterService(
+      const service = makeService(
         createConfigService({ RATE_LIMIT_PER_MINUTE: 2 }),
       );
       await service.onModuleInit();
@@ -236,7 +246,7 @@ describe('RateLimiterService', () => {
     });
 
     it('时间倒退时不补充令牌', async () => {
-      const service = new RateLimiterService(
+      const service = makeService(
         createConfigService({ RATE_LIMIT_PER_MINUTE: 1 }),
       );
       await service.onModuleInit();
@@ -253,7 +263,7 @@ describe('RateLimiterService', () => {
     });
 
     it('桶数量超阈值时清理过期条目', async () => {
-      const service = new RateLimiterService(
+      const service = makeService(
         createConfigService({ RATE_LIMIT_PER_MINUTE: 10 }),
       );
       service.cleanupThreshold = 1; // 阈值设为 1，便于触发清理

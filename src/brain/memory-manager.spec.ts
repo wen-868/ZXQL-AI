@@ -11,6 +11,7 @@
 /* eslint-disable @typescript-eslint/require-await -- Redis 桩方法为同步 Map 操作但须返回 Promise */
 import { ConfigService } from '@nestjs/config';
 import { MemoryManager, buildMemoryKey } from './memory-manager.service';
+import { RedisProvider } from '../common/redis.provider';
 
 function createService(): {
   svc: MemoryManager;
@@ -58,6 +59,8 @@ function createService(): {
   const svc = new MemoryManager(
     { get: () => undefined } as unknown as ConfigService,
     { save: jest.fn() } as never,
+    // R101-AI-10：Redis 连接改由共享 provider 提供（本用例注入 Redis 桩，不建连）
+    new RedisProvider({ get: () => undefined } as unknown as ConfigService),
   );
   // 注入 Redis 桩（绕过 onModuleInit 的真实连接）
   const slot = svc as unknown as Record<string, unknown>;

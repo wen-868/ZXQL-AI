@@ -12,6 +12,7 @@
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
 import { ConfigService } from '@nestjs/config';
+import { RedisProvider } from '../common/redis.provider';
 import {
   WriteGuardService,
   WRITE_TOKEN_TTL_MS,
@@ -21,9 +22,11 @@ import {
 } from './write-guard.service';
 
 function createService(env: Record<string, string> = {}): WriteGuardService {
-  return new WriteGuardService({
+  const config = {
     get: (key: string) => env[key],
-  } as unknown as ConfigService);
+  } as unknown as ConfigService;
+  // R101-AI-10：Redis 连接改由共享 provider 提供（本用例不调用 onModuleInit ⇒ 不建连）
+  return new WriteGuardService(config, new RedisProvider(config));
 }
 
 describe('P0-1 WriteGuardService', () => {

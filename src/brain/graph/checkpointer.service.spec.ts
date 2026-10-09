@@ -7,6 +7,7 @@
  */
 import { ConfigService } from '@nestjs/config';
 import { CheckpointerService } from './checkpointer.service';
+import { RedisProvider } from '../../common/redis.provider';
 import { GraphState } from './graph.types';
 
 function makeService(): CheckpointerService {
@@ -21,7 +22,8 @@ function makeService(): CheckpointerService {
     }),
   } as unknown as ConfigService;
   // 不调用 onModuleInit：redisAvailable=false 直接走内存降级路径
-  return new CheckpointerService(config);
+  // R101-AI-10：Redis 连接改由共享 provider 提供（本用例不触发连接）
+  return new CheckpointerService(new RedisProvider(config));
 }
 
 function makeState(overrides: Partial<GraphState> = {}): GraphState {

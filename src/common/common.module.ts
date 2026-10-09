@@ -3,7 +3,8 @@
  *
  * 职责：
  * 1. 注册 RateLimiterService（令牌桶限流，Redis + 内存降级）
- * 2. 导出 RateLimiterService 供 TenantModule 的中间件注入使用
+ * 2. 注册 RedisProvider（R101-AI-10：全仓唯一 Redis 连接来源）
+ * 3. 导出上述两者供 TenantModule / BrainModule / GatewayModule 注入
  *
  * 注意：
  * - RateLimiterMiddleware / RequestLoggingMiddleware 因依赖 TenantContext，
@@ -14,9 +15,10 @@
 import { Module } from '@nestjs/common';
 import { RateLimiterService } from './rate-limiter';
 import { MetricsService } from './metrics.service';
+import { RedisProvider } from './redis.provider';
 
 @Module({
-  providers: [RateLimiterService, MetricsService],
-  exports: [RateLimiterService, MetricsService],
+  providers: [RateLimiterService, MetricsService, RedisProvider],
+  exports: [RateLimiterService, MetricsService, RedisProvider],
 })
 export class CommonModule {}

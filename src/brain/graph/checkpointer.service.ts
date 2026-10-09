@@ -14,8 +14,8 @@
  * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-15
  */
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { RedisProvider } from '../../common/redis.provider';
 import { GraphState } from './graph.types';
 
 /** 图状态 TTL（秒，24h） */
@@ -29,34 +29,23 @@ export class CheckpointerService implements OnModuleInit {
   /** Redis 不可用时的内存兜底（进程内可续跑） */
   private readonly memoryStore = new Map<string, GraphState>();
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    // R101-AI-10：Redis 连接统一取用共享 provider（本模块原为独立 new Redis；
+    // 连接参数亦由 provider 解析，本类不再直接读 .env）
+    private readonly redisProvider: RedisProvider,
+  ) {}
 
   /**
    * 初始化 Redis 连接（失败降级内存，不阻塞启动）
    */
   async onModuleInit(): Promise<void> {
-    const host = this.configService.get<string>('REDIS_HOST', '127.0.0.1');
-    const port = this.configService.get<number>('REDIS_PORT', 6379);
-    const password =
-      this.configService.get<string>('REDIS_PASSWORD') || undefined;
-    const db = this.configService.get<number>('REDIS_DB', 1);
-
     try {
-      this.redis = new Redis({
-        host,
-        port,
-        password,
-        db,
-        retryStrategy: (times) => {
-          if (times > 3) {
-            this.logger.warn(
-              'Redis 重连次数超过 3 次，图状态降级为内存模式（跨进程不可续跑）',
-            );
-            return null;
-          }
-          return Math.min(times * 500, 2000);
-        },
-        maxRetriesPerRequest: 1,
+      // 共享实例（stop-after-3 策略）：与 write-guard / rate-limiter 同一连接；
+      // 「超过 3 次停止重连」的告警文案原样保留
+      this.redis = this.redisProvider.getSharedClient('stop-after-3', () => {
+        this.logger.warn(
+          'Redis 重连次数超过 3 次，图状态降级为内存模式（跨进程不可续跑）',
+        );
       });
       await this.redis.ping();
       this.redisAvailable = true;

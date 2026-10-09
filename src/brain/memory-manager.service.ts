@@ -25,6 +25,7 @@ import Redis from 'ioredis';
 import type { ChatMessage } from '../providers/provider.interface';
 import { AiSessionArchiveEntity } from '../database/entities/ai-session-archive.entity';
 import { degrade } from '../common/error-semantics';
+import { RedisProvider } from '../common/redis.provider';
 
 /** 保留最近 N 轮对话（1 轮 = 1 条 user + 1 条 assistant） */
 const MEMORY_ROUNDS = 10;
@@ -55,6 +56,8 @@ export class MemoryManager implements OnModuleInit {
     private readonly configService: ConfigService,
     @InjectRepository(AiSessionArchiveEntity)
     private readonly archiveRepo: Repository<AiSessionArchiveEntity>,
+    // R101-AI-10：Redis 连接统一取用共享 provider（本模块原为独立 new Redis）
+    private readonly redisProvider: RedisProvider,
   ) {}
 
   /**
@@ -65,23 +68,14 @@ export class MemoryManager implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     const host = this.configService.get<string>('REDIS_HOST', '127.0.0.1');
     const port = this.configService.get<number>('REDIS_PORT', 6379);
-    const password =
-      this.configService.get<string>('REDIS_PASSWORD') || undefined;
     const db = this.configService.get<number>('REDIS_DB', 1);
 
     // Redis 属旁路增强（记忆非对话真相源）：连接失败降级为无记忆模式，不阻塞启动
     this.redisAvailable = await degrade(
       async () => {
-        this.redis = new Redis({
-          host,
-          port,
-          password,
-          db,
-          // P2 修复（2026-10-04）：不再放弃重连——此前 3 次失败即永久停摆，
-          // 网络恢复后记忆静默失效直到进程重启；指数退避封顶 5s 持续重试
-          retryStrategy: (times) => Math.min(times * 500, 5000),
-          maxRetriesPerRequest: 1,
-        });
+        // 共享实例（retry-forever 策略）：保留 P2 修复语义
+        //   —— 不再放弃重连：指数退避封顶 5s 持续重试，网络恢复后由 'ready' 钩子自愈
+        this.redis = this.redisProvider.getSharedClient('retry-forever');
 
         // 测试连接
         await this.redis.ping();

@@ -41,16 +41,15 @@ import {
   resolveAdminTenantId,
   resolveOptionalAdminTenantId,
 } from '../tenant/admin-tenant-scope';
-import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import Redis from 'ioredis';
 import { AI_DB_CONNECTION } from '../database/ai-db.module';
 import { AiSessionArchiveEntity } from '../database/entities/ai-session-archive.entity';
 import { MemoryManager } from '../brain/memory-manager.service';
 import { MetricsService } from '../common/metrics.service';
+import { RedisProvider } from '../common/redis.provider';
 import { CircuitBreakerService } from '../tools/circuit-breaker.service';
 import { ProviderFactory } from '../providers/provider-factory';
 import { ToolRegistry } from '../tools/tool-registry';
@@ -97,10 +96,11 @@ export class AdminController {
     private readonly executor: ToolExecutor,
     private readonly serviceClient: ServiceClient,
     private readonly auditLogger: AuditLogger,
-    private readonly configService: ConfigService,
     private readonly memoryManager: MemoryManager,
     private readonly metricsService: MetricsService,
     private readonly breaker: CircuitBreakerService,
+    // R101-AI-10：健康探针的 Redis 连接统一由 provider 创建（本模块原为独立 new Redis）
+    private readonly redisProvider: RedisProvider,
     @InjectRepository(AiSessionArchiveEntity)
     private readonly sessionArchiveRepo: Repository<AiSessionArchiveEntity>,
     @Optional() private readonly dataSource?: DataSource,
@@ -448,23 +448,8 @@ export class AdminController {
    * 任何失败仅返回 connected=false，不抛异常。
    */
   private async checkRedis(): Promise<RedisHealth> {
-    const host = this.configService.get<string>('REDIS_HOST', '127.0.0.1');
-    const port = this.configService.get<number>('REDIS_PORT', 6379);
-    const password =
-      this.configService.get<string>('REDIS_PASSWORD') || undefined;
-    const db = this.configService.get<number>('REDIS_DB', 1);
-
-    const client = new Redis({
-      host,
-      port,
-      password,
-      db,
-      connectTimeout: 3000,
-      maxRetriesPerRequest: 1,
-      // 健康检查不重连：返回 null 立即停止重试，快速失败
-      retryStrategy: () => null,
-    });
-
+    // 一次性连接由共享 provider 统一创建（保持原语义：每次新建 + 3s 超时 + 不重连）
+    const client = this.redisProvider.createEphemeralClient(3000);
     const start = Date.now();
     try {
       // 先注册 error 监听（ioredis 连接失败/重试停止时会 emit error，

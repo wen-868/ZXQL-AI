@@ -22,6 +22,7 @@ import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
 import { Readable } from 'stream';
 import { MemoryManager } from '../brain/memory-manager.service';
+import { RedisProvider } from './redis.provider';
 import { RetrieverService } from '../rag/retriever.service';
 import type { EmbeddingService } from '../rag/embedding.service';
 import type { VectorStoreService } from '../rag/vector-store.service';
@@ -38,6 +39,8 @@ function createMemoryManager(
   const svc = new MemoryManager(
     { get: () => undefined } as unknown as ConfigService,
     { save: jest.fn() } as never,
+    // R101-AI-10：Redis 连接改由共享 provider 提供（本用例注入 Redis 桩，不建连）
+    new RedisProvider({ get: () => undefined } as unknown as ConfigService),
   );
   const slot = svc as unknown as Record<string, unknown>;
   slot.redis = redisStub;

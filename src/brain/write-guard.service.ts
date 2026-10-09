@@ -21,6 +21,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { randomUUID } from 'crypto';
+import { RedisProvider } from '../common/redis.provider';
 import type { ToolResult, ToolRisk } from '../tools/tool.interface';
 import { AuditLogger } from '../bridge/audit-logger';
 
@@ -170,6 +171,8 @@ export class WriteGuardService {
 
   constructor(
     private readonly configService: ConfigService,
+    // R101-AI-10：Redis 连接统一取用共享 provider（本模块原为独立 new Redis）
+    private readonly redisProvider: RedisProvider,
     @Optional() private readonly auditLogger?: AuditLogger,
   ) {
     this.tokenTtlMs = resolveWriteTokenTtlMs(
@@ -259,26 +262,15 @@ export class WriteGuardService {
   async onModuleInit(): Promise<void> {
     const host = this.configService.get<string>('REDIS_HOST', '127.0.0.1');
     const port = this.configService.get<number>('REDIS_PORT', 6379);
-    const password =
-      this.configService.get<string>('REDIS_PASSWORD') || undefined;
     const db = this.configService.get<number>('REDIS_DB', 1);
 
     try {
-      this.redis = new Redis({
-        host,
-        port,
-        password,
-        db,
-        retryStrategy: (times) => {
-          if (times > 3) {
-            this.logger.warn(
-              'Redis 重连次数超过 3 次，降级为内存模式（写审核令牌不跨进程持久）',
-            );
-            return null;
-          }
-          return Math.min(times * 500, 2000);
-        },
-        maxRetriesPerRequest: 1,
+      // 共享实例（stop-after-3 策略）：与 checkpointer / rate-limiter 同一连接；
+      // 「超过 3 次停止重连」的告警文案原样保留
+      this.redis = this.redisProvider.getSharedClient('stop-after-3', () => {
+        this.logger.warn(
+          'Redis 重连次数超过 3 次，降级为内存模式（写审核令牌不跨进程持久）',
+        );
       });
 
       await this.redis.ping();
