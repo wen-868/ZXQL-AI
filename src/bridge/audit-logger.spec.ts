@@ -14,6 +14,7 @@
  */
 import { AuditLogger } from './audit-logger';
 import { AiAuditLogEntity } from '../database/entities/ai-audit-log.entity';
+import type { ModelPrice } from '../tenant/ai-config.service';
 import { ToolExecutionRecord } from '../tools/tool.interface';
 import {
   errorSemanticsCount,
@@ -28,6 +29,14 @@ interface Harness {
   saved: AiAuditLogEntity[];
   /** upsertDailyUsage 传给 dataSource.query 的参数列表 */
   usageParams: unknown[][];
+  /** upsertDailyUsage 的 SQL 原文（R101-AI-03 断言三列是否写入/累加） */
+  usageSql: string[];
+  /** 单价桩返回值（null = 未配置） */
+  price: ModelPrice | null;
+  /** 单价查询抛错（模拟库故障） */
+  failPrice: boolean;
+  /** getModelPrice 收到的 (provider, model) */
+  priceLookups: Array<[string, string]>;
   /** 让 save 抛错（用于 best-effort 验证） */
   failSave: boolean;
 }
@@ -35,10 +44,16 @@ interface Harness {
 function createHarness(): Harness {
   const saved: AiAuditLogEntity[] = [];
   const usageParams: unknown[][] = [];
+  const usageSql: string[] = [];
+  const priceLookups: Array<[string, string]> = [];
   const harness: Harness = {
     logger: undefined as unknown as AuditLogger,
     saved,
     usageParams,
+    usageSql,
+    price: null,
+    failPrice: false,
+    priceLookups,
     failSave: false,
   };
 
@@ -53,13 +68,27 @@ function createHarness(): Harness {
     },
   };
   const dataSource = {
-    query: (_sql: string, params: unknown[]) => {
+    query: (sql: string, params: unknown[]) => {
+      usageSql.push(sql);
       usageParams.push(params);
       return Promise.resolve([]);
     },
   };
+  const aiConfigService = {
+    getModelPrice: (provider: string, model: string) => {
+      priceLookups.push([provider, model]);
+      if (harness.failPrice) {
+        return Promise.reject(new Error('price table down'));
+      }
+      return Promise.resolve(harness.price);
+    },
+  };
 
-  harness.logger = new AuditLogger(auditLogRepo as never, dataSource as never);
+  harness.logger = new AuditLogger(
+    auditLogRepo as never,
+    dataSource as never,
+    aiConfigService as never,
+  );
   return harness;
 }
 
@@ -139,9 +168,10 @@ describe('AuditLogger', () => {
 
     expect(usageParams).toHaveLength(1);
     const p = usageParams[0];
-    // 入参顺序：tenantId, statDate, chat, tool, prompt, completion, total, provider, model
-    expect(p[7]).toBe('unknown');
-    expect(p[8]).toBe('unknown');
+    // 入参顺序（R101-AI-03 起）：tenantId, statDate, chat, tool, prompt, completion,
+    // total, prompt_cost, completion_cost, total_cost, provider, model
+    expect(p[10]).toBe('unknown');
+    expect(p[11]).toBe('unknown');
   });
 
   it('logAiCall：未传 lane/categories → 落 null（历史调用方不受影响）', async () => {
@@ -426,5 +456,145 @@ describe('P1-C AuditLogger 主流水 bestEffort 死信', () => {
 
     expect(deadLetters).toHaveLength(0);
     expect(errorSemanticsCount('best_effort', 'audit.logAiCall', 'ok')).toBe(1);
+  });
+});
+
+/**
+ * R101-AI-03：费用三列写入（P1-2）反测
+ *
+ * 规格（业主裁定「甲方案」）：
+ * - UPSERT 的 INSERT 列表与 ON DUPLICATE KEY UPDATE **都必须**含
+ *   `prompt_cost` / `completion_cost` / `total_cost`，且 ODKU 为**累加**（不是覆盖）；
+ * - 单价只复用 `AiConfigService.getModelPrice(provider, model)`（库里配置）；
+ * - **未配置单价 ⇒ 不计费**（三列 0），不得静默按 0 写入后宣称已计费。
+ *
+ * 反测方向：从 SQL/参数里回退三列 ⇒ 本文件断言变红（原始输出见回传卡）。
+ */
+describe('R101-AI-03 费用三列（t_ai_usage_daily）', () => {
+  const PRICE: ModelPrice = {
+    provider: 'deepseek',
+    model: 'deepseek-chat',
+    promptPrice: 0.001,
+    completionPrice: 0.002,
+    currency: 'CNY',
+    effectiveFrom: new Date('2026-07-01T00:00:00+08:00'),
+  };
+
+  it('已配置单价：INSERT 写三列 + ODKU 三列均累加（不是覆盖）', async () => {
+    const h = createHarness();
+    h.price = PRICE;
+
+    h.logger.logAiCall({
+      tenantId: 't1',
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+      promptTokens: 1000,
+      completionTokens: 500,
+      success: true,
+    });
+    await flush();
+
+    const sql = h.usageSql[0];
+    // INSERT 列清单
+    expect(sql).toContain('prompt_cost, completion_cost, total_cost');
+    // ODKU 必须是累加（累加项三列各有），不得覆盖
+    expect(sql).toContain('prompt_cost = prompt_cost + VALUES(prompt_cost)');
+    expect(sql).toContain(
+      'completion_cost = completion_cost + VALUES(completion_cost)',
+    );
+    expect(sql).toContain('total_cost = total_cost + VALUES(total_cost)');
+    // 参数：单价 × tokens / 1000（元/千Token），4 位舍入
+    const params = h.usageParams[0];
+    expect(params.slice(7, 10)).toEqual([0.001, 0.001, 0.002]);
+    // total = prompt + completion（库内自洽）
+    expect(params[9]).toBe((params[7] as number) + (params[8] as number));
+    // 单价只从库里配置取（provider/model 与调用一致）
+    expect(h.priceLookups).toEqual([['deepseek', 'deepseek-chat']]);
+  });
+
+  it('舍入口径：与 DECIMAL(12,4) 对齐，total = round4(prompt+completion)', async () => {
+    const h = createHarness();
+    h.price = { ...PRICE, promptPrice: 0.001, completionPrice: 0.002 };
+
+    h.logger.logAiCall({
+      tenantId: 't1',
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+      promptTokens: 333,
+      completionTokens: 777,
+      success: true,
+    });
+    await flush();
+
+    // 0.001*333/1000 = 0.000333 → 0.0003；0.002*777/1000 = 0.001554 → 0.0016
+    const params = h.usageParams[0];
+    expect(params.slice(7, 10)).toEqual([0.0003, 0.0016, 0.0019]);
+  });
+
+  it('未配置单价 ⇒ 不计费（三列 0），且确实查过价（不是静默按 0 计费）', async () => {
+    const h = createHarness();
+    h.price = null; // 未配置
+
+    h.logger.logAiCall({
+      tenantId: 't1',
+      provider: 'glm',
+      model: 'glm-4-flash',
+      promptTokens: 1000,
+      completionTokens: 1000,
+      success: true,
+    });
+    await flush();
+
+    expect(h.usageParams[0].slice(7, 10)).toEqual([0, 0, 0]);
+    expect(h.priceLookups).toEqual([['glm', 'glm-4-flash']]);
+  });
+
+  it('显式配置 0 元 ⇒ 计费 0（与未配置可区分：查价命中）', async () => {
+    const h = createHarness();
+    h.price = { ...PRICE, promptPrice: 0, completionPrice: 0 };
+
+    h.logger.logAiCall({
+      tenantId: 't1',
+      provider: 'ollama',
+      model: 'qwen2.5:7b',
+      promptTokens: 1000,
+      completionTokens: 1000,
+      success: true,
+    });
+    await flush();
+
+    expect(h.usageParams[0].slice(7, 10)).toEqual([0, 0, 0]);
+    expect(h.priceLookups).toHaveLength(1);
+  });
+
+  it('工具执行（无 token）⇒ 不查价，三列 0，用量计数照常落库', async () => {
+    const h = createHarness();
+    h.logger.logToolExecution(makeToolRecord());
+    await flush();
+
+    expect(h.priceLookups).toHaveLength(0);
+    const params = h.usageParams[0];
+    expect(params.slice(7, 10)).toEqual([0, 0, 0]);
+    expect(params[4]).toBe(0); // prompt_tokens
+    expect(params[3]).toBe(1); // tool_call_count 仍 +1
+  });
+
+  it('查价异常 ⇒ 按未配置处理（0），但用量行仍落库（不因旁路失败丢计数）', async () => {
+    const h = createHarness();
+    h.failPrice = true;
+
+    h.logger.logAiCall({
+      tenantId: 't1',
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+      promptTokens: 100,
+      completionTokens: 100,
+      success: true,
+    });
+    await flush();
+
+    expect(h.usageSql).toHaveLength(1); // 用量行照写
+    expect(h.usageParams[0].slice(7, 10)).toEqual([0, 0, 0]);
+    expect(h.saved).toHaveLength(1); // 审计主流水不受影响
   });
 });

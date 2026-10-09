@@ -7,7 +7,12 @@
  *
  * 依赖：
  * - DatabaseModule（提供 TypeORM Repository 注入）
+ * - TenantModule（R101-AI-03：AuditLogger 经 AiConfigService.getModelPrice 取单价）
  * - ConfigModule（提供环境变量，已全局注册）
+ *
+ * ⚠️ 无环校验（R101-AI-03 引入 TenantModule 依赖时核对）：
+ *   TenantModule → { CommonModule, ProvidersModule, TypeOrmModule }，
+ *   其闭包不引用 BridgeModule / ToolsModule ⇒ BridgeModule → TenantModule 不成环。
  *
  * 被以下模块导入：
  * - ToolsModule（ToolExecutor 注入 AuditLogger 记录工具执行审计）
@@ -20,9 +25,10 @@ import { Module } from '@nestjs/common';
 import { ServiceClient } from './service-client';
 import { AuditLogger } from './audit-logger';
 import { DatabaseModule } from '../database/database.module';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, TenantModule],
   providers: [ServiceClient, AuditLogger],
   exports: [ServiceClient, AuditLogger],
 })

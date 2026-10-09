@@ -29,6 +29,17 @@ import {
   ToolRisk,
 } from '../tools/tool.interface';
 import { bestEffort } from '../common/error-semantics';
+import { AiConfigService } from '../tenant/ai-config.service';
+
+/**
+ * 费用舍入口径：与 `t_ai_usage_daily` 的 DECIMAL(12,4) 对齐
+ *
+ * （R101-AI-03：三列各自 4 位小数，`total_cost` 取两个分项舍入后再舍入 ⇒
+ *   库内恒满足 `total_cost = prompt_cost + completion_cost`）
+ */
+function roundCost(value: number): number {
+  return Math.round(value * 10000) / 10000;
+}
 
 /**
  * 执行车道（取证埋点，方案 12.4）
@@ -156,6 +167,8 @@ export class AuditLogger {
     @InjectRepository(AiAuditLogEntity)
     private readonly auditLogRepo: Repository<AiAuditLogEntity>,
     private readonly dataSource: DataSource,
+    // R101-AI-03：费用三列的唯一单价来源（t_ai_model_price，经 getModelPrice）
+    private readonly aiConfigService: AiConfigService,
   ) {}
 
   /**
@@ -459,6 +472,14 @@ export class AuditLogger {
   }): Promise<void> {
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
     const totalTokens = params.promptTokens + params.completionTokens;
+    // R101-AI-03：费用三列（单价来源 = t_ai_model_price；未配置 ⇒ 不计费 = 0）
+    const { promptCost, completionCost, totalCost } =
+      await this.resolveUsageCosts(
+        params.provider,
+        params.model,
+        params.promptTokens,
+        params.completionTokens,
+      );
 
     // P1-C 迁移：此前 catch + logger.warn 静默吞掉，用量汇总失真无任何可观测手段
     // （报表与超阈值告警随之失真）。改为 bestEffort：仍不阻断主流程，但失败必落
@@ -468,14 +489,17 @@ export class AuditLogger {
         // 使用原生 SQL UPSERT（TypeORM upsert 在 1.x 版本可能不兼容，用原生 SQL 更可靠）
         await this.dataSource.query(
           `INSERT INTO t_ai_usage_daily
-          (tenant_id, stat_date, chat_count, tool_call_count, prompt_tokens, completion_tokens, total_tokens, provider, model, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+          (tenant_id, stat_date, chat_count, tool_call_count, prompt_tokens, completion_tokens, total_tokens, prompt_cost, completion_cost, total_cost, provider, model, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
          ON DUPLICATE KEY UPDATE
           chat_count = chat_count + VALUES(chat_count),
           tool_call_count = tool_call_count + VALUES(tool_call_count),
           prompt_tokens = prompt_tokens + VALUES(prompt_tokens),
           completion_tokens = completion_tokens + VALUES(completion_tokens),
           total_tokens = total_tokens + VALUES(total_tokens),
+          prompt_cost = prompt_cost + VALUES(prompt_cost),
+          completion_cost = completion_cost + VALUES(completion_cost),
+          total_cost = total_cost + VALUES(total_cost),
           updated_at = NOW()`,
           [
             params.tenantId,
@@ -485,6 +509,9 @@ export class AuditLogger {
             params.promptTokens,
             params.completionTokens,
             totalTokens,
+            promptCost,
+            completionCost,
+            totalCost,
             // P0-014 重做：唯一索引对每个 NULL 视为互不相同 ⇒ 传 NULL 的行不会被去重；
             // 且列定义已是 NOT NULL DEFAULT 'unknown'（014 第 6 步），传 NULL 会被拒绝。
             // 哨兵值 'unknown' 与「库默认值 / 迁移回填值」三处完全一致（见上方注释）。
@@ -498,9 +525,70 @@ export class AuditLogger {
         tenantId: params.tenantId,
         detail: `statDate=${today} provider=${params.provider ?? '-'} model=${
           params.model ?? '-'
-        } chat=${params.chatCount} tool=${params.toolCallCount} tokens=${totalTokens}`,
+        } chat=${params.chatCount} tool=${params.toolCallCount} tokens=${totalTokens} cost=${totalCost}`,
       },
     );
+  }
+
+  /**
+   * 折算本次调用的费用三列（R101-AI-03，业主裁定「甲方案」）
+   *
+   * 单价**只来自** `t_ai_model_price`（经 `AiConfigService.getModelPrice`）：
+   * 不硬编码价格表、不以估价充当实扣。
+   *
+   * 口径：
+   * - **未配置单价（null）⇒ 不计费**：三列均为 0（不猜测价格；不得把 0 说成"已按价计费"）
+   * - 显式配置 0 元 ⇒ 计费为 0（"已配置且为 0"，与未配置可区分）
+   * - 查价异常 ⇒ 视同未配置（0）并 warn，**不阻断用量计数落库**
+   *   （审计是 best-effort 旁路：为一次查价失败丢掉整行用量是本末倒置）
+   * - 无 token（工具执行记录）⇒ 不查价，直接 0
+   */
+  private async resolveUsageCosts(
+    provider: string | null,
+    model: string | null,
+    promptTokens: number,
+    completionTokens: number,
+  ): Promise<{
+    promptCost: number;
+    completionCost: number;
+    totalCost: number;
+  }> {
+    const notCharged = { promptCost: 0, completionCost: 0, totalCost: 0 };
+    if (promptTokens + completionTokens <= 0) {
+      return notCharged;
+    }
+
+    let price: Awaited<ReturnType<AiConfigService['getModelPrice']>> = null;
+    try {
+      price = await this.aiConfigService.getModelPrice(
+        provider ?? 'unknown',
+        model ?? 'unknown',
+      );
+    } catch (err) {
+      this.logger.warn(
+        `单价查询失败，本次按未配置处理（不计费）：provider=${provider ?? 'unknown'} ` +
+          `model=${model ?? 'unknown'} ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return notCharged;
+    }
+
+    if (!price) {
+      this.logger.debug(
+        `未配置单价，本次不计费：provider=${provider ?? 'unknown'} ` +
+          `model=${model ?? 'unknown'} tokens=${promptTokens + completionTokens}`,
+      );
+      return notCharged;
+    }
+
+    const promptCost = roundCost((price.promptPrice * promptTokens) / 1000);
+    const completionCost = roundCost(
+      (price.completionPrice * completionTokens) / 1000,
+    );
+    return {
+      promptCost,
+      completionCost,
+      totalCost: roundCost(promptCost + completionCost),
+    };
   }
 
   /**
