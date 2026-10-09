@@ -16,7 +16,7 @@
  *
  * 负责人: 苏然（测试+QA）| 创建日期: 2026-10-09
  */
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as http from 'node:http';
@@ -243,7 +243,12 @@ describe('⑥ 多 A 记录与 DNS 重绑定', () => {
     }
   });
 
-  it('GAP-1（如实取证，修复后本断言应变红改写）：环境/显式代理下 axios 走代理 transport——lookup 被丢弃，连接期 DNS 守卫整体失效', async () => {
+  it('axios 依赖行为取证（R101-AI-12 修复后仍成立，故保留）：显式代理下 axios 走代理 transport——顶层 lookup 被丢弃', async () => {
+    // ⚠️ 本用例固化的是 **axios 自身行为**（不是本系统的漏洞面）：
+    //   axios v1 在代理链路把连接交给自建隧道 agent，顶层 lookup 不参与建连。
+    // R101-AI-12 已在系统层规避该依赖行为：strict 出站一律 `proxy: false`
+    // （`axiosEgressOptions`），因此**本系统**代理环境下连接期守卫依然生效。
+    // 系统层回归断言见 src/providers/provider-egress-proxy.spec.ts（四 Provider × 代理 env）。
     // 本机沙箱即存在 HTTP_PROXY/HTTPS_PROXY=http://127.0.0.1:32939（生产内网配代理出站同样常见）。
     const target = await startLocalServer((_req, res) => {
       res.writeHead(200, { 'content-type': 'application/json' });
@@ -396,7 +401,13 @@ describe('⑨ testById 走库中已存 URL', () => {
     );
   });
 
-  it('GAP-2（如实取证，修复后本断言应变红改写）：存量违规行（http://127.0.0.1）经 onModuleInit 直接注册进运行时——无 a/b/c 复验', async () => {
+  it('存量违规行（http://127.0.0.1）经 onModuleInit **被拒绝注册**（R101-AI-13 修复回归，原 GAP-2 断言已按文件头要求翻转）', async () => {
+    // 原 GAP-2 如实取证：该存量行会被 registerModel 直接注册进运行时
+    // （无 a/b/c 复验；叠加 IP 字面量跳过 lookup + scheme 无运行时复验 ⇒ 三层皆漏）。
+    // R101-AI-13 修复后，注册入口复用 assertAllowedOutboundUrl ⇒ 注册即拒。
+    const errorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
     const { crypto, repo, service, registerExternal } = makeServiceWithRepo();
     repo.find.mockResolvedValue([
       makeEntity({
@@ -404,15 +415,13 @@ describe('⑨ testById 走库中已存 URL', () => {
         apiKey: crypto.encrypt('sk-legacy'),
       }),
     ]);
-    // onModuleInit → registerModel：既不跑 assertAllowedOutboundUrl，也不解析 DNS。
     await service.onModuleInit();
-    expect(registerExternal).toHaveBeenCalledTimes(1);
-    const callArgs = registerExternal.mock.calls[0] as unknown[];
-    const registered = callArgs[1] as { baseUrl: string };
-    // 注册成功的 config.baseUrl 即非合规地址 ⇒ 对话链路（factory.create）可拿它出站。
-    // 连接期 lookup 在代理链路被 axios 丢弃（GAP-1）且 Node 对 IP 字面量跳过 lookup、
-    // scheme 亦无运行时复验 ⇒ 存量违规行在对话链路继续出站（testById 会拒，chat 不会）。
-    expect(registered.baseUrl).toBe('http://127.0.0.1:8080/v1');
+
+    expect(registerExternal).not.toHaveBeenCalled();
+    expect(errorSpy.mock.calls.map((c) => String(c[0])).join('\n')).toContain(
+      '拒绝注册',
+    );
+    errorSpy.mockRestore();
   });
 });
 

@@ -9,14 +9,24 @@
  *   a. scheme 必须 `https:`（拒绝 `http:` 及其他协议）
  *   b. 拒绝 URL 内嵌凭据（`user:pass@`）
  *   c. host 为 IP 字面量时按受限网段拒绝
- *   d. host 为域名时必须解析并校验全部 A/AAAA 结果；连接期用**同一个** lookup
- *      再校验，使"校验的解析"与"连接用的解析"是同一次解析（防 DNS rebinding）
+ *   d. host 为域名时必须解析并校验全部 A/AAAA 结果；连接期用 lookup 再校验。
+ *      ⚠️ 准确表述（凌舟 2026-10-09 裁定④）：连接期 lookup 与出站前
+ *      `assertPublicResolvableTarget` 是**两次独立的 DNS 查询**，不是"同一次解析"。
+ *      真正防 rebinding 的性质是：**放行时回传的就是刚刚校验过的那份地址**
+ *      （`createGuardedLookup` 校验完 A/AAAA 后把该结果交给 Node 建连）⇒
+ *      本次连接不会用到"未校验的另一次解析"。因此不存在"校验用一次、连接用另一次"
+ *      的窗口；但**出站前那次解析与连接期那次解析之间仍有时间差**，安全性由
+ *      连接期校验单独保证，不依赖出站前那次。
+ *      ⚠️ R101-AI-12：该性质**仅在直连时成立**。若请求走了 `HTTP(S)_PROXY`，
+ *      axios 会把连接交给自建代理隧道（顶层 `lookup` 不参与、agent 层 lookup 亦
+ *      实测不参与），目标域名由**代理**解析 ⇒ 连接期守卫整体失效。
+ *      故 strict 出站一律带 `proxy: false`（见 `axiosEgressOptions`）。
  *
  * 三类调用点共用本模块：
  *   1. 保存前（ExternalModelService.create/update）—— 规则 a/b/c（同步）
  *   2. 出站前（testConnection / testById）—— 规则 a/b/c/d（含解析）
- *   3. 连接期（OpenAICompatProvider 的 axios lookup / beforeRedirect）—— 规则 c/d
- *      在真正建连的那次解析上生效
+ *   3. 连接期（各 Provider 的 axios `lookup` / `beforeRedirect`）—— 规则 c/d
+ *      在真正建连的那次解析上生效（strict 出站直连，不走代理）
  *
  * 拒绝一律抛 BadRequestException（HTTP 400 + 明确文案），不静默放行、不只 log。
  *
@@ -204,19 +214,32 @@ export function assertAllowedRedirectTarget(
 }
 
 /**
- * axios 请求选项片段（R101-AI-08）
+ * axios 请求选项片段（R101-AI-08 / R101-AI-12）
  *
- * `strict=true` ⇒ 挂上「仅公网 HTTPS」的连接期校验（DNS 同源校验 + 重定向校验）。
- * `strict` 为假/缺省 ⇒ 返回空对象，**不改变**该请求行为。
+ * `strict=true` ⇒ 挂上「仅公网 HTTPS」的连接期校验（DNS 校验 + 重定向校验），
+ * 并**禁用环境代理**（`proxy: false`）。`strict` 为假/缺省 ⇒ 返回空对象，
+ * **不改变**该请求行为。
+ *
+ * ⚠️ 为什么必须 `proxy: false`（R101-AI-12，P0）：
+ *   - axios v1 在 `HTTP_PROXY`/`HTTPS_PROXY` 存在时自建代理隧道
+ *     （`setProxy` → `HttpsProxyAgent`），此时**顶层 `lookup` 完全不参与建连**
+ *     （实测 `lookupCalls=0`，CONNECT 直达代理）；把 lookup 挂到
+ *     `httpsAgent` 上实测**同样不参与**（axios 只会把用户 agent 的 TLS 选项
+ *     并入隧道 agent）。
+ *   - 走代理时目标域名由**代理**解析 ⇒ 连接期校验在原理上无法覆盖目标
+ *     ⇒ 规则 d 的承诺断裂（只剩出站前一次解析，留 DNS rebinding 窗口，
+ *     且代理可把公网域名解析到内网）。
+ *   - 故 strict 出站强制直连：本进程解析、本进程校验、本进程连接。
  *
  * 信任边界（凌舟 2026-10-09 裁定）：只有**商家可写**的端点
- * （`t_tenant_ai_config.api_endpoint`）才置 strict；平台 `default_endpoint`
- * 与环境变量端点只做「记录 + 告警」，**不得擅自拒绝**（无法读取生产取值，
- * 贸然拒绝可能误伤在用链路）。
+ * （`t_tenant_ai_config.api_endpoint`）与**外部模型库**才置 strict；
+ * 平台 `default_endpoint` 与环境变量端点只做「记录 + 告警」，**不得擅自拒绝**，
+ * 其请求行为（含是否走代理）保持原样。
  */
 export function axiosEgressOptions(strict: boolean | undefined): {
   lookup?: NonNullable<AxiosRequestConfig['lookup']>;
   beforeRedirect?: (options: Record<string, unknown>) => void;
+  proxy?: false;
 } {
   if (strict !== true) {
     return {};
@@ -224,6 +247,8 @@ export function axiosEgressOptions(strict: boolean | undefined): {
   return {
     lookup: createGuardedLookup(),
     beforeRedirect: assertAllowedRedirectTarget,
+    // 见上方说明：不禁代理则连接期守卫失效（R101-AI-12 P0）
+    proxy: false,
   };
 }
 

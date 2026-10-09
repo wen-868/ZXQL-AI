@@ -27,10 +27,7 @@ import {
 } from './provider.interface';
 import { ProviderError } from './provider-error';
 import { degrade } from '../common/error-semantics';
-import {
-  assertAllowedRedirectTarget,
-  createGuardedLookup,
-} from '../common/outbound-target.guard';
+import { axiosEgressOptions } from '../common/outbound-target.guard';
 
 /** OpenAI 兼容请求体 */
 interface OpenAICompatRequestBody {
@@ -108,14 +105,6 @@ export class OpenAICompatProvider implements IModelProvider {
   readonly name: string;
   private readonly logger: Logger;
   private config!: RuntimeConfig;
-  /**
-   * R101-AI-04：连接期出站目标校验（仅公网 HTTPS）
-   *
-   * `lookup` 由 Node 在真正建连时调用 ⇒ 校验的就是连接使用的那次解析
-   * （防 DNS rebinding）；重定向目标由 beforeRedirect 同步校验后再跟随。
-   * 构造期不触发任何 DNS。
-   */
-  private readonly guardedLookup = createGuardedLookup();
 
   constructor(name: string, config: ProviderConfig) {
     this.name = name;
@@ -186,9 +175,12 @@ export class OpenAICompatProvider implements IModelProvider {
           responseType: 'stream',
           timeout: cfg.timeoutMs,
           signal: options?.signal,
-          // R101-AI-04：出站目标仅公网 HTTPS（连接期 DNS 校验 + 重定向校验）
-          lookup: this.guardedLookup,
-          beforeRedirect: assertAllowedRedirectTarget,
+          // R101-AI-04 / R101-AI-12：外部模型库**一律严格**（仅公网 HTTPS，
+          // 连接期校验 + 重定向校验 + 禁用代理）。
+          // ⚠️ 凌舟裁定⑧：本类不接受平台端点「只 WARN 不拒绝」的宽松口径 ——
+          // 平台端点宽松是给 `t_platform_ai_config.default_endpoint` 的过渡安排，
+          // 与外部模型库无关；若为此放宽，等于给外部模型库开 http:/内网口子。
+          ...axiosEgressOptions(true),
         },
       );
     } catch (err) {
@@ -335,9 +327,8 @@ export class OpenAICompatProvider implements IModelProvider {
           headers: this.buildHeaders(),
           timeout: cfg.timeoutMs,
           signal: options?.signal,
-          // R101-AI-04：出站目标仅公网 HTTPS（连接期 DNS 校验 + 重定向校验）
-          lookup: this.guardedLookup,
-          beforeRedirect: assertAllowedRedirectTarget,
+          // R101-AI-04 / R101-AI-12：外部模型库**一律严格**（含禁用代理，见裁定⑧说明）
+          ...axiosEgressOptions(true),
         },
       );
     } catch (err) {

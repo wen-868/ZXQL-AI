@@ -139,9 +139,12 @@ export class ExternalModelService implements OnModuleInit {
       where: { name, enabled: 1 },
     });
     if (!entity || !entity.apiKey) return null;
+    // R101-AI-13：运行时配置路径同样复验 a/b/c（存量/直插库违规行不得出站）。
+    // 违规即抛（显式失败），不静默回落 —— 复用同一守卫，无第二套判定。
+    const baseUrl = assertAllowedOutboundUrl(entity.providerBaseUrl);
     try {
       return {
-        baseUrl: entity.providerBaseUrl,
+        baseUrl,
         apiKey: this.crypto.decrypt(entity.apiKey),
         model: entity.modelName,
       };
@@ -308,12 +311,39 @@ export class ExternalModelService implements OnModuleInit {
       );
       return;
     }
+    // R101-AI-13（P1）：**运行时注册入口复验规则 a/b/c**
+    //
+    // 存量违规行（`da2d5dd` 之前入库的 `http://127.0.0.1:8080` 等）或绕过管理端
+    // 直插库的行，此前会跳过"保存前校验"直接注册 ⇒ 对话链路（chatSync）继续出站。
+    // 连接期 `lookup` 只能兜"域名解析到私网"（规则 d），而 scheme 不复验、
+    // IP 字面量又会跳过 lookup ⇒ 三层皆无拦截，故必须在此拦下。
+    // 复用同一守卫（`assertAllowedOutboundUrl`），不另写第二套判定。
+    let baseUrl: string;
+    try {
+      baseUrl = assertAllowedOutboundUrl(entity.providerBaseUrl);
+    } catch (err) {
+      this.logger.error(
+        `外部模型 ${entity.name} 的 providerBaseUrl 未通过出站目标校验，**拒绝注册**` +
+          `（id=${entity.id} host=${this.safeHostOf(entity.providerBaseUrl)}）：` +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
+      return; // 只拒该行，不影响其余模型的注册
+    }
     const config: ProviderConfig = {
       apiKey: this.crypto.decrypt(entity.apiKey),
-      baseUrl: entity.providerBaseUrl,
+      baseUrl,
       model: entity.modelName,
     };
     this.factory.registerExternal(entity.name, config);
+  }
+
+  /** 仅取 host 用于日志（不回显完整 URL，避免带出 GET 参数/内嵌凭据） */
+  private safeHostOf(raw: string): string {
+    try {
+      return new URL(raw).hostname;
+    } catch {
+      return '(unparsable)';
+    }
   }
 
   private toView(r: AiExternalModelEntity): ExternalModelView {
