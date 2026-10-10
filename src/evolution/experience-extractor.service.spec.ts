@@ -36,7 +36,15 @@ function createService(options?: {
       };
     }),
   };
-  const factory = { getDefault: jest.fn().mockReturnValue(provider) };
+  // R101-AI-19：萃取改为「经 AiConfigService 解析 → factory.create(provider, config)」，
+  // 不再走 factory.getDefault()（env 基线）。此处只补最小桩，
+  // 让既有用例仍拿到同一个 provider —— 断言口径与措辞零改动。
+  const factory = { create: jest.fn().mockReturnValue(provider) };
+  const aiConfigService = {
+    getProviderConfig: jest
+      .fn()
+      .mockResolvedValue({ provider: 'glm', config: {} }),
+  };
 
   const versionRepo = {
     create: jest.fn((data: Record<string, unknown>) => data),
@@ -64,6 +72,7 @@ function createService(options?: {
   const service = new ExperienceExtractorService(
     corrRepo,
     factory as never,
+    aiConfigService as never,
     versions,
   );
   return { service, corrRepo, provider, versionRepo };

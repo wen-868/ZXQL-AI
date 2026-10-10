@@ -7,6 +7,7 @@
  * 依赖：
  * - AiDbModule（ai_db 独立连接 + 4 实体）
  * - ProvidersModule（萃取 LLM 调用）
+ * - TenantModule（AiConfigService：萃取 LLM 凭据解析，R101-AI-19）
  * - 默认业务连接（PlatformAiConfigEntity：E5 自治策略开关读取，迁移 007）
  *
  * 被 BrainModule 导入（Orchestrator/LearningService 采集接入），
@@ -19,6 +20,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AiDbModule } from '../database/ai-db.module';
 import { PlatformAiConfigEntity } from '../database/entities/platform-ai-config.entity';
 import { ProvidersModule } from '../providers/providers.module';
+import { TenantModule } from '../tenant/tenant.module';
 import { CaptureService } from './capture.service';
 import { AggregatorService } from './aggregator.service';
 import { ExperienceExtractorService } from './experience-extractor.service';
@@ -31,6 +33,9 @@ import { CommonModule } from '../common/common.module';
     AiDbModule,
     ProvidersModule,
     CommonModule,
+    // R101-AI-19：萃取 LLM 凭据改经 AiConfigService 解析（不再用 env 基线实例），
+    // 故本模块需能看到 AiConfigService。TenantModule 不反向依赖本模块，无环。
+    TenantModule,
     TypeOrmModule.forFeature([PlatformAiConfigEntity]),
   ],
   providers: [

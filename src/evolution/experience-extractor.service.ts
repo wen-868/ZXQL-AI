@@ -19,6 +19,7 @@ import { IsNull, Repository } from 'typeorm';
 import { AiCorrectionEntity } from '../database/entities/ai-correction.entity';
 import { AI_DB_CONNECTION } from '../database/ai-db.module';
 import { ProviderFactory } from '../providers/provider-factory';
+import { AiConfigService } from '../tenant/ai-config.service';
 import { EvolutionVersionService } from './evolution-version.service';
 
 /** 萃取结果 */
@@ -46,6 +47,7 @@ export class ExperienceExtractorService {
     @InjectRepository(AiCorrectionEntity, AI_DB_CONNECTION)
     private readonly correctionRepo: Repository<AiCorrectionEntity>,
     private readonly factory: ProviderFactory,
+    private readonly aiConfigService: AiConfigService,
     private readonly versions: EvolutionVersionService,
   ) {}
 
@@ -174,7 +176,15 @@ export class ExperienceExtractorService {
       )
       .join('\n');
 
-    const provider = this.factory.getDefault();
+    // R101-AI-19（2026-10-11）：此前走 factory.getDefault()（env 基线实例），
+    // 只配 DB 平台配置、env 为空的部署拿不到凭据。改为经 AiConfigService
+    // 显式解析后 create(provider, config)，与全仓同源绑定口径一致：
+    // 密钥与端点同源（P0-2）由解析层保证，此处**不**读 env 兜底绕过解析。
+    // 解析失败（无租户上下文 / 平台未配置）不吞异常：上抛由 extract() 的
+    // 既有降级分支兜住（保守提案），与同类 LLM 旁路口径一致。
+    const { provider: providerType, config } =
+      await this.aiConfigService.getProviderConfig();
+    const provider = this.factory.create(providerType, config);
     const result = await provider.chatSync(
       [
         {

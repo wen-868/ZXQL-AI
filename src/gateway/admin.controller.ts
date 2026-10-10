@@ -64,6 +64,7 @@ import type {
 } from '../tools/tool.interface';
 import { ChatTestDto } from './dto/chat-test.dto';
 import { ExecuteToolDto } from './dto/execute-tool.dto';
+import { AiConfigService } from '../tenant/ai-config.service';
 
 /** 数据库（MySQL）连通性检查结果 */
 export interface DatabaseHealth {
@@ -101,6 +102,8 @@ export class AdminController {
     private readonly breaker: CircuitBreakerService,
     // R101-AI-10：健康探针的 Redis 连接统一由 provider 创建（本模块原为独立 new Redis）
     private readonly redisProvider: RedisProvider,
+    // R101-AI-19：chat-test 的凭据经 AiConfigService 解析（不再用 env 基线实例）
+    private readonly aiConfigService: AiConfigService,
     @InjectRepository(AiSessionArchiveEntity)
     private readonly sessionArchiveRepo: Repository<AiSessionArchiveEntity>,
     @Optional() private readonly dataSource?: DataSource,
@@ -228,7 +231,13 @@ export class AdminController {
     this.logger.log(
       `收到 chat-test 请求：message="${dto.message.slice(0, 50)}..."`,
     );
-    const provider = this.factory.getDefault();
+    // R101-AI-19（2026-10-11）：此前走 factory.getDefault()（env 基线实例），
+    // 只配 DB 平台配置、env 为空的部署拿不到凭据。改为经 AiConfigService
+    // 显式解析后 create(provider, config)，与全仓同源绑定口径一致；
+    // 不读 env 兜底绕过解析（P0-2 密钥/端点同源由解析层保证）。
+    const { provider: providerType, config } =
+      await this.aiConfigService.getProviderConfig();
+    const provider = this.factory.create(providerType, config);
     const result = await provider.chatSync([
       { role: 'user', content: dto.message },
     ]);
