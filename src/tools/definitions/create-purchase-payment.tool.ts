@@ -49,6 +49,25 @@ export class CreatePurchasePaymentTool implements ITool {
   readonly isWriteOperation = true;
   readonly risk = 'medium' as const;
 
+  /**
+   * 业务幂等字段（R101-AI-25）
+   *
+   * 场景：同一供应商同日**两笔金额相同**的付款是合法业务（对应不同采购单/凭证）。
+   * 全量 payload 哈希剔除了 `remark` ⇒ 仅备注不同时会被误判为重复；声明业务字段后
+   * 以「供应商 + 金额 + 付款日 + 关联单号/凭证号/账号/备注」为身份，既不错杀也不漏杀。
+   */
+  readonly idempotencyKeyFields = [
+    'supplierId',
+    'supplierName',
+    'amount',
+    'paymentDate',
+    'paymentMethod',
+    'sourceNo',
+    'bankAccount',
+    'voucherNo',
+    'remark',
+  ] as const;
+
   readonly parameters = {
     type: 'object' as const,
     properties: {

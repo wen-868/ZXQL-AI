@@ -172,6 +172,26 @@ export interface ITool {
   readonly requiredTools?: string[];
   /** 工具作用域（可选，默认 mgmt；platform 仅总台对话暴露） */
   readonly scope?: ToolScope;
+  /**
+   * 业务幂等字段（可选，**声明式**；R101-AI-25）
+   *
+   * 声明本工具「业务身份」由哪些入参字段构成 ⇒ 幂等闸门对这些工具改用
+   * `sha256(tenant|tool|canonicalJson(仅这些字段))` 作键（key_source='business_key'），
+   * 而不是全量 payload 哈希 —— 目的是让**参数里含易变/无关字段**的工具不再因为
+   * 那些字段的措辞差异（或相反：因为被剔除的备注差异消失）被误判为同一次操作。
+   *
+   * 选取原则：
+   * - 只列**业务识别字段**（客户/供应商、金额、日期、单号、发票号/凭证号、备注等）；
+   * - 若某字段的差异意味着「这是两笔不同业务」（如备注、发票号），**应列入**——
+   *   漏列会让两笔合法业务共用同一幂等键而被误拦；
+   * - **不要**列流程噪音：`confirm` / `force` / `requestId` / `sessionId` / `timestamp`
+   *   （这些每跳都变，列入会让防重失效）；
+   * - 字段名须与 `parameters.properties` 的键一致（有 spec 守卫，防拼写漂移）；
+   * - 未声明 / 声明字段全部缺失 ⇒ 自动回落全量 payload 哈希（不崩、不放过）。
+   *
+   * 工具内部**不得**自行实现哈希逻辑（机制唯一收口在 IdempotencyGateService.buildKey）。
+   */
+  readonly idempotencyKeyFields?: readonly string[];
 
   /**
    * 执行工具

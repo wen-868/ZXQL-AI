@@ -23,6 +23,7 @@ import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 export type IdempotencyKeySource =
   | 'confirm_token' // 确认通道令牌（toolCall.id = confirm-<写审核令牌>）
   | 'explicit' // 调用方显式幂等键（options.idempotencyKey）
+  | 'business_key' // 工具声明的业务字段（idempotencyKeyFields，R101-AI-25：payload 兜底的提精版）
   | 'payload_hash'; // 业务参数规范化哈希（兜底）
 
 /** 幂等行状态（与迁移 status 列取值一致） */

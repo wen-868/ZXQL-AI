@@ -45,6 +45,24 @@ export class CreateExpenseTool implements ITool {
   readonly isWriteOperation = true;
   readonly risk = 'medium' as const;
 
+  /**
+   * 业务幂等字段（R101-AI-25）
+   *
+   * 场景：同一天向同一收款方报销**两笔金额相同**的费用是合法的 —— 靠发票号/备注区分。
+   * 全量 payload 哈希会剔除 `remark`（流程噪音清单）⇒ 两笔不同报销会被误判为同一笔。
+   * 声明为业务字段后：`remark`/`invoiceNo` 不同即视为不同业务；完全相同的重复提交仍判重复。
+   */
+  readonly idempotencyKeyFields = [
+    'expenseType',
+    'category',
+    'amount',
+    'payee',
+    'expenseDate',
+    'bankAccountId',
+    'invoiceNo',
+    'remark',
+  ] as const;
+
   readonly parameters = {
     type: 'object' as const,
     properties: {

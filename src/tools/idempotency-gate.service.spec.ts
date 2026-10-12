@@ -74,6 +74,17 @@ function asInFlight(d: IdempotencyDecision): InFlightDecision {
   return d;
 }
 
+/** 断言并收窄：rejected（显式键不合规，R101-AI-24） */
+function asRejected(
+  d: IdempotencyDecision,
+): Extract<IdempotencyDecision, { decision: 'rejected' }> {
+  expect(d.decision).toBe('rejected');
+  if (d.decision !== 'rejected') {
+    throw new Error(`期望 rejected，实际 ${d.decision}`);
+  }
+  return d;
+}
+
 /** 迁移表行（与 AiIdempotencyEntity 逐列对应） */
 interface FakeRow {
   id: string;
@@ -606,5 +617,290 @@ describe('IdempotencyGateService（阶段 3 幂等键）', () => {
       'payload_hash',
     ];
     expect(sources).toHaveLength(3);
+  });
+
+  /**
+   * R101-AI-24：显式幂等键校验（格式 + 长度上限 ⇒ 明确拒绝，不静默忽略）
+   */
+  describe('显式幂等键校验（R101-AI-24）', () => {
+    it.each([
+      ['太短（<8）', 'ERP-1', 5],
+      ['含空格/非法字符', 'ERP 2026#0001', 13],
+      ['首字符非字母数字', '-ERP20260001', 12],
+      ['超长（>128）', `K${'x'.repeat(128)}`, 129],
+    ])(
+      '%s ⇒ rejected + 明确错误，且不碰 Redis/不落库',
+      async (_label, bad, len) => {
+        const h = createHarness();
+
+        const decision = asRejected(
+          await h.gate.check(makeInput({ explicitKey: bad })),
+        );
+
+        expect(decision.result.success).toBe(false);
+        expect(decision.result.error).toContain('idempotencyKey 非法');
+        expect(decision.result.error).toContain(`长度 ${len}`);
+        expect(decision.result.suggestion).toContain(
+          '不传该字段则按确认令牌/业务参数指纹自动防重',
+        );
+        expect(h.redisSet).not.toHaveBeenCalled();
+        expect(h.repo.insert).not.toHaveBeenCalled();
+      },
+    );
+
+    it('合规键（8~128、字母数字开头、[A-Za-z0-9._:-]）⇒ explicit 分支生效', async () => {
+      const h = createHarness();
+      const key = 'ERP2026-0001.7f3a';
+
+      const decision = asProceed(
+        await h.gate.check(makeInput({ explicitKey: key })),
+      );
+
+      expect(decision.handle?.keySource).toBe('explicit');
+      expect(h.repo.rows[0].keySource).toBe('explicit');
+      // 显式键 TTL = 600s（与确认令牌同档；不改 buildKey 既有语义）
+      expect(
+        (h.redisSet.mock.calls[0] as [string, string, string, number])[3],
+      ).toBe(IDEMPOTENCY_REDIS_TTL_SEC);
+    });
+
+    it('同显式键两次 ⇒ 第二次回放（显式键真实生效）', async () => {
+      const h = createHarness();
+      const input = makeInput({ explicitKey: 'ERP2026-0001' });
+      await claimAndComplete(h, input);
+
+      const second = asReplay(await h.gate.check(input));
+
+      expect(second.result.idempotent_replay).toBe(true);
+      expect(h.repo.insert).toHaveBeenCalledTimes(1);
+    });
+
+    it('空串/未传 ⇒ 等同未传（回落 confirm_token），行为与接线前一致', async () => {
+      const h = createHarness();
+      const withEmpty = asProceed(
+        await h.gate.check(makeInput({ explicitKey: '' })),
+      );
+      expect(withEmpty.handle?.keySource).toBe('confirm_token');
+
+      const h2 = createHarness();
+      const notPassed = asProceed(await h2.gate.check(makeInput()));
+      expect(notPassed.handle?.keySource).toBe('confirm_token');
+      // 两者键完全相同 ⇒ 零行为变化
+      expect((h.redisSet.mock.calls[0] as [string])[0]).toBe(
+        (h2.redisSet.mock.calls[0] as [string])[0],
+      );
+    });
+  });
+
+  /**
+   * R101-AI-25：业务字段键（idempotencyKeyFields 声明式提精度）
+   *
+   * 收益定位：声明字段**包含**业务识别用的「易变字段」（如备注/发票号）⇒ 两笔
+   * 合法不同的业务不再被全量 payload 哈希（会剔除 remark）误判为同一笔；
+   * 声明字段全同 ⇒ 仍判重复（防真重复）；未声明工具行为零变化。
+   */
+  describe('业务字段键（R101-AI-25）', () => {
+    const KEY_FIELDS = [
+      'supplierId',
+      'amount',
+      'paymentDate',
+      'remark',
+    ] as const;
+    const BASE_ARGS = {
+      supplierId: 7,
+      supplierName: '五粮液经销商',
+      amount: 5000,
+      paymentDate: '2026-10-12',
+      paymentMethod: 'BANK',
+      remark: '采购单 A 付款',
+      confirm: true,
+      requestId: 'req-A',
+    };
+
+    it('反测 ①：同业务键 + 不同易变字段（备注）⇒ 不判重复（核心收益）', async () => {
+      const h = createHarness();
+      const first = asProceed(
+        await h.gate.check(
+          makeInput({
+            toolCallId: 'call_1',
+            keyFields: KEY_FIELDS,
+            args: BASE_ARGS,
+          }),
+        ),
+      );
+      expect(first.handle?.keySource).toBe('business_key');
+      await h.gate.complete(first.handle, {
+        success: true,
+        data: { paymentNo: 'P-0001' },
+      });
+
+      // 第二笔：业务字段相同，但备注不同（= 另一张采购单的付款）⇒ 必须放行
+      const second = asProceed(
+        await h.gate.check(
+          makeInput({
+            toolCallId: 'call_2',
+            keyFields: KEY_FIELDS,
+            args: { ...BASE_ARGS, remark: '采购单 B 付款' },
+          }),
+        ),
+      );
+
+      expect(second.handle).not.toBeNull();
+      expect(h.repo.rows).toHaveLength(2);
+      expect(h.repo.insert).toHaveBeenCalledTimes(2);
+    });
+
+    it('反测 ②：同业务键 + 同易变字段 ⇒ 仍判重复（防真重复）', async () => {
+      const h = createHarness();
+      const input = (id: string) =>
+        makeInput({ toolCallId: id, keyFields: KEY_FIELDS, args: BASE_ARGS });
+      const first = asProceed(await h.gate.check(input('call_1')));
+      await h.gate.complete(first.handle, {
+        success: true,
+        data: { paymentNo: 'P-0001' },
+      });
+
+      const second = asReplay(await h.gate.check(input('call_2')));
+
+      expect(second.result.idempotent_replay).toBe(true);
+      expect(second.result.data).toEqual({ paymentNo: 'P-0001' });
+      expect(h.repo.insert).toHaveBeenCalledTimes(1);
+    });
+
+    it('非声明字段（requestId/timestamp/无关字段）差异不影响业务键 ⇒ 仍判重复', async () => {
+      const h = createHarness();
+      const first = asProceed(
+        await h.gate.check(
+          makeInput({
+            toolCallId: 'call_1',
+            keyFields: KEY_FIELDS,
+            args: BASE_ARGS,
+          }),
+        ),
+      );
+      await h.gate.complete(first.handle, { success: true, data: {} });
+
+      const second = asReplay(
+        await h.gate.check(
+          makeInput({
+            toolCallId: 'call_2',
+            keyFields: KEY_FIELDS,
+            args: { ...BASE_ARGS, requestId: 'req-B', timestamp: 123 },
+          }),
+        ),
+      );
+
+      expect(second.result.idempotent_replay).toBe(true);
+    });
+
+    it('反测 ③：未声明工具 ⇒ 行为与现状一致（payload_hash，remark 仍被剔除）', async () => {
+      const h = createHarness();
+      const first = asProceed(
+        await h.gate.check(
+          makeInput({ toolCallId: 'call_1', args: BASE_ARGS }),
+        ),
+      );
+      expect(first.handle?.keySource).toBe('payload_hash');
+      await h.gate.complete(first.handle, { success: true, data: {} });
+
+      // 与已声明工具相反：仅备注不同 ⇒ 仍被判重复（AI-21 现状未变）
+      const second = asReplay(
+        await h.gate.check(
+          makeInput({
+            toolCallId: 'call_2',
+            args: { ...BASE_ARGS, remark: '采购单 B 付款' },
+          }),
+        ),
+      );
+
+      expect(second.result.idempotent_replay).toBe(true);
+    });
+
+    it('验收 5：声明字段全部缺失 ⇒ 回落 payload 兜底（不崩、不放过）', async () => {
+      const h = createHarness();
+      const decision = asProceed(
+        await h.gate.check(
+          makeInput({
+            toolCallId: 'call_1',
+            keyFields: KEY_FIELDS,
+            args: { unrelatedField: 1, confirm: true },
+          }),
+        ),
+      );
+
+      expect(decision.handle?.keySource).toBe('payload_hash');
+      expect(h.repo.rows[0].keySource).toBe('payload_hash');
+
+      // 同一兜底键再来一次 ⇒ 判重复（兜底仍然在防重，不是"放过"）
+      await h.gate.complete(decision.handle, { success: true, data: {} });
+      const second = asReplay(
+        await h.gate.check(
+          makeInput({
+            toolCallId: 'call_2',
+            keyFields: KEY_FIELDS,
+            args: { unrelatedField: 1, confirm: true },
+          }),
+        ),
+      );
+      expect(second.result.idempotent_replay).toBe(true);
+    });
+
+    it('声明字段部分缺失 ⇒ 仅用已传字段做指纹（缺失字段不参与）', async () => {
+      const h = createHarness();
+      const d = asProceed(
+        await h.gate.check(
+          makeInput({
+            toolCallId: 'call_1',
+            keyFields: KEY_FIELDS,
+            args: { supplierId: 7, amount: 5000, confirm: true },
+          }),
+        ),
+      );
+      expect(d.handle?.keySource).toBe('business_key');
+
+      // 补齐两个缺失字段后（业务身份变化）⇒ 视为不同操作，可再次认领
+      const second = asProceed(
+        await h.gate.check(
+          makeInput({
+            toolCallId: 'call_2',
+            keyFields: KEY_FIELDS,
+            args: {
+              supplierId: 7,
+              amount: 5000,
+              paymentDate: '2026-10-12',
+              remark: 'x',
+              confirm: true,
+            },
+          }),
+        ),
+      );
+      expect(second.handle).not.toBeNull();
+    });
+
+    it('explicit / confirm_token 优先级不受影响（前两档语义零变化）', async () => {
+      const h = createHarness();
+      const byExplicit = asProceed(
+        await h.gate.check(
+          makeInput({
+            keyFields: KEY_FIELDS,
+            explicitKey: 'ERP2026-0001',
+            args: BASE_ARGS,
+          }),
+        ),
+      );
+      expect(byExplicit.handle?.keySource).toBe('explicit');
+
+      const h2 = createHarness();
+      const byToken = asProceed(
+        await h2.gate.check(
+          makeInput({
+            keyFields: KEY_FIELDS,
+            toolCallId: 'confirm-wg_1',
+            args: BASE_ARGS,
+          }),
+        ),
+      );
+      expect(byToken.handle?.keySource).toBe('confirm_token');
+    });
   });
 });

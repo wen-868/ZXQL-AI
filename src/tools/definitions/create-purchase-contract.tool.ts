@@ -44,6 +44,24 @@ export class CreatePurchaseContractTool implements ITool {
   readonly isWriteOperation = true;
   readonly risk = 'medium' as const;
 
+  /**
+   * 业务幂等字段（R101-AI-25）
+   *
+   * 场景：同一供应商可能签**多份金额相同、名称相似**的合同（不同起止期/备注）。
+   * 全量 payload 哈希剔除 `remark` ⇒ 仅备注不同时误判重复；声明业务字段后
+   * 以「供应商 + 合同名 + 类型 + 金额 + 签订/起止日期 + 备注」为身份。
+   */
+  readonly idempotencyKeyFields = [
+    'supplierId',
+    'contractName',
+    'contractType',
+    'totalAmount',
+    'signDate',
+    'startDate',
+    'endDate',
+    'remark',
+  ] as const;
+
   readonly parameters = {
     type: 'object' as const,
     properties: {

@@ -45,6 +45,8 @@ class FakeWriteTool implements ITool {
   readonly description = '测试写工具（创建销售单）';
   readonly category = 'order' as const;
   readonly isWriteOperation = true;
+  /** R101-AI-25：声明式业务幂等字段（用于断言 executor 透传给闸门） */
+  readonly idempotencyKeyFields = ['supplierId', 'amount', 'remark'] as const;
   readonly parameters = {
     type: 'object' as const,
     properties: {
@@ -292,6 +294,65 @@ describe('ToolExecutor × 幂等闸门（R101-AI-21）', () => {
     expect(h.gate.complete).toHaveBeenCalledWith(
       null,
       expect.objectContaining({ success: true }),
+    );
+  });
+
+  it('R101-AI-24：闸门拒绝（显式键不合规）⇒ 不执行工具，把明确错误原样返回给调用方', async () => {
+    const h = createHarness();
+    h.gate.check.mockResolvedValueOnce({
+      decision: 'rejected',
+      handle: null,
+      result: {
+        success: false,
+        error: 'idempotencyKey 非法：显式幂等键不合规（要求 8~128 字符…）',
+        suggestion: '请改用业务唯一键（如 ERP 单号/工单号）',
+      },
+    });
+
+    const result = await h.executor.executeToolCall(
+      makeToolCall('createSalesOrder', {
+        items: [{ skuId: 'S1' }],
+        confirm: true,
+      }),
+      CTX,
+      { allowConfirm: true, idempotencyKey: 'ERP-1' },
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('idempotencyKey 非法');
+    expect(result.suggestion).toContain('业务唯一键');
+    expect(h.tool.execute).not.toHaveBeenCalled();
+    expect(h.gate.complete).not.toHaveBeenCalled();
+    expect(h.metrics.recordToolCall).toHaveBeenCalledWith(
+      'createSalesOrder',
+      'fail',
+    );
+    // 显式键确实被透传给闸门（生产接线证据）
+    expect(h.gate.check).toHaveBeenCalledWith(
+      expect.objectContaining({ explicitKey: 'ERP-1' }),
+    );
+  });
+
+  it('R101-AI-25：工具声明的业务幂等字段透传给闸门（声明式，工具内不写哈希）', async () => {
+    const h = createHarness();
+    h.gate.check.mockResolvedValueOnce({ decision: 'proceed', handle: HANDLE });
+
+    await h.executor.executeToolCall(
+      makeToolCall('createSalesOrder', {
+        supplierId: 7,
+        amount: 5000,
+        remark: 'A',
+        confirm: true,
+      }),
+      CTX,
+      { allowConfirm: true },
+    );
+
+    expect(h.gate.check).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'createSalesOrder',
+        keyFields: ['supplierId', 'amount', 'remark'],
+      }),
     );
   });
 });

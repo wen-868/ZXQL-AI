@@ -92,6 +92,23 @@ export class CreateCustomerTool implements ITool {
   readonly isWriteOperation = true;
   readonly risk = 'medium' as const;
 
+  /**
+   * 业务幂等字段（R101-AI-25）
+   *
+   * 场景：同名客户可能开**多家不同门店/不同结算方式**的档案（合法），只有"名称+电话+
+   * 类型+地址+结算+授信+备注"全同才是真重复。全量 payload 哈希剔除 `remark` ⇒ 仅备注
+   * 不同即被误判；声明业务字段后按业务身份判定。
+   */
+  readonly idempotencyKeyFields = [
+    'name',
+    'phone',
+    'customerType',
+    'address',
+    'settlementType',
+    'creditLimit',
+    'remark',
+  ] as const;
+
   readonly parameters = {
     type: 'object' as const,
     properties: {
