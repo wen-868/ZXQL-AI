@@ -52,8 +52,20 @@ export class ToolExecutor {
    *
    * @param toolCall LLM 返回的工具调用请求（含 id / function.name / function.arguments）
    * @param context  执行上下文（含 tenantId）
-   * @param options  allowConfirm=确认通道放行；idempotencyKey=调用方显式幂等键（可选）
+   * @param options  allowConfirm=确认通道放行（唯一允许 confirm=true 的通道）；
+   *                 idempotencyKey=**调用方显式幂等键**（R101-AI-24，可选）
    * @returns 工具执行结果（永不抛异常）
+   *
+   * **什么时候该传 `idempotencyKey`**（仅对 `isWriteOperation && confirm===true` 的**真实执行**生效）：
+   * - 调用方本身有**业务唯一键**时（ERP 单号 / 工单号 / 外部提交 id）——用它做幂等键比
+   *   服务端按参数指纹猜更准：同一业务操作无论重试多少次、参数是否被轻微改写，都能命中同一条幂等行；
+   * - 典型场景：外部系统对接（重试/超时重发）、人工在管理端**重复提交同一笔单据**、
+   *   编排链在挂起-确认之间需要保持同一业务身份；
+   * - **不要**用作分布式锁或长时间业务互斥（Redis TTL 600s、MySQL 行保留 30 天，语义是"防重复提交"）；
+   * - **不要**传每次调用都变的随机串/UUID（会让幂等键失去意义，等于没有防重）；
+   * - 格式：8~128 字符、字母数字开头、仅 `A-Z a-z 0-9 . _ : -`；不合规会被闸门**明确拒绝**
+   *   （`success:false` + `error` 说明），不会被静默忽略；不传则该次执行按
+   *   「确认令牌 → 业务参数指纹」自动取键，行为与接线前完全一致。
    */
   async executeToolCall(
     toolCall: ToolCall,
@@ -148,7 +160,8 @@ export class ToolExecutor {
     // 3.6 R101-AI-21 幂等闸门（阶段 3）：仅对**真实执行**的写工具生效
     //     - 条件：isWriteOperation && args.confirm === true（预览是纯计算，不消耗幂等键）
     //     - 位置：熔断之后（熔断期不该占用键）、tool.execute 之前（认领必须先于副作用）
-    //     - 行为：proceed=已认领，执行后回填；replay=回放既有结果；in_flight=拒绝重复执行
+    //     - 行为：proceed=已认领，执行后回填；replay=回放既有结果；in_flight=拒绝重复执行；
+    //             rejected=显式幂等键不合规（R101-AI-24，明确报错而非静默忽略）
     let idem: IdempotencyDecision | null = null;
     if (tool.isWriteOperation && args.confirm === true) {
       idem = await this.idempotencyGate.check({
@@ -157,8 +170,14 @@ export class ToolExecutor {
         toolCallId: toolCall.id,
         context,
         explicitKey: options?.idempotencyKey,
+        // R101-AI-25：工具声明式业务幂等字段（未声明 ⇒ undefined ⇒ 闸门走 payload 兜底）
+        keyFields: tool.idempotencyKeyFields,
       });
-      if (idem.decision === 'replay' || idem.decision === 'in_flight') {
+      if (
+        idem.decision === 'replay' ||
+        idem.decision === 'in_flight' ||
+        idem.decision === 'rejected'
+      ) {
         const durationMs = Date.now() - start;
         this.logger.warn(
           `写工具被幂等闸门拦截（${idem.decision}）：tool=${toolName} tenant=${context.tenantId} ${durationMs}ms`,

@@ -50,6 +50,22 @@ const CLEANUP_BATCH = 5000;
 const CLEANUP_MAX_LOOPS = 200;
 
 /**
+ * 显式幂等键规则（**唯一真源**：HTTP DTO 与闸门共用同一正则，避免两处漂移）
+ *
+ * - 长度 8~128 字符（防止滥用/超长键打爆 Redis 键空间与调用方内存）
+ * - 首字符为字母或数字；其余仅允许 `A-Z a-z 0-9 . _ : -`（业务单号常见字符集）
+ * - 键最终会 sha256 落库（`idem_key CHAR(64)`），故长度上限是**卫生约束**而非索引约束
+ */
+export const MAX_EXPLICIT_KEY_LENGTH = 128;
+export const MIN_EXPLICIT_KEY_LENGTH = 8;
+export const EXPLICIT_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
+
+/** 显式键是否合规（R101-AI-24） */
+export function isValidExplicitKey(raw: string | undefined): boolean {
+  return typeof raw === 'string' && EXPLICIT_KEY_PATTERN.test(raw);
+}
+
+/**
  * 参数规范化时剔除的易变/流程字段（顶层）
  *
  * `confirm`/`force` 是流程开关，`requestId`/`sessionId`/`timestamp` 每次调用都不同，
@@ -74,6 +90,13 @@ export interface IdempotencyCheckInput {
   context: ToolContext;
   /** 调用方显式幂等键（优先级最高） */
   explicitKey?: string;
+  /**
+   * 工具声明的业务幂等字段（可选，声明式；R101-AI-25）
+   *
+   * 由 `ToolExecutor` 从 `tool.idempotencyKeyFields` 透传 ⇒ 有值时用「业务字段指纹」
+   * 替代全量 payload 哈希（key_source='business_key'）；全部缺失 ⇒ 回落 payload 兜底。
+   */
+  keyFields?: readonly string[];
 }
 
 /** 认领句柄（仅"已认领"时非空；回放/处理中/直通均为 null） */
@@ -89,7 +112,8 @@ export interface IdempotencyHandle {
 export type IdempotencyDecision =
   | { decision: 'proceed'; handle: IdempotencyHandle | null }
   | { decision: 'replay'; result: ToolResult; handle: null }
-  | { decision: 'in_flight'; result: ToolResult; handle: null };
+  | { decision: 'in_flight'; result: ToolResult; handle: null }
+  | { decision: 'rejected'; result: ToolResult; handle: null };
 
 @Injectable()
 export class IdempotencyGateService {
@@ -236,6 +260,28 @@ export class IdempotencyGateService {
   private async runGate(
     input: IdempotencyCheckInput,
   ): Promise<IdempotencyDecision> {
+    // ⓪ 显式键合规校验（R101-AI-24）：不合规 ⇒ 明确拒绝（不落 Redis/不落库）
+    //    注意：空串视同"未传"，回落 confirm_token / payload_hash，行为与接线前一致
+    if (input.explicitKey && !isValidExplicitKey(input.explicitKey)) {
+      const reason =
+        `显式幂等键不合规（要求 ${MIN_EXPLICIT_KEY_LENGTH}~${MAX_EXPLICIT_KEY_LENGTH} 字符、字母数字开头、` +
+        `仅可用 A-Z a-z 0-9 . _ : -）：长度 ${input.explicitKey.length}`;
+      this.logger.warn(
+        `幂等闸门拒绝执行（显式键不合规）：tool=${input.toolName} tenant=${input.context.tenantId} ${reason}`,
+      );
+      return {
+        decision: 'rejected',
+        handle: null,
+        result: {
+          success: false,
+          error: `idempotencyKey 非法：${reason}`,
+          suggestion:
+            '请改用业务唯一键（如 ERP 单号/工单号，8~128 字符、字母数字开头）；' +
+            '不传该字段则按确认令牌/业务参数指纹自动防重',
+        },
+      };
+    }
+
     const { idemKey, keySource, ttlSec } = this.buildKey(input);
     const tenantId = input.context.tenantId;
     const redisKey = `ai:idem:${tenantId}:${input.toolName}:${idemKey}`;
@@ -402,7 +448,16 @@ export class IdempotencyGateService {
     };
   }
 
-  /** 幂等键 = sha256(tenant_id | tool_name | key_material)（方案 §1.2） */
+  /**
+   * 幂等键 = sha256(tenant_id | tool_name | key_material)（方案 §1.2）
+   *
+   * 优先级（R101-AI-25 后共四档；前两档语义**未改**）：
+   * 1. `explicit`：调用方显式键（600s）
+   * 2. `confirm_token`：确认通道令牌（600s）
+   * 3. `business_key`：工具声明了 `idempotencyKeyFields` **且至少一个声明字段有值**
+   *    ⇒ 只用这些业务字段做指纹（R101-AI-25，TTL 同 payload 档 60s）
+   * 4. `payload_hash`：全量参数规范化哈希（兜底，60s）
+   */
   private buildKey(input: IdempotencyCheckInput): {
     idemKey: string;
     keySource: IdempotencyKeySource;
@@ -425,8 +480,24 @@ export class IdempotencyGateService {
       keySource = 'confirm_token';
       ttlSec = IDEMPOTENCY_REDIS_TTL_SEC;
     } else {
-      material = `payload:${this.canonicalJson(input.args)}`;
-      keySource = 'payload_hash';
+      const business = this.pickBusinessFields(input.args, input.keyFields);
+      if (business) {
+        // 业务字段指纹（提精）：只取声明字段，流程噪音天然不参与
+        material = `business:${business.json}`;
+        keySource = 'business_key';
+        this.logger.debug(
+          `幂等键走业务字段：tool=${input.toolName} fields=${business.present.join(',')}`,
+        );
+      } else {
+        // 兜底（未声明，或声明字段全缺失）：与 AI-21 完全一致
+        material = `payload:${this.canonicalJson(input.args)}`;
+        keySource = 'payload_hash';
+        if (input.keyFields?.length) {
+          this.logger.debug(
+            `幂等键回落 payload 兜底（声明字段均未传）：tool=${input.toolName} declared=${input.keyFields.join(',')}`,
+          );
+        }
+      }
       ttlSec = IDEMPOTENCY_PAYLOAD_TTL_SEC;
     }
 
@@ -436,12 +507,47 @@ export class IdempotencyGateService {
     return { idemKey, keySource, ttlSec };
   }
 
-  /** 业务参数规范化（键排序 + 数值/字符串归一 + 剔除易变字段），保证同义同键 */
-  private canonicalJson(args: Record<string, unknown>): string {
-    return JSON.stringify(this.canonicalize(args));
+  /**
+   * 取工具声明的业务字段子集（R101-AI-25）
+   *
+   * @returns null = 未声明 或 声明字段在本次参数中**全部缺失**（⇒ 调用方回落 payload 兜底）
+   */
+  private pickBusinessFields(
+    args: Record<string, unknown>,
+    keyFields?: readonly string[],
+  ): { json: string; present: string[] } | null {
+    if (!keyFields || keyFields.length === 0) {
+      return null;
+    }
+    const picked: Record<string, unknown> = {};
+    const present: string[] = [];
+    for (const field of keyFields) {
+      const value = args[field];
+      if (value === undefined) {
+        continue; // 缺失字段不参与指纹（不崩、也不把 undefined 序列化进去）
+      }
+      picked[field] = value;
+      present.push(field);
+    }
+    if (present.length === 0) {
+      return null;
+    }
+    // 声明字段是**业务身份**，不做流程噪音剔除（`remark` 等正是声明要保留的区分字段）
+    return { json: JSON.stringify(this.canonicalize(picked, false)), present };
   }
 
-  private canonicalize(value: unknown): unknown {
+  /** 业务参数规范化（键排序 + 数值/字符串归一 + 剔除易变字段），保证同义同键 */
+  private canonicalJson(args: Record<string, unknown>): string {
+    return JSON.stringify(this.canonicalize(args, true));
+  }
+
+  /**
+   * 归一化
+   *
+   * @param stripVolatile true = 剔除流程噪音字段（payload 兜底档用）；
+   *        false = 全量保留（业务字段档用：声明字段即业务身份，含 remark）
+   */
+  private canonicalize(value: unknown, stripVolatile: boolean): unknown {
     if (value === null || typeof value !== 'object') {
       if (typeof value === 'string') {
         return value.trim();
@@ -455,19 +561,19 @@ export class IdempotencyGateService {
       return value;
     }
     if (Array.isArray(value)) {
-      return value.map((item) => this.canonicalize(item));
+      return value.map((item) => this.canonicalize(item, stripVolatile));
     }
     const source = value as Record<string, unknown>;
     const out: Record<string, unknown> = {};
     for (const key of Object.keys(source).sort()) {
-      if (VOLATILE_ARG_FIELDS.has(key)) {
+      if (stripVolatile && VOLATILE_ARG_FIELDS.has(key)) {
         continue;
       }
       const item = source[key];
       if (item === undefined) {
         continue;
       }
-      out[key] = this.canonicalize(item);
+      out[key] = this.canonicalize(item, stripVolatile);
     }
     return out;
   }

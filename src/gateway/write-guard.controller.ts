@@ -5,9 +5,10 @@
  * 原则：读全自动、写全审核、令牌确认。
  *
  * 端点：
- * - POST /api/ai/agent/confirm  { token, action: 'confirm'|'cancel', remark? }
+ * - POST /api/ai/agent/confirm  { token, action: 'confirm'|'cancel', remark?, idempotencyKey? }
  *   - confirm：令牌校验 → 高危二次确认（needsSecondConfirm=true 时不执行，等待再次确认）
  *              → 构造 confirm=true 参数执行工具 → 注册 3 分钟撤销窗口
+ *              →（R101-AI-24）可带 `idempotencyKey` 显式幂等键：同一业务操作重复确认 ⇒ 回放既有结果
  *   - cancel：取消待确认操作（pending / first_confirmed 可取消）
  *
  * 与旧端点（/api/chat/confirmations/:id/*）等价：confirmationId 即 WriteGuard token，
@@ -85,6 +86,8 @@ export class WriteGuardController {
       tenantId,
       toolContext,
       dto.remark,
+      // R101-AI-24：调用方显式幂等键（可选）→ 透传到真实执行的幂等闸门（key_source='explicit'）
+      dto.idempotencyKey,
     );
 
     // 批次2 Agent 内核：确认执行后回写计划步骤（若该令牌属于计划写步骤）

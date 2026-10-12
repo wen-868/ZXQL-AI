@@ -370,6 +370,9 @@ export class ConfirmationService {
    * @param tenantId    租户 ID
    * @param toolContext 工具执行上下文
    * @param remark      执行备注（可选）
+   * @param idempotencyKey 调用方显式幂等键（可选，R101-AI-24）：
+   *        有业务唯一键（ERP 单号/工单号）时传入 ⇒ 同一业务操作重复确认回放首次结果；
+   *        不传 ⇒ 按「确认令牌 → 业务参数指纹」自动取键（与接线前行为一致）
    * @returns 执行结果
    */
   async confirmAndExecute(
@@ -377,6 +380,7 @@ export class ConfirmationService {
     tenantId: string,
     toolContext: ToolContext,
     remark?: string,
+    idempotencyKey?: string,
   ): Promise<ConfirmAndExecuteResult> {
     const confirmed = await this.confirm(
       token,
@@ -393,7 +397,12 @@ export class ConfirmationService {
         message: '高危操作需二次确认，请再次确认执行',
       };
     }
-    return this.executeConfirmed(confirmed.confirmation, toolContext, remark);
+    return this.executeConfirmed(
+      confirmed.confirmation,
+      toolContext,
+      remark,
+      idempotencyKey,
+    );
   }
 
   /**
@@ -402,12 +411,14 @@ export class ConfirmationService {
    * @param record      已确认的待确认记录
    * @param toolContext 工具执行上下文
    * @param remark      执行备注（可选）
+   * @param idempotencyKey 调用方显式幂等键（可选，R101-AI-24，透传给幂等闸门）
    * @returns 执行结果
    */
   async executeConfirmed(
     record: PendingConfirmation,
     toolContext: ToolContext,
     remark?: string,
+    idempotencyKey?: string,
   ): Promise<ConfirmAndExecuteResult> {
     if (!this.executor) {
       return { success: false, error: '工具执行器不可用（服务未装配）' };
@@ -433,7 +444,8 @@ export class ConfirmationService {
       },
       toolContext,
       // 写全审核确认通道：唯一允许 confirm=true 的调用方（executor 强制门放行）
-      { allowConfirm: true },
+      // R101-AI-24：调用方显式幂等键（若有）透传给闸门（key_source='explicit'，优先级最高）
+      { allowConfirm: true, idempotencyKey },
     );
 
     if (!result.success) {
