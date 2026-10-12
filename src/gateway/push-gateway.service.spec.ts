@@ -196,4 +196,51 @@ describe('PushGatewayService', () => {
     await waitClose(socket);
     expect(socket.readyState).toBe(WebSocket.CLOSED);
   });
+
+  /**
+   * R101-AI-26 ① 反测：心跳定时器必须随模块销毁被清理
+   *
+   * 缺陷背景：`close()` 能清 `heartbeatTimer`，但此前**全仓零调用方** ⇒ 应用关闭时
+   * 定时器不会被清理（`setInterval` 一直挂到进程退出）。修复 = 实现 `OnModuleDestroy`。
+   *
+   * 反测方式（假定时器 + clearInterval spy 双重断言）：
+   * 1. 注入假 client，推进 30s ⇒ 心跳触发（ping 1 次）——证明定时器确实在跑；
+   * 2. 调用 `onModuleDestroy()` ⇒ `clearInterval` 被调用；
+   * 3. 再推进 120s ⇒ ping 次数不再增加 —— 证明"销毁后定时器不再触发"。
+   * 若把 `implements OnModuleDestroy` / `onModuleDestroy()` 去掉，本用例第 3 步会红。
+   */
+  it('R101-AI-26①：onModuleDestroy 停止心跳定时器（销毁后不再触发）', async () => {
+    const started = await startHttpServer();
+    jest.useFakeTimers();
+    const clearSpy = jest.spyOn(global, 'clearInterval');
+    try {
+      const svc = makeService();
+      svc.init(started.server);
+
+      const server = (svc as unknown as { server: { clients: Set<unknown> } })
+        .server;
+      const fakeClient = {
+        isAlive: true,
+        ping: jest.fn(),
+        terminate: jest.fn(),
+      };
+      server.clients.add(fakeClient);
+
+      jest.advanceTimersByTime(30_000);
+      expect(fakeClient.ping).toHaveBeenCalledTimes(1);
+
+      svc.onModuleDestroy();
+
+      expect(clearSpy).toHaveBeenCalled();
+      jest.advanceTimersByTime(120_000);
+      expect(fakeClient.ping).toHaveBeenCalledTimes(1);
+      expect(svc.onlineTenantCount()).toBe(0);
+      // 幂等：重复销毁不抛
+      expect(() => svc.onModuleDestroy()).not.toThrow();
+    } finally {
+      clearSpy.mockRestore();
+      jest.useRealTimers();
+      started.server.close();
+    }
+  });
 });

@@ -11,7 +11,8 @@
 --
 -- 二、键与状态语义（与方案 §1 一致）
 --   - idem_key = sha256(tenant_id + '|' + tool_name + '|' + key_material)，CHAR(64) hex。
---   - key_source 记录键的来源，便于评估键质量：confirm_token / explicit / payload_hash。
+--   - key_source 记录键的来源，便于评估键质量：confirm_token / explicit / business_key / payload_hash。
+--     （business_key 由 R101-AI-25 引入：工具声明 idempotencyKeyFields 时以业务字段指纹取键）
 --   - status：in_flight（已认领、执行中）/ succeeded（可回放 result_json）/ failed（可重试）。
 --   - ⚠️ 唯一键是并发仲裁点：认领必须发生在 tool.execute 之前（INSERT in_flight），
 --     冲突方读既有行后回放或返回「处理中」，不得直接执行。
@@ -34,7 +35,7 @@ CREATE TABLE IF NOT EXISTS t_ai_idempotency (
   tenant_id     VARCHAR(36)  NOT NULL COMMENT '租户ID（幂等键第一段，多租户隔离）',
   tool_name     VARCHAR(64)  NOT NULL COMMENT '工具名（幂等键第二段）',
   idem_key      CHAR(64)     NOT NULL COMMENT '幂等键 sha256 hex（第三段）',
-  key_source    VARCHAR(16)  NOT NULL COMMENT '键来源 confirm_token/explicit/payload_hash',
+  key_source    VARCHAR(16)  NOT NULL COMMENT '键来源 confirm_token/explicit/business_key/payload_hash',
   status        VARCHAR(16)  NOT NULL DEFAULT 'in_flight' COMMENT '状态 in_flight/succeeded/failed',
   result_json   MEDIUMTEXT   NULL COMMENT '首次执行结果（ToolResult JSON，供重复请求回放）',
   error_text    VARCHAR(512) NULL COMMENT '失败摘要（脱敏，仅排障）',

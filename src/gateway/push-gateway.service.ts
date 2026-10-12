@@ -18,7 +18,7 @@
  *
  * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-15
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Server as HttpServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -51,7 +51,7 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 const CLOSE_CODE_UNAUTHORIZED = 4401;
 
 @Injectable()
-export class PushGatewayService {
+export class PushGatewayService implements OnModuleDestroy {
   private readonly logger = new Logger(PushGatewayService.name);
   private readonly jwtSecret: string;
   private server?: WebSocketServer;
@@ -235,6 +235,10 @@ export class PushGatewayService {
 
   /**
    * 关闭全部连接并停止心跳（优雅关闭 / 测试清理用）
+   *
+   * R101-AI-26 ①：本方法此前**全仓零调用方** ⇒ 心跳 `setInterval` 在应用关闭时
+   * 不会被清理（进程被 kill 时靠 `unref` 兜底，但正常 shutdown/测试场景会泄漏定时器）。
+   * 现由 `onModuleDestroy` 调用；**业务行为零变化**（连接/心跳/广播逻辑未改）。
    */
   close(): void {
     if (this.heartbeatTimer) {
@@ -245,5 +249,15 @@ export class PushGatewayService {
     this.server?.close();
     this.server = undefined;
     this.tenants.clear();
+  }
+
+  /**
+   * 应用关闭钩子（R101-AI-26 ①）：清理心跳定时器与全部连接
+   *
+   * 照 `employee.service.ts:385` 的 `OnModuleDestroy` 现成范式；不改变任何
+   * WebSocket 业务行为（仅在模块销毁时调用上面已有的 `close()`）。
+   */
+  onModuleDestroy(): void {
+    this.close();
   }
 }

@@ -98,8 +98,10 @@ import {
  *
  * 14 = MAX_PLAN_STEPS(12) + 规划首轮 + 总结轮：G-A 引入主链路规划后，
  * 复杂目标最多 12 步，上限必须 ≥ 步数否则多步计划会中途撞 AI_009。
+ *
+ * R101-AI-26 ⑥：导出常量，供同名 spec 断言"达到轮次即退出"（避免测试里写死 14 与实现漂移）。
  */
-const MAX_ITERATIONS = 14;
+export const MAX_AGENT_ITERATIONS = 14;
 
 /** 将未知类型安全转为展示文本：字符串/数字/布尔原样返回，其余按兜底值处理（避免 [object Object]） */
 function toText(value: unknown, fallback = ''): string {
@@ -769,7 +771,7 @@ export class Orchestrator {
       let iteration = 0;
       let fallbackUsed: FallbackMeta | undefined;
 
-      for (; iteration < MAX_ITERATIONS; iteration++) {
+      for (; iteration < MAX_AGENT_ITERATIONS; iteration++) {
         this.logger.debug(`Agent Loop 第 ${iteration + 1} 轮`);
 
         // 调用 LLM（流式 + P1-3 降级链：云端默认 → 本地 Ollama 兜底 → 备用云端）
@@ -1118,15 +1120,15 @@ export class Orchestrator {
         };
       }
 
-      if (iteration >= MAX_ITERATIONS) {
+      if (iteration >= MAX_AGENT_ITERATIONS) {
         this.logger.warn(
-          `Agent Loop 达到最大迭代次数 ${MAX_ITERATIONS}，强制终止`,
+          `Agent Loop 达到最大迭代次数 ${MAX_AGENT_ITERATIONS}，强制终止`,
         );
         // B7 文档 11.5 AI_009：循环超限向前端下发明确错误事件
         yield {
           type: 'error',
           code: 'AI_009',
-          message: `Agent 循环超过 ${MAX_ITERATIONS} 轮上限，已强制终止；请简化请求或检查工具定义`,
+          message: `Agent 循环超过 ${MAX_AGENT_ITERATIONS} 轮上限，已强制终止；请简化请求或检查工具定义`,
         };
       }
 

@@ -3,7 +3,9 @@
  *
  * 职责：
  * 1. 配置 TypeORM 连接 MySQL（与现有 Express.js backend 共享同一数据库实例）
- * 2. 注册所有 AI 底座 Entity（5 张表）
+ * 2. 注册所有 AI 底座 Entity（**清单以下方 `AI_ENTITIES` 常量为准，不写死数量**——
+ *    历史上写作"5 张表"，随 Entity 增加已漂移到实际 20 项；数量会随新增再次漂移，
+ *    故改为以清单为准的自校验表述）
  * 3. 导出 Entity Repository 供 BridgeModule / TenantModule / GatewayModule 注入
  *
  * 连接配置来源：.env 环境变量（DB_HOST / DB_PORT / DB_USERNAME / DB_PASSWORD / DB_DATABASE）

@@ -64,9 +64,19 @@ export interface DeadLetterRecord {
 
 /**
  * 死信接收回调。
- * 第一阶段实现：仅 logger.error + 指标 + 回调；回调由调用方/全局默认提供。
- * TODO(阶段1-批次2)：接入真正的持久队列（Redis Stream / DB 死信表）实现重放，
- * 当前实现不具备进程重启后的可恢复能力，请勿视为最终形态。
+ *
+ * 现有实现（**已落地，不再是 TODO**）：
+ * - 生产 sink 在启动阶段注册（`src/ops/dead-letter-sink.service.ts:onModuleInit`），
+ *   死信落库 `t_ai_dead_letter`（迁移 017）；
+ * - 落库失败（MySQL 不可用/超时）⇒ 死信转入 Redis Stream 故障缓冲
+ *   （`src/ops/dead-letter-replay.service.ts`），`@Cron` 定期补录并 ACK；
+ * - 调用方未提供 sink 且全局未注册时：仅 `logger.error` + 指标
+ *   （`ai_error_semantics_total{level,op,result}`），不阻断主流程。
+ *
+ * **仍然成立的限制**（已知，勿当最终形态）：
+ * 1. 重放队列的重试预算在**进程内**（attempts/dueAt 为内存 Map）⇒ 进程重启后该条重试次数重置；
+ * 2. 终态流 `ai:dead_letter:replay:terminal` 无自动清理（仅 MAXLEN 截断），需人工处理；
+ * 3. 重放队列未做 `XAUTOCLAIM` ⇒ 消费者实例宕机时其待办条目要等该实例恢复才被消费（多实例场景需补）。
  */
 export type DeadLetterSink = (record: DeadLetterRecord) => void | Promise<void>;
 
