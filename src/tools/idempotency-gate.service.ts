@@ -1,0 +1,517 @@
+/**
+ * IdempotencyGateService — 写工具幂等闸门（阶段 3 幂等键，R101-AI-21）
+ *
+ * 方案：`docs/plans/阶段3-幂等键-方案.md`（R101-AI-20，业主批准 A/B 口径）
+ * 插入点：`ToolExecutor.executeToolCall()` 熔断之后、`tool.execute()` 之前；
+ *         条件 `tool.isWriteOperation === true && args.confirm === true`（**预览不消耗键**）。
+ *
+ * 两层结构（严格按方案 §3.1/§3.2）：
+ *  1. Redis `SET key 1 NX EX <ttl>` —— 前置快筛；不可用 ⇒ **fail-open**（degrade 口径 + 指标）
+ *  2. MySQL `INSERT (status='in_flight')` —— **认领式**最终防线；唯一键是并发仲裁点
+ *     冲突 ⇒ 读既有行：succeeded ⇒ **回放 + idempotent_replay 标记**（业主裁定 A）
+ *                        in_flight ⇒ 返回「处理中」，不执行
+ *                        failed    ⇒ 允许同键重试（重新认领）
+ *     MySQL 不可用（非唯一键冲突）⇒ **fail-open**（裁定 B：可用性优先）+ 死信/指标
+ *
+ * 止血开关：`IDEMPOTENCY_ENABLED`（默认开）；关闭时直通**并落 warn 日志**（不静默）。
+ *
+ * 负责人: 阿坚 | 创建日期: 2026-10-12
+ */
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { DataSource, LessThan, Repository } from 'typeorm';
+import { createHash } from 'crypto';
+import {
+  AiIdempotencyEntity,
+  IdempotencyKeySource,
+} from '../database/entities/ai-idempotency.entity';
+import { RedisProvider } from '../common/redis.provider';
+import { bestEffort, degrade } from '../common/error-semantics';
+import type { ToolContext, ToolResult } from './tool.interface';
+
+/** 确认通道 toolCall.id 前缀（`confirmation.service.ts` 构造 `confirm-<写审核令牌>`） */
+export const CONFIRM_TOOLCALL_PREFIX = 'confirm-';
+
+/** 清理任务（30 天批量清理 + 陈旧 in_flight 看护）；每日 03:00，与方案 §4 一致 */
+export const IDEMPOTENCY_CLEANUP_CRON = '0 3 * * *';
+/** 命名任务（与 R101-AI-17 同款 @Cron 模式；便于 ScheduleRegistry 断言） */
+export const IDEMPOTENCY_CLEANUP_JOB_NAME = 'idempotency-cleanup-expired';
+
+/** 幂等键 Redis TTL：令牌/显式键 600s；payload_hash 兜底键 60s（方案 §1.3） */
+export const IDEMPOTENCY_REDIS_TTL_SEC = 600;
+export const IDEMPOTENCY_PAYLOAD_TTL_SEC = 60;
+/** 幂等行保留期（天）与 in_flight 超时看护（毫秒） */
+export const IDEMPOTENCY_RETENTION_DAYS = 30;
+export const IDEMPOTENCY_IN_FLIGHT_TIMEOUT_MS = 10 * 60 * 1000;
+/** 清理批量大小与世界循环上限（避免长事务/死循环） */
+const CLEANUP_BATCH = 5000;
+const CLEANUP_MAX_LOOPS = 200;
+
+/**
+ * 参数规范化时剔除的易变/流程字段（顶层）
+ *
+ * `confirm`/`force` 是流程开关，`requestId`/`sessionId`/`timestamp` 每次调用都不同，
+ * 都不应参与业务指纹，否则同一业务操作会被算成不同键（漏防重）。
+ */
+const VOLATILE_ARG_FIELDS = new Set([
+  'confirm',
+  'force',
+  'idempotencyKey',
+  'requestId',
+  'sessionId',
+  'timestamp',
+  'remark',
+]);
+
+/** 闸门入参 */
+export interface IdempotencyCheckInput {
+  toolName: string;
+  args: Record<string, unknown>;
+  /** LLM 侧 tool_call.id；确认通道为 `confirm-<写审核令牌>`（现成显式键） */
+  toolCallId?: string;
+  context: ToolContext;
+  /** 调用方显式幂等键（优先级最高） */
+  explicitKey?: string;
+}
+
+/** 认领句柄（仅"已认领"时非空；回放/处理中/直通均为 null） */
+export interface IdempotencyHandle {
+  id: string;
+  tenantId: string;
+  toolName: string;
+  idemKey: string;
+  keySource: IdempotencyKeySource;
+}
+
+/** 闸门决策 */
+export type IdempotencyDecision =
+  | { decision: 'proceed'; handle: IdempotencyHandle | null }
+  | { decision: 'replay'; result: ToolResult; handle: null }
+  | { decision: 'in_flight'; result: ToolResult; handle: null };
+
+@Injectable()
+export class IdempotencyGateService {
+  private readonly logger = new Logger(IdempotencyGateService.name);
+
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly redisProvider: RedisProvider,
+    @InjectRepository(AiIdempotencyEntity)
+    private readonly repo: Repository<AiIdempotencyEntity>,
+    private readonly dataSource: DataSource,
+  ) {}
+
+  /** 止血开关（默认开；仅显式 false/0/off/no 视为关闭） */
+  isEnabled(): boolean {
+    const raw = this.configService.get<string>('IDEMPOTENCY_ENABLED', 'true');
+    return !['false', '0', 'off', 'no'].includes(
+      String(raw).trim().toLowerCase(),
+    );
+  }
+
+  /**
+   * 闸门主入口（**永不抛异常**：自身异常一律 fail-open，写链路可用性优先）
+   */
+  async check(input: IdempotencyCheckInput): Promise<IdempotencyDecision> {
+    if (!this.isEnabled()) {
+      // 关时直通，但必须留痕（验收 #5：关闭路径有日志、不静默）
+      this.logger.warn(
+        `幂等闸门已关闭（IDEMPOTENCY_ENABLED=false），写工具直通、不落幂等键：tool=${input.toolName} tenant=${input.context.tenantId}`,
+      );
+      return { decision: 'proceed', handle: null };
+    }
+
+    try {
+      return await this.runGate(input);
+    } catch (err) {
+      this.logger.error(
+        `幂等闸门自身异常，按裁定 B fail-open 放行：tool=${input.toolName} err=${this.messageOf(err)}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      await this.reportFailure(err, 'idem.gate', input);
+      return { decision: 'proceed', handle: null };
+    }
+  }
+
+  /**
+   * 首次执行完成后回填幂等行（成功 ⇒ succeeded 可回放；失败 ⇒ failed 允许重试）
+   *
+   * best-effort：失败只记 error/指标/死信，绝不抛（不阻断已完成的业务写入）。
+   */
+  async complete(
+    handle: IdempotencyHandle | null,
+    result: ToolResult,
+  ): Promise<void> {
+    if (!handle) {
+      return;
+    }
+    await bestEffort(
+      async () => {
+        await this.repo.update(
+          { id: handle.id },
+          {
+            status: result.success ? 'succeeded' : 'failed',
+            resultJson: result.success ? JSON.stringify(result) : null,
+            errorText: result.success
+              ? null
+              : (result.error ?? '未知失败').slice(0, 512),
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          },
+        );
+      },
+      {
+        op: 'idem.complete',
+        tenantId: handle.tenantId,
+        detail: `tool=${handle.toolName} status=${result.success ? 'succeeded' : 'failed'}`,
+      },
+    );
+  }
+
+  /**
+   * 定时清理（复用 R101-AI-17 的 @Cron 模式；每日 03:00）
+   *
+   * 1. 陈旧 `in_flight`（超过 10 分钟：进程崩溃/未回填）置 `failed` ⇒ 允许重试（方案 R4）
+   * 2. 30 天前批量删除（依赖 idx_ai_idempotency_cleanup；分批 LIMIT 5,000）
+   */
+  @Cron(IDEMPOTENCY_CLEANUP_CRON, { name: IDEMPOTENCY_CLEANUP_JOB_NAME })
+  async cleanupExpired(): Promise<{ staleMarked: number; deleted: number }> {
+    let staleMarked = 0;
+    let deleted = 0;
+    try {
+      const stale = await this.repo.update(
+        {
+          status: 'in_flight',
+          firstSeenAt: LessThan(
+            new Date(Date.now() - IDEMPOTENCY_IN_FLIGHT_TIMEOUT_MS),
+          ),
+        },
+        {
+          status: 'failed',
+          errorText:
+            'in_flight 超时（进程崩溃或结果未回填），已置 failed 以允许重试',
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      );
+      staleMarked = stale.affected ?? 0;
+
+      const cutoff = new Date(
+        Date.now() - IDEMPOTENCY_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+      );
+      for (let i = 0; i < CLEANUP_MAX_LOOPS; i++) {
+        // dataSource.query 返回 any（驱动 ResultSetHeader）⇒ 显式收窄，避免 unsafe 成员访问
+        const raw = (await this.dataSource.query(
+          'DELETE FROM t_ai_idempotency WHERE created_at < ? LIMIT ?',
+          [cutoff, CLEANUP_BATCH],
+        )) as unknown;
+        const affected =
+          (raw as { affectedRows?: number } | null)?.affectedRows ?? 0;
+        deleted += affected;
+        if (affected < CLEANUP_BATCH) {
+          break;
+        }
+      }
+
+      if (staleMarked > 0 || deleted > 0) {
+        this.logger.log(
+          `幂等表清理完成：陈旧 in_flight 置 failed ${staleMarked} 行、删除过期 ${deleted} 行（保留 ${IDEMPOTENCY_RETENTION_DAYS} 天）`,
+        );
+      }
+    } catch (err) {
+      this.logger.error(
+        `幂等表清理失败（不阻断调度）：err=${this.messageOf(err)}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+    }
+    return { staleMarked, deleted };
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  // 内部实现
+  // ──────────────────────────────────────────────────────────────
+
+  private async runGate(
+    input: IdempotencyCheckInput,
+  ): Promise<IdempotencyDecision> {
+    const { idemKey, keySource, ttlSec } = this.buildKey(input);
+    const tenantId = input.context.tenantId;
+    const redisKey = `ai:idem:${tenantId}:${input.toolName}:${idemKey}`;
+
+    // ① Redis SET NX 前置快筛（不可用 ⇒ degrade + 指标，交 MySQL 兜底）
+    const client = this.redisProvider.getSharedClient('stop-after-3');
+    const nx = await degrade(
+      async () => ({
+        duplicate:
+          (await client.set(redisKey, '1', 'EX', ttlSec, 'NX')) === null,
+      }),
+      { duplicate: false },
+      {
+        op: 'idem.redis_nx',
+        tenantId,
+        detail: `tool=${input.toolName} source=${keySource}`,
+      },
+    );
+
+    if (nx.duplicate) {
+      const row = await this.findRow(tenantId, input.toolName, idemKey);
+      if (row) {
+        return this.decideFromRow(row, input, { idemKey, keySource });
+      }
+      // Redis 命中但 MySQL 无行（键过期/被清理/键漂移）⇒ 以 MySQL 为准，继续认领
+      this.logger.warn(
+        `幂等 Redis 命中但 MySQL 无行，以 MySQL 为准重新认领：tool=${input.toolName} source=${keySource}`,
+      );
+    }
+
+    // ② MySQL 认领（唯一键 = 并发仲裁点；必须早于 tool.execute）
+    const now = new Date();
+    try {
+      const inserted = await this.repo.insert({
+        tenantId,
+        toolName: input.toolName,
+        idemKey,
+        keySource,
+        status: 'in_flight',
+        resultJson: null,
+        errorText: null,
+        firstSeenAt: now,
+        completedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const id = String(inserted.identifiers[0]?.id ?? '');
+      return {
+        decision: 'proceed',
+        handle: { id, tenantId, toolName: input.toolName, idemKey, keySource },
+      };
+    } catch (err) {
+      if (this.isDuplicateKeyError(err)) {
+        const row = await this.findRow(tenantId, input.toolName, idemKey);
+        if (row) {
+          return this.decideFromRow(row, input, { idemKey, keySource });
+        }
+        // 唯一键冲突但读不到行（极端竞态/刚被清理）⇒ 宁可重放为首次，不丢用户操作
+        this.logger.warn(
+          `幂等唯一键冲突但读不到既有行（竞态/已清理），本次放行：tool=${input.toolName}`,
+        );
+        return { decision: 'proceed', handle: null };
+      }
+
+      // ③ MySQL 不可用 ⇒ 裁定 B：fail-open + 死信/指标（残余重复风险由 Redis 层与告警兜住）
+      this.logger.error(
+        `幂等认领失败（MySQL 不可用），按裁定 B fail-open 放行：tool=${input.toolName} err=${this.messageOf(err)}`,
+      );
+      await this.reportFailure(err, 'idem.claim', input);
+      return { decision: 'proceed', handle: null };
+    }
+  }
+
+  private async findRow(
+    tenantId: string,
+    toolName: string,
+    idemKey: string,
+  ): Promise<AiIdempotencyEntity | null> {
+    return this.repo.findOne({ where: { tenantId, toolName, idemKey } });
+  }
+
+  /** 既有行 ⇒ 回放 / 处理中 / 失败重试 */
+  private async decideFromRow(
+    row: AiIdempotencyEntity,
+    input: IdempotencyCheckInput,
+    key: { idemKey: string; keySource: IdempotencyKeySource },
+  ): Promise<IdempotencyDecision> {
+    if (row.status === 'succeeded' && row.resultJson) {
+      try {
+        const original = JSON.parse(row.resultJson) as ToolResult;
+        this.logger.log(
+          `写工具幂等回放（裁定 A）：tool=${input.toolName} tenant=${input.context.tenantId} keySource=${key.keySource}`,
+        );
+        return {
+          decision: 'replay',
+          handle: null,
+          result: {
+            ...original,
+            idempotent_replay: true,
+            ...(row.completedAt
+              ? { originalCompletedAt: row.completedAt.toISOString() }
+              : {}),
+          },
+        };
+      } catch (err) {
+        this.logger.warn(
+          `幂等结果 JSON 解析失败，按「处理中」返回（不回放脏结果）：tool=${input.toolName} err=${this.messageOf(err)}`,
+        );
+        return {
+          decision: 'in_flight',
+          handle: null,
+          result: this.inFlightResult(input.toolName),
+        };
+      }
+    }
+
+    if (row.status === 'failed') {
+      // 失败可重试：仅当成功从 failed 置回 in_flight 才算本次认领成功
+      const res = await this.repo.update(
+        { id: row.id, status: 'failed' },
+        {
+          status: 'in_flight',
+          firstSeenAt: new Date(),
+          completedAt: null,
+          errorText: null,
+          updatedAt: new Date(),
+        },
+      );
+      if ((res.affected ?? 0) === 1) {
+        this.logger.log(
+          `幂等行此前失败，允许同键重试并重新认领：tool=${input.toolName} id=${row.id}`,
+        );
+        return {
+          decision: 'proceed',
+          handle: {
+            id: String(row.id),
+            tenantId: row.tenantId,
+            toolName: row.toolName,
+            idemKey: key.idemKey,
+            keySource: key.keySource,
+          },
+        };
+      }
+    }
+
+    // in_flight（或未知状态）：首笔尚未完成 ⇒ 既不能执行也不能回放'未完成'
+    this.logger.warn(
+      `写工具幂等命中「处理中」，拒绝重复执行：tool=${input.toolName} tenant=${input.context.tenantId}`,
+    );
+    return {
+      decision: 'in_flight',
+      handle: null,
+      result: this.inFlightResult(input.toolName),
+    };
+  }
+
+  /** 重复请求返回什么给 LLM（方案 §5）：in_flight ⇒ 明确"处理中"，不回放未完成结果 */
+  private inFlightResult(toolName: string): ToolResult {
+    return {
+      success: false,
+      error: `该写操作正在处理中（工具 ${toolName}），重复提交已被幂等闸门拦截`,
+      suggestion:
+        '请稍后查询该操作的结果；重复提交不会产生第二笔单据，无需再次确认',
+    };
+  }
+
+  /** 幂等键 = sha256(tenant_id | tool_name | key_material)（方案 §1.2） */
+  private buildKey(input: IdempotencyCheckInput): {
+    idemKey: string;
+    keySource: IdempotencyKeySource;
+    ttlSec: number;
+  } {
+    const explicit = input.explicitKey?.trim();
+    let material: string;
+    let keySource: IdempotencyKeySource;
+    let ttlSec: number;
+
+    if (explicit) {
+      material = `explicit:${explicit}`;
+      keySource = 'explicit';
+      ttlSec = IDEMPOTENCY_REDIS_TTL_SEC;
+    } else if (
+      input.toolCallId &&
+      input.toolCallId.startsWith(CONFIRM_TOOLCALL_PREFIX)
+    ) {
+      material = `token:${input.toolCallId}`;
+      keySource = 'confirm_token';
+      ttlSec = IDEMPOTENCY_REDIS_TTL_SEC;
+    } else {
+      material = `payload:${this.canonicalJson(input.args)}`;
+      keySource = 'payload_hash';
+      ttlSec = IDEMPOTENCY_PAYLOAD_TTL_SEC;
+    }
+
+    const idemKey = createHash('sha256')
+      .update(`${input.context.tenantId}|${input.toolName}|${material}`, 'utf8')
+      .digest('hex');
+    return { idemKey, keySource, ttlSec };
+  }
+
+  /** 业务参数规范化（键排序 + 数值/字符串归一 + 剔除易变字段），保证同义同键 */
+  private canonicalJson(args: Record<string, unknown>): string {
+    return JSON.stringify(this.canonicalize(args));
+  }
+
+  private canonicalize(value: unknown): unknown {
+    if (value === null || typeof value !== 'object') {
+      if (typeof value === 'string') {
+        return value.trim();
+      }
+      if (typeof value === 'number') {
+        if (!Number.isFinite(value)) {
+          return String(value);
+        }
+        return Object.is(value, -0) ? 0 : value;
+      }
+      return value;
+    }
+    if (Array.isArray(value)) {
+      return value.map((item) => this.canonicalize(item));
+    }
+    const source = value as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(source).sort()) {
+      if (VOLATILE_ARG_FIELDS.has(key)) {
+        continue;
+      }
+      const item = source[key];
+      if (item === undefined) {
+        continue;
+      }
+      out[key] = this.canonicalize(item);
+    }
+    return out;
+  }
+
+  /** 唯一键冲突识别（TypeORM QueryFailedError / mysql2 driverError 两种形态） */
+  private isDuplicateKeyError(err: unknown): boolean {
+    const e = err as {
+      code?: string;
+      errno?: number;
+      message?: string;
+      driverError?: { code?: string; errno?: number };
+    };
+    if (e?.code === 'ER_DUP_ENTRY' || e?.errno === 1062) {
+      return true;
+    }
+    if (
+      e?.driverError?.code === 'ER_DUP_ENTRY' ||
+      e?.driverError?.errno === 1062
+    ) {
+      return true;
+    }
+    return (
+      typeof e?.message === 'string' && e.message.includes('Duplicate entry')
+    );
+  }
+
+  /** fail-open 留痕：error-semantics 死信口径（日志 + 指标 + 死信接收方） */
+  private async reportFailure(
+    err: unknown,
+    op: string,
+    input: IdempotencyCheckInput,
+  ): Promise<void> {
+    const error = err instanceof Error ? err : new Error(String(err));
+    await bestEffort(() => Promise.reject(error), {
+      op,
+      tenantId: input.context.tenantId,
+      detail: `tool=${input.toolName}（已 fail-open 放行，残余重复风险需人工核查）`,
+    });
+  }
+
+  private messageOf(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
+  }
+}
+
+/** 供 tool-executor 复用的 @Cron 表达式类型再导出（避免 schedule 依赖扩散） */
+export { CronExpression };

@@ -108,6 +108,15 @@ export interface ToolResult {
   /** 建议措施（失败时可选，告诉 LLM 下一步该如何补救，如"请先调用 searchCustomer 查询客户"） */
   suggestion?: string;
   /**
+   * true = 本次结果由**幂等闸门回放**既有结果（本次未真正执行工具）
+   *
+   * 阶段 3 幂等键（R101-AI-21，业主裁定 A）：同一幂等键的重复请求返回首次结果，
+   * 并显式标记，供 LLM/前端/审计区分「首次创建」与「重复回放」。
+   */
+  idempotent_replay?: boolean;
+  /** 回放时首次执行的完成时刻（ISO 8601；仅幂等回放携带） */
+  originalCompletedAt?: string;
+  /**
    * 写操作预览（仅 isWriteOperation=true 的工具在预览阶段返回）
    *
    * 配合 R70-15 确认机制：用户看到预览卡片后"确认"才会真正执行。

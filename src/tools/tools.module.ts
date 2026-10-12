@@ -70,6 +70,8 @@ import { CreatePlatformAnnouncementTool } from './definitions/create-platform-an
 import { HandleSubscriptionApplyTool } from './definitions/handle-subscription-apply.tool';
 import { BridgeModule } from '../bridge/bridge.module';
 import { CommonModule } from '../common/common.module';
+import { DatabaseModule } from '../database/database.module';
+import { IdempotencyGateService } from './idempotency-gate.service';
 
 /**
  * Tool 系统模块
@@ -98,10 +100,12 @@ import { CommonModule } from '../common/common.module';
  * 3. 在 ToolBootstrap 构造函数注入该工具，并在 onModuleInit 的 registerAll 数组中添加
  */
 @Module({
-  imports: [BridgeModule, CommonModule, EmployeeModule],
+  imports: [BridgeModule, CommonModule, EmployeeModule, DatabaseModule],
   providers: [
     ToolRegistry,
     ToolExecutor,
+    // R101-AI-21：写工具幂等闸门（Redis SET NX 前置 + MySQL 唯一键认领兜底）
+    IdempotencyGateService,
     DispatchEmployeeTaskTool,
     CircuitBreakerService,
     ToolBootstrap,

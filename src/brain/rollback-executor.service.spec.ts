@@ -41,6 +41,14 @@ describe('RollbackExecutorService', () => {
         recordFailure: jest.fn(),
       } as never,
       { recordToolCall: jest.fn(), recordToolDuration: jest.fn() } as never,
+      // R101-AI-21：幂等闸门桩（本文件走回滚执行路径，闸门按 proceed 直通）
+      {
+        isEnabled: jest.fn(() => true),
+        check: jest.fn(() =>
+          Promise.resolve({ decision: 'proceed', handle: null }),
+        ),
+        complete: jest.fn(() => Promise.resolve()),
+      } as never,
     );
     const moduleRef = await Test.createTestingModule({
       providers: [

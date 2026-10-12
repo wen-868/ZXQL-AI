@@ -10,6 +10,7 @@ import type {
 import type { ToolCall } from '../providers/provider.interface';
 import type { AuditLogger } from '../bridge/audit-logger';
 import { CircuitBreakerService } from './circuit-breaker.service';
+import type { IdempotencyGateService } from './idempotency-gate.service';
 
 /**
  * ToolExecutor 单元测试
@@ -63,11 +64,20 @@ describe('ToolExecutor', () => {
       recordToolCall: jest.fn(),
       recordToolDuration: jest.fn(),
     };
+    // R101-AI-21：幂等闸门桩（本文件只跑 echo 等非写工具，闸门不会被调用）
+    const mockIdempotencyGate = {
+      isEnabled: jest.fn(() => true),
+      check: jest.fn(() =>
+        Promise.resolve({ decision: 'proceed', handle: null }),
+      ),
+      complete: jest.fn(() => Promise.resolve()),
+    } as unknown as IdempotencyGateService;
     executor = new ToolExecutor(
       registry,
       mockAuditLogger,
       mockBreaker,
       mockMetrics as never,
+      mockIdempotencyGate,
     );
   });
 

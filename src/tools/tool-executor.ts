@@ -6,6 +6,10 @@ import { AuditLogger } from '../bridge/audit-logger';
 import { CircuitBreakerService } from './circuit-breaker.service';
 import { MetricsService } from '../common/metrics.service';
 import { CustomerScopeGuard } from './customer-scope.guard';
+import {
+  IdempotencyDecision,
+  IdempotencyGateService,
+} from './idempotency-gate.service';
 
 /**
  * Tool 执行器
@@ -39,6 +43,8 @@ export class ToolExecutor {
     private readonly auditLogger: AuditLogger,
     private readonly breaker: CircuitBreakerService,
     private readonly metrics: MetricsService,
+    // R101-AI-21：写工具幂等闸门（Redis SET NX 前置 + MySQL 唯一键认领兜底）
+    private readonly idempotencyGate: IdempotencyGateService,
   ) {}
 
   /**
@@ -46,12 +52,13 @@ export class ToolExecutor {
    *
    * @param toolCall LLM 返回的工具调用请求（含 id / function.name / function.arguments）
    * @param context  执行上下文（含 tenantId）
+   * @param options  allowConfirm=确认通道放行；idempotencyKey=调用方显式幂等键（可选）
    * @returns 工具执行结果（永不抛异常）
    */
   async executeToolCall(
     toolCall: ToolCall,
     context: ToolContext,
-    options?: { allowConfirm?: boolean },
+    options?: { allowConfirm?: boolean; idempotencyKey?: string },
   ): Promise<ToolResult> {
     const toolName = toolCall.function.name;
     const start = Date.now();
@@ -138,12 +145,41 @@ export class ToolExecutor {
       };
     }
 
+    // 3.6 R101-AI-21 幂等闸门（阶段 3）：仅对**真实执行**的写工具生效
+    //     - 条件：isWriteOperation && args.confirm === true（预览是纯计算，不消耗幂等键）
+    //     - 位置：熔断之后（熔断期不该占用键）、tool.execute 之前（认领必须先于副作用）
+    //     - 行为：proceed=已认领，执行后回填；replay=回放既有结果；in_flight=拒绝重复执行
+    let idem: IdempotencyDecision | null = null;
+    if (tool.isWriteOperation && args.confirm === true) {
+      idem = await this.idempotencyGate.check({
+        toolName,
+        args,
+        toolCallId: toolCall.id,
+        context,
+        explicitKey: options?.idempotencyKey,
+      });
+      if (idem.decision === 'replay' || idem.decision === 'in_flight') {
+        const durationMs = Date.now() - start;
+        this.logger.warn(
+          `写工具被幂等闸门拦截（${idem.decision}）：tool=${toolName} tenant=${context.tenantId} ${durationMs}ms`,
+        );
+        this.metrics.recordToolCall(
+          toolName,
+          idem.decision === 'replay' ? 'success' : 'fail',
+        );
+        this.metrics.recordToolDuration(toolName, durationMs);
+        return idem.result;
+      }
+    }
+
     // 4. 执行工具（try-catch 兜底，即使 tool.execute 内部抛异常也不影响 Agent Loop）
     try {
       this.logger.debug(
         `执行工具 ${toolName}（tenant=${context.tenantId}, isWriteOperation=${tool.isWriteOperation}）`,
       );
       const result = await tool.execute(args, context);
+      // R101-AI-21：回填幂等行（成功=succeeded 可回放；失败=failed 允许重试）；永不抛
+      await this.idempotencyGate.complete(idem?.handle ?? null, result);
       const durationMs = Date.now() - start;
       // A5 Prometheus 指标：工具调用次数/耗时
       this.metrics.recordToolCall(
@@ -185,6 +221,11 @@ export class ToolExecutor {
       this.metrics.recordToolDuration(toolName, durationMs);
       this.breaker.recordFailure(toolName);
       const errorMsg = `工具执行异常：${err instanceof Error ? err.message : String(err)}`;
+      // R101-AI-21：工具抛异常 ⇒ 幂等行置 failed（允许同键重试，不回放异常）
+      await this.idempotencyGate.complete(idem?.handle ?? null, {
+        success: false,
+        error: errorMsg,
+      });
       this.logger.error(
         `工具 ${toolName} 执行抛异常（${durationMs}ms）：${errorMsg}`,
         err instanceof Error ? err.stack : undefined,
