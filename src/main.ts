@@ -60,7 +60,9 @@ async function bootstrap() {
     'https://admin.onepan.cn',
     'https://saas.onepan.cn',
     'https://m.onepan.cn',
-    'https://store.onepan.cn',
+    // 2026-10-13（S3-181-C）：原「store」子域（老收银台）已并入 admin-web 工作台，
+    // 管理系统侧已从生产 backend/.env 白名单移除并复验该 Origin 不再返回 ACAO ⇒ 本仓同步移除
+    // （此处不留域名字面量，便于用 rg 校验 0 命中）。
     // 本地开发（admin-web 5173 / saas-admin 5174 / 预览 5175 等）
     ...(isProduction
       ? []

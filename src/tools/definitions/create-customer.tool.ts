@@ -87,7 +87,7 @@ export class CreateCustomerTool implements ITool {
     '首次调用 confirm=false 生成预览（含客户名称、电话、类型、地址、结算方式），' +
     '用户确认后 confirm=true 正式创建客户。' +
     '注意：信用额度（creditLimit）后端暂不支持自动写入，创建后需到客户管理页人工设置。' +
-    '示例参数：{"name":"兴旺超市","phone":"13800000000","customerType":"WHOLESALE","settlementType":"ACCOUNT","address":"解放路88号","remark":"周结客户","confirm":false}';
+    '示例参数：{"name":"兴旺超市","mobile":"13800000000","customerType":"WHOLESALE","settlementType":"ACCOUNT","address":"解放路88号","remark":"周结客户","confirm":false}';
   readonly category = 'customer' as const;
   readonly isWriteOperation = true;
   readonly risk = 'medium' as const;
@@ -101,7 +101,7 @@ export class CreateCustomerTool implements ITool {
    */
   readonly idempotencyKeyFields = [
     'name',
-    'phone',
+    'mobile',
     'customerType',
     'address',
     'settlementType',
@@ -116,7 +116,7 @@ export class CreateCustomerTool implements ITool {
         type: 'string',
         description: '客户名称（必填，非空字符串）',
       },
-      phone: {
+      mobile: {
         type: 'string',
         description: '联系电话/手机号（必填，t_member 唯一键约束）',
       },
@@ -180,7 +180,11 @@ export class CreateCustomerTool implements ITool {
     if (!confirm) {
       const details: Record<string, unknown> = {
         name: customerArgs.name,
-        phone: customerArgs.phone ?? null,
+        // 对外契约键名 `mobile`（S3-181-C 统一口径）
+        mobile: customerArgs.mobile ?? null,
+        // 兼容别名：旧前端/既有 spec 仍读 details.phone；待前端切换为 mobile 后可移除
+        // （保留别名使本单**零既有断言修改**，改动为纯增量）
+        phone: customerArgs.mobile ?? null,
         customerType: customerArgs.customerType,
         customerTypeLabel,
         address: customerArgs.address ?? null,
@@ -205,7 +209,7 @@ export class CreateCustomerTool implements ITool {
           operation: '创建客户',
           summary:
             `新建客户「${customerArgs.name}」` +
-            (customerArgs.phone ? `（电话 ${customerArgs.phone}）` : '') +
+            (customerArgs.mobile ? `（电话 ${customerArgs.mobile}）` : '') +
             `，类型：${customerTypeLabel}` +
             (customerArgs.creditLimit !== undefined
               ? '（信用额度需创建后人工设置）'
@@ -244,14 +248,15 @@ export class CreateCustomerTool implements ITool {
       }
 
       // t_member.mobile 必填且有全局唯一键：未提供手机号时不伪造，明确要求用户补充（真实商用，不造假数据）
-      if (!customerArgs.phone || !customerArgs.phone.trim()) {
+      if (!customerArgs.mobile || !customerArgs.mobile.trim()) {
         return {
           success: false,
           error: '创建客户必须提供手机号',
           suggestion: '请向用户确认客户手机号后再创建客户',
         };
       }
-      const mobile = customerArgs.phone.trim();
+      // S3-181-C：对外契约字段名已统一为 `mobile`（与后端权威契约一致），此处不再做 phone→mobile 转换
+      const { mobile } = customerArgs;
 
       // 对齐后端 createCustomer 支持字段（creditLimit 后端不支持，不发送）
       const requestBody = {
@@ -390,7 +395,12 @@ export class CreateCustomerTool implements ITool {
       valid: true,
       data: {
         name: name.trim(),
-        phone: typeof args.phone === 'string' ? args.phone : undefined,
+        // S3-181-C：对外契约字段名为 `mobile`（与后端权威契约一致）。
+        // 兼容说明：write-schema-registry 的 customer_create 抽取 schema 仍以 `phone`
+        // 作为字段名（其结构化回归 spec 断言 data.phone，改 schema 会破坏既有断言），
+        // 故此处保留只读兼容别名——抽取层注入的 phone 仍能进入业务；彻底统一需
+        // 同步改 schema + structured-extractor.spec.ts:181（1 行断言），待凌舟裁定。
+        mobile: this.resolveMobile(args),
         customerType,
         address: typeof args.address === 'string' ? args.address : undefined,
         settlementType,
@@ -400,12 +410,28 @@ export class CreateCustomerTool implements ITool {
       },
     };
   }
+
+  /**
+   * 取手机号（`mobile` 为准；`phone` 为只读兼容别名，见上方说明）
+   *
+   * 返回已 trim 的值；两者都缺 ⇒ undefined（由 execute 明确报"必须提供手机号"）
+   */
+  private resolveMobile(args: Record<string, unknown>): string | undefined {
+    const raw =
+      typeof args.mobile === 'string'
+        ? args.mobile
+        : typeof args.phone === 'string'
+          ? args.phone
+          : undefined;
+    const trimmed = raw?.trim();
+    return trimmed ? trimmed : undefined;
+  }
 }
 
 /** 创建客户参数（解析后） */
 interface CreateCustomerArgs {
   name: string;
-  phone?: string;
+  mobile?: string;
   customerType: CustomerType;
   address?: string;
   settlementType: string;
