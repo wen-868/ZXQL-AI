@@ -22,11 +22,18 @@ import { BridgeModule } from '../bridge/bridge.module';
 import { UsageStatsService } from './usage-stats.service';
 import { UsageAlertService } from './usage-alert.service';
 import { HealthMonitorService } from './health-monitor.service';
+import { DeadLetterSinkService } from './dead-letter-sink.service';
 import { UsageController } from './usage.controller';
 
 @Module({
   imports: [ProactiveModule, DatabaseModule, BridgeModule],
-  providers: [UsageStatsService, UsageAlertService, HealthMonitorService],
+  providers: [
+    UsageStatsService,
+    UsageAlertService,
+    HealthMonitorService,
+    // R101-AI-22：bestEffort 死信生产落库端（onModuleInit 注册全局 sink）
+    DeadLetterSinkService,
+  ],
   controllers: [UsageController],
   exports: [UsageStatsService],
 })

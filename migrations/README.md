@@ -37,6 +37,7 @@
      | 008_digital_employee.sql | `t_ai_employee` / `t_ai_employee_task` | 业务库侧，本仓独占 |
      | 015_ai_model_price.sql | `t_ai_model_price` | 业务库侧，本仓独占（AI 分档单价来源，R101-AI-07） |
      | 016_ai_idempotency.sql | `t_ai_idempotency` | 业务库侧，本仓独占（写工具幂等键：唯一键 `uk_ai_idempotency`，R101-AI-21） |
+     | 017_ai_dead_letter.sql | `t_ai_dead_letter` | 业务库侧，本仓独占（bestEffort 死信落库：`op` + `created_at` 索引，R101-AI-22） |
 
      对照：`003_ai_db_evolution.sql` 的四张表（`ai_experience` / `ai_correction` / `ai_sample` / `ai_evolution_version`）
      是 `ai_db` 私有库对象，**全部显式写 `ai_db.`**；`013_backfill_sample_task_type.sql` 的回填/核验同样显式限定。
@@ -79,6 +80,7 @@
 | 014 | t_ai_usage_daily 存量按三列合并 + provider/model 收敛为 NOT NULL DEFAULT 'unknown' + 补齐 `uk_tenant_date_provider (tenant_id, stat_date, provider)`（用量表去重，P0） | 业务库 |✅ 已建（014_usage_daily_unique_key.sql） |
 | 015 | t_ai_model_price（AI 分档单价：prompt/completion 元/千Token，按 provider+model+生效时间留痕；R101-AI-03 的单价来源，R101-AI-07） | 业务库 | ✅ 已建（015_ai_model_price.sql） |
 | 016 | t_ai_idempotency（写工具幂等键：`uk_ai_idempotency (tenant_id, tool_name, idem_key)` 唯一键 + `idx_ai_idempotency_cleanup` 清理索引；Redis SET NX 为前置闸门，本表为「至多一次落单」最终防线，R101-AI-21） | 业务库 | ✅ 已建（016_ai_idempotency.sql） |
+| 017 | t_ai_dead_letter（bestEffort 死信落库：`op` + `created_at` 索引，保留 30 天分批清理；`setDefaultDeadLetterSink` 生产注册端，R101-AI-22） | 业务库 | ✅ 已建（017_ai_dead_letter.sql） |
 
 > ⚠️ **014 的顺序依赖（P0，R6）**：写入侧 `src/bridge/audit-logger.ts` 的 `upsertDailyUsage`
 > 用 `INSERT ... ON DUPLICATE KEY UPDATE` 汇总日用量，**去重能力完全依赖本迁移建立的唯一键**；

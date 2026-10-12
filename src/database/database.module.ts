@@ -31,6 +31,7 @@ import { McpTokenEntity } from './entities/mcp-token.entity';
 import { AiSessionArchiveEntity } from './entities/ai-session-archive.entity';
 import { AiExecutionPlanEntity } from './entities/ai-execution-plan.entity';
 import { AiIdempotencyEntity } from './entities/ai-idempotency.entity';
+import { AiDeadLetterEntity } from './entities/ai-dead-letter.entity';
 import {
   AiEmployeeEntity,
   AiEmployeeTaskEntity,
@@ -60,6 +61,8 @@ export const AI_ENTITIES = [
   AiExecutionPlanEntity,
   // R101-AI-21：写工具幂等键（业务库 t_ai_idempotency，迁移 016）
   AiIdempotencyEntity,
+  // R101-AI-22：bestEffort 死信落库（业务库 t_ai_dead_letter，迁移 017）
+  AiDeadLetterEntity,
   AiEmployeeEntity,
   AiEmployeeTaskEntity,
 ];
