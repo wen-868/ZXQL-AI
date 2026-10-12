@@ -19,20 +19,25 @@ import { Module } from '@nestjs/common';
 import { ProactiveModule } from '../brain/proactive/proactive.module';
 import { DatabaseModule } from '../database/database.module';
 import { BridgeModule } from '../bridge/bridge.module';
+import { CommonModule } from '../common/common.module';
 import { UsageStatsService } from './usage-stats.service';
 import { UsageAlertService } from './usage-alert.service';
 import { HealthMonitorService } from './health-monitor.service';
 import { DeadLetterSinkService } from './dead-letter-sink.service';
+import { DeadLetterReplayService } from './dead-letter-replay.service';
 import { UsageController } from './usage.controller';
 
 @Module({
-  imports: [ProactiveModule, DatabaseModule, BridgeModule],
+  // CommonModule：R101-AI-23 起 DeadLetterReplayService 注入 RedisProvider（共享 provider）
+  imports: [ProactiveModule, DatabaseModule, BridgeModule, CommonModule],
   providers: [
     UsageStatsService,
     UsageAlertService,
     HealthMonitorService,
     // R101-AI-22：bestEffort 死信生产落库端（onModuleInit 注册全局 sink）
     DeadLetterSinkService,
+    // R101-AI-23：死信重放队列（Redis Stream 故障缓冲 + @Cron 补录）
+    DeadLetterReplayService,
   ],
   controllers: [UsageController],
   exports: [UsageStatsService],

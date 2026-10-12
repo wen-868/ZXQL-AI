@@ -31,6 +31,8 @@ import {
   setDefaultDeadLetterSink,
 } from '../common/error-semantics';
 
+import { DeadLetterReplayService } from './dead-letter-replay.service';
+
 /** 清理任务（每日 03:00；与 016 t_ai_idempotency 同款 @Cron 命名任务范式） */
 export const DEAD_LETTER_CLEANUP_CRON = '0 3 * * *';
 export const DEAD_LETTER_CLEANUP_JOB_NAME = 'dead-letter-cleanup-expired';
@@ -73,6 +75,8 @@ export class DeadLetterSinkService implements OnModuleInit {
     @InjectRepository(AiDeadLetterEntity)
     private readonly repo: Repository<AiDeadLetterEntity>,
     private readonly dataSource: DataSource,
+    // R101-AI-23：落库失败时的故障缓冲（Redis Stream 重放队列）；正常路径不经过它
+    private readonly replayQueue: DeadLetterReplayService,
   ) {}
 
   /**
@@ -138,6 +142,9 @@ export class DeadLetterSinkService implements OnModuleInit {
     this.stats.consecutiveFailures += 1;
     this.stats.lastErrorAt = new Date().toISOString();
     this.maybeWarn(record.op, result.err);
+    // R101-AI-23：落库失败 ⇒ 先把死信塞进 Redis Stream 重放队列（不丢）；
+    // enqueue 自身永不抛（Redis 也挂时只记日志+计数，与 AI-22 降级行为一致）
+    await this.replayQueue.enqueue(record);
   };
 
   /**

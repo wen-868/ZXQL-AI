@@ -18,6 +18,7 @@ import { ScheduleModule, SchedulerRegistry } from '@nestjs/schedule';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { AiDeadLetterEntity } from '../database/entities/ai-dead-letter.entity';
+import { DeadLetterReplayService } from './dead-letter-replay.service';
 import * as errorSemantics from '../common/error-semantics';
 import {
   bestEffort,
@@ -55,6 +56,8 @@ interface Harness {
   service: DeadLetterSinkService;
   repo: FakeDeadLetterRepo;
   dataSourceQuery: jest.Mock;
+  /** R101-AI-23：故障缓冲（落库失败时入队）桩 */
+  enqueue: jest.Mock;
 }
 
 function createHarness(env: Record<string, string> = {}): Harness {
@@ -63,12 +66,14 @@ function createHarness(env: Record<string, string> = {}): Harness {
   const configService = {
     get: (key: string, fallback?: unknown) => env[key] ?? fallback,
   } as unknown as ConfigService;
+  const enqueue = jest.fn(() => Promise.resolve(true));
   const service = new DeadLetterSinkService(
     configService,
     repo as unknown as Repository<AiDeadLetterEntity>,
     { query: dataSourceQuery } as unknown as DataSource,
+    { enqueue } as never,
   );
-  return { service, repo, dataSourceQuery };
+  return { service, repo, dataSourceQuery, enqueue };
 }
 
 describe('DeadLetterSinkService（死信 sink 生产注册）', () => {
@@ -306,6 +311,11 @@ describe('DeadLetterSinkService（死信 sink 生产注册）', () => {
           },
           { provide: DataSource, useValue: { query: jest.fn() } },
           { provide: ConfigService, useValue: { get: () => undefined } },
+          {
+            // R101-AI-23：故障缓冲桩（本用例只验证 @Cron 注册）
+            provide: DeadLetterReplayService,
+            useValue: { enqueue: jest.fn(() => Promise.resolve(true)) },
+          },
         ],
       }).compile();
       await mod.init();
