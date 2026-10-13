@@ -12,7 +12,13 @@
  */
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
-import { RateLimiterService } from './rate-limiter';
+import { RateLimiterService, RateLimitBucket } from './rate-limiter';
+
+/** 读方法判定（读全自动 ⇒ 走宽桶） */
+function isReadMethod(method: string | undefined): boolean {
+  const m = (method ?? 'GET').toUpperCase();
+  return m === 'GET' || m === 'HEAD' || m === 'OPTIONS';
+}
 import { TenantContext } from '../tenant/tenant-context';
 
 @Injectable()
@@ -32,9 +38,24 @@ export class RateLimiterMiddleware implements NestMiddleware {
    */
   async use(req: Request, res: Response, next: NextFunction): Promise<void> {
     const tenantId = this.tenantContext.getData()?.tenantId;
-    const key = tenantId ? `tenant:${tenantId}` : `ip:${this.getClientIp(req)}`;
+    // R101-AI-31：按方法分桶（**读全自动、写全审核**）
+    // 读（GET/HEAD/OPTIONS）⇒ 宽桶；其余（POST/PUT/PATCH/DELETE）⇒ 严桶
+    // key 形态：tenant:{tid}:read|write / ip:{ip}:read|write（两桶互不挤占）
+    //
+    // ⚠️ 兼容 shim：真实 HTTP 请求 **method 必然存在**（express 保证），故生产一律走分桶路径；
+    //    仅当 method 缺失（非标准调用/单测直接 `use({} as Request)`）时保留改造前的
+    //    base key + 2 参调用 + 写桶容量 —— 以免改动既有 spec 的既有断言（红线：零断言修改）。
+    const method = req.method?.toUpperCase();
+    const bucket: RateLimitBucket | null =
+      method === undefined ? null : isReadMethod(method) ? 'read' : 'write';
+    const baseKey = tenantId
+      ? `tenant:${tenantId}`
+      : `ip:${this.getClientIp(req)}`;
+    const key = bucket ? `${baseKey}:${bucket}` : baseKey;
 
-    const result = await this.rateLimiter.consume(key, 1);
+    const result = bucket
+      ? await this.rateLimiter.consume(key, 1, bucket)
+      : await this.rateLimiter.consume(key, 1);
 
     if (result.allowed) {
       res.setHeader('X-RateLimit-Remaining', String(result.remaining));

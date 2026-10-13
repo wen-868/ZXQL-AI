@@ -75,6 +75,14 @@ redis.call('SET', ts_key, now, 'PX', tonumber(ARGV[5]))
 return { allowed, math.floor(tokens) }
 `;
 
+/** 限流分桶（R101-AI-31）：**读宽写严** —— 读全自动、写全审核 */
+export type RateLimitBucket = 'read' | 'write';
+
+/** 读桶缺省容量（每分钟）：对话中连续查询不应被 429 打断 */
+export const READ_LIMIT_DEFAULT = 600;
+/** 写桶缺省容量（每分钟）：与既有缺省一致（零回归） */
+export const WRITE_LIMIT_DEFAULT = 60;
+
 /** 限流判定结果 */
 export interface RateLimitResult {
   /** 是否放行 */
@@ -97,6 +105,12 @@ export class RateLimiterService implements OnModuleInit {
 
   /** 桶容量（= 每分钟限额） */
   readonly capacity: number;
+  /**
+   * 读桶容量（R101-AI-31：读宽写严 —— 读全自动、写全审核）
+   *
+   * `RATE_LIMIT_READ_PER_MIN` 覆盖，缺省 600/分钟
+   */
+  readonly readCapacity: number;
   /** 每毫秒补充速率 */
   readonly refillPerMs: number;
   /** 限流窗口（毫秒） */
@@ -112,12 +126,33 @@ export class RateLimiterService implements OnModuleInit {
     // R101-AI-10：Redis 连接统一取用共享 provider（本模块原为独立 new Redis）
     private readonly redisProvider: RedisProvider,
   ) {
+    // 写桶容量：优先 RATE_LIMIT_WRITE_PER_MIN，回退既有 RATE_LIMIT_PER_MINUTE（缺省 60）
+    // R101-AI-31：保持既有默认与既有 env 口径不变（零回归）
     const ratePerMinute = this.configService.get<number>(
-      'RATE_LIMIT_PER_MINUTE',
-      60,
+      'RATE_LIMIT_WRITE_PER_MIN',
+      this.configService.get<number>(
+        'RATE_LIMIT_PER_MINUTE',
+        WRITE_LIMIT_DEFAULT,
+      ),
     );
     this.capacity = Math.max(1, ratePerMinute);
     this.refillPerMs = this.capacity / WINDOW_MS;
+
+    // 读桶容量：RATE_LIMIT_READ_PER_MIN（缺省 600/分钟）
+    const readPerMinute = this.configService.get<number>(
+      'RATE_LIMIT_READ_PER_MIN',
+      READ_LIMIT_DEFAULT,
+    );
+    this.readCapacity = Math.max(1, readPerMinute);
+  }
+
+  /** 取某桶的容量与补充速率（R101-AI-31；两形态共用同一口径） */
+  capacityOf(bucket: RateLimitBucket): {
+    capacity: number;
+    refillPerMs: number;
+  } {
+    const capacity = bucket === 'read' ? this.readCapacity : this.capacity;
+    return { capacity, refillPerMs: capacity / WINDOW_MS };
   }
 
   /**
@@ -163,7 +198,12 @@ export class RateLimiterService implements OnModuleInit {
    * @param tokens 本次消耗的令牌数（默认 1）
    * @returns 是否放行 + 剩余令牌数
    */
-  async consume(key: string, tokens = 1): Promise<RateLimitResult> {
+  async consume(
+    key: string,
+    tokens = 1,
+    bucket: RateLimitBucket = 'write',
+  ): Promise<RateLimitResult> {
+    const { capacity, refillPerMs } = this.capacityOf(bucket);
     if (this.redisAvailable && this.redis) {
       try {
         const result = (await this.redis.eval(
@@ -172,8 +212,8 @@ export class RateLimiterService implements OnModuleInit {
           this.buildKey(key, 'tokens'),
           this.buildKey(key, 'ts'),
           Date.now(),
-          this.capacity,
-          this.refillPerMs,
+          capacity,
+          refillPerMs,
           tokens,
           KEY_TTL_MS,
         )) as [number, number];
@@ -187,13 +227,21 @@ export class RateLimiterService implements OnModuleInit {
       }
     }
 
-    return this.consumeMemory(key, tokens);
+    return this.consumeMemory(key, tokens, capacity, refillPerMs);
   }
 
   /**
    * 内存令牌桶实现（Redis 不可用时的降级路径）
+   *
+   * ⚠️ 桶算法**未改动**（R101-AI-31 只加分桶）：容量/补充速率由调用方按桶传入，
+   * 与 connected 的 Lua 参数同源（`capacityOf(bucket)`）⇒ 双形态一致。
    */
-  private consumeMemory(key: string, tokens: number): RateLimitResult {
+  private consumeMemory(
+    key: string,
+    tokens: number,
+    capacity: number = this.capacity,
+    refillPerMs: number = this.refillPerMs,
+  ): RateLimitResult {
     const now = Date.now();
 
     // 惰性清理：桶数量超阈值时清理过期条目，防止无限增长
@@ -202,11 +250,11 @@ export class RateLimiterService implements OnModuleInit {
     }
 
     const bucket = this.memoryBuckets.get(key);
-    const tokensNow = bucket ? bucket.tokens : this.capacity;
+    const tokensNow = bucket ? bucket.tokens : capacity;
     const lastRefill = bucket ? bucket.lastRefillMs : now;
 
-    const delta = Math.max(0, now - lastRefill) * this.refillPerMs;
-    const refilled = Math.min(this.capacity, tokensNow + delta);
+    const delta = Math.max(0, now - lastRefill) * refillPerMs;
+    const refilled = Math.min(capacity, tokensNow + delta);
 
     const allowed = refilled >= tokens;
     const nextTokens = refilled - (allowed ? tokens : 0);
