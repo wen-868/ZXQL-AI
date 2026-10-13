@@ -34,6 +34,7 @@ import {
   ServiceClient,
   API_ENDPOINTS,
   BridgeError,
+  describeBridgeErrorDetail,
 } from '../../bridge/service-client';
 
 /** 合法客户类型（与 searchCustomer 的 translateCustomerType 映射一致） */
@@ -307,11 +308,15 @@ export class CreateCustomerTool implements ITool {
             : String(err);
 
       this.logger.error(`创建客户失败：${errorMsg}`);
+      // R101-AI-27：字段级 errors + traceId 透传到返回（此前只剩静态文案，真实原因丢失）
+      const bridgeDetail = describeBridgeErrorDetail(err);
       return {
         success: false,
         error: `创建客户失败：${errorMsg}`,
+        // error 保留原文；字段级原因与 traceId 追加到 suggestion（面向用户/LLM 可读）
         suggestion:
-          '请确认后端服务是否正常运行，客户名称不能为空，客户类型必须是 CASH/WHOLESALE/VIP',
+          '请确认后端服务是否正常运行，客户名称不能为空，客户类型必须是 CASH/WHOLESALE/VIP' +
+          bridgeDetail,
       };
     }
   }

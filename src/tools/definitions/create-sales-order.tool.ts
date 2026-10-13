@@ -28,6 +28,7 @@ import {
   ServiceClient,
   API_ENDPOINTS,
   BridgeError,
+  describeBridgeErrorDetail,
 } from '../../bridge/service-client';
 import { PriceEngineService, ProductPriceInfo } from '../price-engine.service';
 import { UnitConverterService } from '../unit-converter.service';
@@ -356,10 +357,14 @@ export class CreateSalesOrderTool implements ITool {
             : String(err);
 
       this.logger.error(`创建销售单失败：${errorMsg}`);
+      // R101-AI-27：字段级 errors + traceId 透传到返回（与 createCustomer 同口径）
+      const bridgeDetail = describeBridgeErrorDetail(err);
       return {
         success: false,
         error: `创建销售单失败：${errorMsg}`,
-        suggestion: '请确认后端服务是否正常运行，检查客户ID和SKU ID是否正确',
+        suggestion:
+          '请确认后端服务是否正常运行，检查客户ID和SKU ID是否正确' +
+          bridgeDetail,
       };
     }
   }

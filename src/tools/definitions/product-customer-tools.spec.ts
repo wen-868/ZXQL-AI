@@ -13,8 +13,9 @@
  * 负责人: 阿坚 | 创建日期: 2026-08-01
  */
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigModule } from '@nestjs/config';
-import { ServiceClient } from '../../bridge/service-client';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AxiosError, AxiosHeaders } from 'axios';
+import { ServiceClient, BridgeError } from '../../bridge/service-client';
 import { ToolContext } from '../tool.interface';
 import { UpdateProductPriceTool } from './update-product-price.tool';
 import { QueryProductDetailTool } from './query-product-detail.tool';
@@ -559,6 +560,38 @@ describe('R70-11 商品管理 + 客户管理工具', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain('创建客户失败');
     });
+
+    it('R101-AI-27：后端 400 带字段级 errors ⇒ 返回含 field 级原因 + traceId', async () => {
+      mockServiceClient.post.mockRejectedValue(
+        new BridgeError(
+          '后端 HTTP 400：参数校验失败（path=/api/admin/members）',
+          400,
+          '400',
+          '80ce3465-f229-417a-9ad2-6e29dd2df2df',
+          [
+            {
+              field: 'mobile',
+              message: '手机号格式不正确',
+              code: 'invalid_string',
+            },
+          ],
+        ),
+      );
+
+      const result = await createCustomer.execute(
+        { name: '兴旺超市', mobile: '13800000000', confirm: true },
+        mockContext,
+      );
+
+      expect(result.success).toBe(false);
+      // error 保留原文（未吞后端错误）
+      expect(result.error).toContain('后端 HTTP 400');
+      // 字段级原因 + traceId 不再丢失
+      expect(result.suggestion).toContain('mobile：手机号格式不正确');
+      expect(result.suggestion).toContain(
+        'traceId=80ce3465-f229-417a-9ad2-6e29dd2df2df',
+      );
+    });
   });
 
   // ── 4. QueryCustomerDetailTool ──
@@ -1025,5 +1058,65 @@ describe('R70-11 商品管理 + 客户管理工具', () => {
       expect(data.message).toContain('已存在');
       expect(mockServiceClient.post).not.toHaveBeenCalled();
     });
+  });
+});
+
+/**
+ * R101-AI-27 端到端：真实 ServiceClient（桩 axios）+ CreateCustomerTool
+ *
+ * 与上面用 mock ServiceClient 的用例不同，这里走**完整链路**：
+ * axios 桩 reject（后端 400 带 errors）→ ServiceClient.toBridgeError → 工具 catch →
+ * 返回体。用于反测"去掉 errors 透传 ⇒ 工具侧断言变红"。
+ */
+describe('CreateCustomerTool × BridgeError 字段级 errors（R101-AI-27 端到端）', () => {
+  it('后端 400 带 errors ⇒ 工具返回含 field 级原因 + traceId', async () => {
+    const request = jest.fn(() =>
+      Promise.reject(
+        new AxiosError(
+          'error',
+          'ERR',
+          { headers: new AxiosHeaders() },
+          undefined,
+          {
+            status: 400,
+            headers: new AxiosHeaders(),
+            config: { headers: new AxiosHeaders() },
+            data: {
+              code: '400',
+              msg: '参数校验失败',
+              traceId: '80ce3465-f229-417a-9ad2-6e29dd2df2df',
+              errors: [
+                {
+                  field: 'mobile',
+                  message: '手机号格式不正确',
+                  code: 'invalid_string',
+                },
+              ],
+            },
+          } as never,
+        ),
+      ),
+    );
+    const realClient = new ServiceClient({
+      get: (key: string, dflt?: unknown) =>
+        key === 'BACKEND_BASE_URL' ? 'http://backend' : dflt,
+    } as unknown as ConfigService);
+    const slot = realClient as unknown as Record<string, unknown>;
+    slot.httpClient = { request };
+    slot.baseUrl = 'http://backend';
+    slot.timeout = 1000;
+
+    const tool = new CreateCustomerTool(realClient);
+    const result = await tool.execute(
+      { name: '兴旺超市', mobile: '13800000000', confirm: true },
+      mockContext,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('后端 HTTP 400');
+    expect(result.suggestion).toContain('mobile：手机号格式不正确');
+    expect(result.suggestion).toContain(
+      'traceId=80ce3465-f229-417a-9ad2-6e29dd2df2df',
+    );
   });
 });

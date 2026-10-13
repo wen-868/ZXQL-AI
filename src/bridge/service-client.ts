@@ -26,6 +26,20 @@ export interface BackendResponse<T = unknown> {
   data?: T;
   traceId?: string;
   apiCost?: number;
+  /**
+   * 字段级校验错误（R101-AI-27）
+   *
+   * 形如 `[{ field: 'mobile', message: '手机号格式不正确', code: 'invalid_string' }]`。
+   * 声明为 unknown：后端形态可能变化，由 `parseBridgeFieldErrors` 防御式解析。
+   */
+  errors?: unknown;
+}
+
+/** 后端字段级校验错误（结构化；R101-AI-27） */
+export interface BridgeFieldError {
+  field: string;
+  message: string;
+  code?: string;
 }
 
 /**
@@ -37,10 +51,71 @@ export class BridgeError extends Error {
     public readonly statusCode: number,
     public readonly backendCode: string,
     public readonly traceId?: string,
+    /**
+     * 后端字段级校验错误（R101-AI-27）
+     *
+     * 第 5 个可选参数 ⇒ **向后兼容**既有 4 参（及更少参数）调用点，未传时为 undefined。
+     * 用途：把 `{code,msg,traceId,errors:[{field,message,code?}]}` 里的 `errors[]`
+     * 一路带到工具返回，避免只剩静态文案、真实原因丢失（S3-181-C 复跑教训）。
+     */
+    public readonly errors?: BridgeFieldError[],
   ) {
     super(message);
     this.name = 'BridgeError';
   }
+}
+
+/**
+ * 防御式解析后端 `errors[]`（R101-AI-27）
+ *
+ * 规则：非数组 ⇒ undefined；数组内非对象/字段缺失的项跳过；全部无效 ⇒ undefined。
+ * **不抛异常**（错误处理路径不允许再制造错误）。
+ */
+export function parseBridgeFieldErrors(
+  raw: unknown,
+): BridgeFieldError[] | undefined {
+  if (!Array.isArray(raw)) {
+    return undefined;
+  }
+  const parsed: BridgeFieldError[] = [];
+  for (const item of raw) {
+    if (item === null || typeof item !== 'object') {
+      continue;
+    }
+    const record = item as Record<string, unknown>;
+    const field = record.field;
+    const message = record.message;
+    if (typeof field !== 'string' || typeof message !== 'string') {
+      continue;
+    }
+    const code = typeof record.code === 'string' ? record.code : undefined;
+    parsed.push(code ? { field, message, code } : { field, message });
+  }
+  return parsed.length > 0 ? parsed : undefined;
+}
+
+/**
+ * 把 BridgeError 的**字段级错误 + traceId**汇成面向用户/LLM 可读的一段文本（R101-AI-27）
+ *
+ * 形态示例：`｜字段错误：mobile：手机号格式不正确；traceId=80ce3465-…`
+ * - 非 BridgeError、或既无 errors 又无 traceId ⇒ 返回 `''`（调用方可直接拼接，行为零变化）
+ */
+export function describeBridgeErrorDetail(err: unknown): string {
+  if (!(err instanceof BridgeError)) {
+    return '';
+  }
+  const parts: string[] = [];
+  if (err.errors && err.errors.length > 0) {
+    parts.push(
+      `字段错误：${err.errors
+        .map((e) => `${e.field}：${e.message}`)
+        .join('；')}`,
+    );
+  }
+  if (err.traceId) {
+    parts.push(`traceId=${err.traceId}`);
+  }
+  return parts.length > 0 ? `｜${parts.join('；')}` : '';
 }
 
 /**
@@ -495,6 +570,8 @@ export class ServiceClient {
           status,
           backendData?.code ?? String(status),
           backendData?.traceId,
+          // R101-AI-27：字段级 errors 一路透传（非数组/无有效项 ⇒ undefined）
+          parseBridgeFieldErrors(backendData?.errors),
         );
       }
 

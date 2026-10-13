@@ -10,7 +10,12 @@
  */
 import { ConfigService } from '@nestjs/config';
 import { AxiosError, AxiosHeaders } from 'axios';
-import { ServiceClient } from './service-client';
+import {
+  ServiceClient,
+  BridgeError,
+  parseBridgeFieldErrors,
+  describeBridgeErrorDetail,
+} from './service-client';
 import type { ToolContext } from '../tools/tool.interface';
 
 const CTX: ToolContext = { tenantId: 't1', userId: 'u1' };
@@ -123,5 +128,113 @@ describe('ServiceClient 重试策略（B-2）', () => {
 
     await expect(client.post('/sale-bills', {}, CTX)).rejects.toThrow();
     expect(request).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * R101-AI-27：BridgeError 透传后端**字段级 errors + traceId**
+ *
+ * 背景（S3-181-C 复跑教训）：后端返回
+ * `{code,msg,traceId,errors:[{field,message,code?}]}`，此前只保留 msg
+ * ⇒ 工具返回只剩静态文案，真实原因（mobile 格式）丢失。
+ */
+describe('R101-AI-27 BridgeError 字段级 errors 透传', () => {
+  /** 构造带响应体的 AxiosError（后端 400 校验失败形态） */
+  function httpErrorWithBody(body: unknown, status = 400): AxiosError {
+    return new AxiosError(
+      'error',
+      'ERR',
+      { headers: new AxiosHeaders() },
+      undefined,
+      {
+        status,
+        headers: new AxiosHeaders(),
+        config: { headers: new AxiosHeaders() },
+        data: body,
+      } as never,
+    );
+  }
+
+  it('400 带 errors[] ⇒ BridgeError 携带字段级 errors + traceId（不再只剩 msg）', async () => {
+    const { client } = createClient(() =>
+      Promise.reject(
+        httpErrorWithBody({
+          code: '400',
+          msg: '参数校验失败',
+          traceId: '80ce3465-f229-417a-9ad2-6e29dd2df2df',
+          errors: [
+            {
+              field: 'mobile',
+              message: '手机号格式不正确',
+              code: 'invalid_string',
+            },
+          ],
+        }),
+      ),
+    );
+
+    const err: unknown = await client
+      .post('/admin/members', {}, CTX)
+      .catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(BridgeError);
+    const bridgeErr = err as BridgeError;
+    expect(bridgeErr.statusCode).toBe(400);
+    expect(bridgeErr.traceId).toBe('80ce3465-f229-417a-9ad2-6e29dd2df2df');
+    expect(bridgeErr.errors).toEqual([
+      { field: 'mobile', message: '手机号格式不正确', code: 'invalid_string' },
+    ]);
+    // 面向用户可读的拼装（消费侧直接用）
+    expect(describeBridgeErrorDetail(bridgeErr)).toContain(
+      'mobile：手机号格式不正确',
+    );
+    expect(describeBridgeErrorDetail(bridgeErr)).toContain(
+      'traceId=80ce3465-f229-417a-9ad2-6e29dd2df2df',
+    );
+  });
+
+  it('errors 非数组/项缺字段 ⇒ 防御式忽略（errors 为 undefined，不抛）', async () => {
+    const nonArray = createClient(() =>
+      Promise.reject(
+        httpErrorWithBody({ code: '400', msg: 'x', errors: 'boom' }),
+      ),
+    );
+    const e1: unknown = await nonArray.client
+      .post('/a', {}, CTX)
+      .catch((e: unknown) => e);
+    expect((e1 as BridgeError).errors).toBeUndefined();
+
+    const partial = createClient(() =>
+      Promise.reject(
+        httpErrorWithBody({
+          code: '400',
+          msg: 'x',
+          errors: [{ field: 'mobile' }, { message: '缺 field' }, 42],
+        }),
+      ),
+    );
+    const e2: unknown = await partial.client
+      .post('/a', {}, CTX)
+      .catch((e: unknown) => e);
+    expect((e2 as BridgeError).errors).toBeUndefined();
+  });
+
+  it('无 errors 且无 traceId ⇒ detail 为空串（既有行为零变化）', () => {
+    expect(describeBridgeErrorDetail(new Error('x'))).toBe('');
+    expect(describeBridgeErrorDetail(new BridgeError('x', 500, '500'))).toBe(
+      '',
+    );
+  });
+
+  it('解析器与格式化函数为纯函数：errors 数组逐字段保留可选 code', () => {
+    expect(
+      parseBridgeFieldErrors([
+        { field: 'a', message: 'A' },
+        { field: 'b', message: 'B', code: 'c2' },
+      ]),
+    ).toEqual([
+      { field: 'a', message: 'A' },
+      { field: 'b', message: 'B', code: 'c2' },
+    ]);
   });
 });

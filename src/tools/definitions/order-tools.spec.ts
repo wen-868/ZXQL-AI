@@ -14,7 +14,7 @@
  */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigModule } from '@nestjs/config';
-import { ServiceClient } from '../../bridge/service-client';
+import { ServiceClient, BridgeError } from '../../bridge/service-client';
 import { ToolContext } from '../tool.interface';
 import { PriceEngineService } from '../price-engine.service';
 import { UnitConverterService } from '../unit-converter.service';
@@ -436,6 +436,43 @@ describe('R70-09 销售工具', () => {
       expect(mockServiceClient.post).toHaveBeenCalledTimes(1);
       const data = result.data as { billNo: string; totalAmount: number };
       expect(data.billNo).toBe('SB20260801001');
+    });
+
+    it('R101-AI-27：后端 400 带字段级 errors ⇒ 返回含 field 级原因 + traceId', async () => {
+      mockServiceClient.post.mockRejectedValue(
+        new BridgeError(
+          '后端 HTTP 400：参数校验失败（path=/api/admin/sale-bills）',
+          400,
+          '400',
+          '80ce3465-f229-417a-9ad2-6e29dd2df2df',
+          [{ field: 'items[0].boxQty', message: '必须为正整数' }],
+        ),
+      );
+
+      const result = await createSalesOrder.execute(
+        {
+          customerId: 1,
+          customerName: '红星商行',
+          customerType: 'WHOLESALE',
+          items: [
+            {
+              skuId: 101,
+              skuName: '五粮液 500ml',
+              boxQty: 5,
+              productInfo,
+            },
+          ],
+          confirm: true,
+        },
+        mockContext,
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('后端 HTTP 400');
+      expect(result.suggestion).toContain('items[0].boxQty：必须为正整数');
+      expect(result.suggestion).toContain(
+        'traceId=80ce3465-f229-417a-9ad2-6e29dd2df2df',
+      );
     });
 
     it('仅传 customerName 且客户已存在：预览应解析出 customerId', async () => {
