@@ -91,9 +91,9 @@ export function buildTypeOrmOptions(
     // prebuild-install/node-gyp 会失败，但 optional 失败不阻塞 pnpm install——生产 connected 用 MySQL 不需要它）。
     // ⇒ standalone（桌面端）启动时必须显式检测可用性：未安装 ⇒ 明确报错（不静默走到驱动加载才炸）。
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports -- 必须运行时探测：better-sqlite3 为
-      // optionalDependencies（云端 Linux 编译工具链缺失时安装失败不阻塞，生产 connected 用 MySQL 不需要它）；
-      // 静态 import 会在模块加载期直接崩，无法做"未安装 ⇒ 明确报错"的优雅检测。
+      // 运行时探测 better-sqlite3（optionalDependencies：云端安装失败不阻塞；connected 用 MySQL 不需要它）。
+      // 静态 import 会在加载期直接崩 ⇒ 必须运行时 require 才能优雅检测（豁免 no-require-imports）：
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       require('better-sqlite3');
     } catch {
       throw new Error(
