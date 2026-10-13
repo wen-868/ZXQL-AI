@@ -3,6 +3,9 @@ packages:
 allowBuilds:
   unrs-resolver: true
   "@napi-rs/canvas": true
+  # R101-AI-30：standalone 存储形态（ADR-001）需要 better-sqlite3 的原生绑定；
+  # 不放行则 pnpm 报 ERR_PNPM_IGNORED_BUILDS、绑定不构建，standalone 不可用
+  better-sqlite3: true
 # 注意：下面这组 overrides 同时声明在 package.json 的 pnpm.overrides（镜像），
 # 用于兼容 pnpm 9（生产环境 pnpm 9.15.9 只读 package.json，不读本文件）。
 # 改动任一处必须两处同步，否则 pnpm install --frozen-lockfile 会报

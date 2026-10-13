@@ -30,6 +30,7 @@
     "@nestjs/typeorm": "^11.0.3",
     "@types/jsonwebtoken": "^9.0.10",
     "axios": "^1.20.0",
+    "better-sqlite3": "^12.11.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "ioredis": "^5.11.1",
@@ -94,7 +95,9 @@
       "ts"
     ],
     "rootDir": "src",
-    "setupFiles": ["<rootDir>/../test/setup-dom-matrix.js"],
+    "setupFiles": [
+      "<rootDir>/../test/setup-dom-matrix.js"
+    ],
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
