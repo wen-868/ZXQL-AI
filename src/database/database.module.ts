@@ -15,7 +15,7 @@
  */
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { AiAuditLogEntity } from './entities/ai-audit-log.entity';
 import { AiUsageDailyEntity } from './entities/ai-usage-daily.entity';
 import { PlatformAiConfigEntity } from './entities/platform-ai-config.entity';
@@ -34,6 +34,11 @@ import { AiSessionArchiveEntity } from './entities/ai-session-archive.entity';
 import { AiExecutionPlanEntity } from './entities/ai-execution-plan.entity';
 import { AiIdempotencyEntity } from './entities/ai-idempotency.entity';
 import { AiDeadLetterEntity } from './entities/ai-dead-letter.entity';
+import {
+  ensureStandaloneDbDirectory,
+  isStandaloneMode,
+  resolveStandaloneDatabasePath,
+} from './dialect';
 import {
   AiEmployeeEntity,
   AiEmployeeTaskEntity,
@@ -69,31 +74,77 @@ export const AI_ENTITIES = [
   AiEmployeeTaskEntity,
 ];
 
+/**
+ * 装配 TypeORM 连接选项（R101-AI-30：按 `INTEGRATION_MODE` 双形态）
+ *
+ * 抽成**可测导出函数**：让双形态装配可被单测直接断言，而不必真连库。
+ *
+ * - standalone（桌面嵌入）⇒ `better-sqlite3`：单文件 `data/app.db`（可用 `STANDALONE_DB_PATH` 覆盖）
+ *   + `enableWAL: true`；首次启动自动建 `data/` 目录（better-sqlite3 不建父目录）
+ * - connected（缺省，共享/云生产）⇒ MySQL，**逐键与改造前一致（生产零改动）**
+ */
+export function buildTypeOrmOptions(
+  configService: ConfigService,
+): TypeOrmModuleOptions {
+  if (isStandaloneMode()) {
+    // R101-AI-30 部署修复：better-sqlite3 为 optionalDependencies（云端 Linux 无编译工具链时
+    // prebuild-install/node-gyp 会失败，但 optional 失败不阻塞 pnpm install——生产 connected 用 MySQL 不需要它）。
+    // ⇒ standalone（桌面端）启动时必须显式检测可用性：未安装 ⇒ 明确报错（不静默走到驱动加载才炸）。
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- 必须运行时探测：better-sqlite3 为
+      // optionalDependencies（云端 Linux 编译工具链缺失时安装失败不阻塞，生产 connected 用 MySQL 不需要它）；
+      // 静态 import 会在模块加载期直接崩，无法做"未安装 ⇒ 明确报错"的优雅检测。
+      require('better-sqlite3');
+    } catch {
+      throw new Error(
+        'standalone 模式需要 better-sqlite3（optionalDependencies），但当前环境未安装或原生绑定不可用。' +
+          '修复：在桌面端环境执行 `pnpm install`（allowBuilds 已放行其 install 脚本）；' +
+          '若为云端/服务器环境，请改用 connected 模式（缺省，使用 MySQL）。',
+      );
+    }
+    const dbPath = resolveStandaloneDatabasePath();
+    ensureStandaloneDbDirectory(dbPath);
+    return {
+      type: 'better-sqlite3',
+      database: dbPath,
+      entities: AI_ENTITIES,
+      synchronize: false, // 桌面端建表走 migrations-sqlite/000_baseline.sql（乙案）
+      logging:
+        configService.get<string>('NODE_ENV') === 'development'
+          ? ['error', 'warn']
+          : ['error'],
+      enableWAL: true, // 并发读 + 崩溃安全（驱动原生选项）
+    };
+  }
+  return {
+    type: 'mysql',
+    host: configService.get<string>('DB_HOST', '127.0.0.1'),
+    port: configService.get<number>('DB_PORT', 3306),
+    username: configService.get<string>('DB_USERNAME', 'root'),
+    password: configService.get<string>('DB_PASSWORD', ''),
+    database: configService.get<string>('DB_DATABASE', 'liquor_inventory'),
+    entities: AI_ENTITIES,
+    synchronize: false, // 生产环境禁止自动同步，使用 migration 脚本建表
+    logging:
+      configService.get<string>('NODE_ENV') === 'development'
+        ? ['error', 'warn']
+        : ['error'],
+    timezone: '+08:00', // 东八区，与现有 backend 保持一致
+    charset: 'utf8mb4',
+    poolSize: 10,
+    extra: {
+      connectionLimit: 10,
+    },
+  };
+}
+
 @Module({
   imports: [
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'mysql' as const,
-        host: configService.get<string>('DB_HOST', '127.0.0.1'),
-        port: configService.get<number>('DB_PORT', 3306),
-        username: configService.get<string>('DB_USERNAME', 'root'),
-        password: configService.get<string>('DB_PASSWORD', ''),
-        database: configService.get<string>('DB_DATABASE', 'liquor_inventory'),
-        entities: AI_ENTITIES,
-        synchronize: false, // 生产环境禁止自动同步，使用 migration 脚本建表
-        logging:
-          configService.get<string>('NODE_ENV') === 'development'
-            ? ['error', 'warn']
-            : ['error'],
-        timezone: '+08:00', // 东八区，与现有 backend 保持一致
-        charset: 'utf8mb4',
-        poolSize: 10,
-        extra: {
-          connectionLimit: 10,
-        },
-      }),
+      useFactory: (configService: ConfigService) =>
+        buildTypeOrmOptions(configService),
     }),
     TypeOrmModule.forFeature(AI_ENTITIES),
   ],
