@@ -1,0 +1,19 @@
+=== R101-AI-29 探针2：Entity 映射 ===
+[2.0] 原样（MySQL 口径）初始化 FAIL：DataTypeNotSupportedError: Data type "char" in "AiIdempotency.idemKey" is not supported by "better-sqlite3" database.
+      ⇒ FINDING F1：该列类型在 SQLite 驱动下不受支持，须按方言改列类型（记入改造量）
+[2.1] DataSource 初始化 OK（better-sqlite3 + 文件库）
+[2.2] synchronize() 建表 OK（含 json/mediumtext/datetime(3)/unique）
+[2.3] DDL t_ai_audit_log: CREATE TABLE "t_ai_audit_log" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "tenant_id" varchar(36) NOT NULL, "user_id" varchar(36), "provider" varchar(32), "categories" json, "tool_calls" text, "success" boolean NOT NULL DEFAULT (1), "created_at" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP))
+[2.3] DDL t_ai_idempotency: CREATE TABLE "t_ai_idempotency" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "tenant_id" varchar(36) NOT NULL, "tool_name" varchar(64) NOT NULL, "idem_key" varchar(64) NOT NULL, "key_source" varchar(16) NOT NULL, "status" varchar(16) NOT NULL DEFAULT ('in_flight'), "result_json" text, "completed_at" datetime(3), "created_at" datetime NOT NULL)
+[2.3] DDL t_ai_usage_daily: CREATE TABLE "t_ai_usage_daily" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "tenant_id" varchar(36) NOT NULL, "stat_date" date NOT NULL, "provider" varchar(32) NOT NULL, "chat_count" integer NOT NULL DEFAULT (0), "total_tokens" bigint NOT NULL DEFAULT (0), "total_cost" decimal(12,4) NOT NULL DEFAULT (0))
+[2.3] IDX idx_created_at: CREATE INDEX "idx_created_at" ON "t_ai_audit_log" ("created_at") 
+[2.3] IDX idx_tenant_id: CREATE INDEX "idx_tenant_id" ON "t_ai_audit_log" ("tenant_id") 
+[2.3] IDX uk_ai_idempotency: CREATE UNIQUE INDEX "uk_ai_idempotency" ON "t_ai_idempotency" ("tenant_id", "tool_name", "idem_key") 
+[2.3] IDX uk_tenant_date_provider: CREATE UNIQUE INDEX "uk_tenant_date_provider" ON "t_ai_usage_daily" ("tenant_id", "stat_date", "provider") 
+[2.4] JSON 列往返：categories=["inventory","order"] 类型=object
+[2.5] DATETIME(3) 毫秒：写入=2026-10-14T00:12:34.567Z 读回="2026-10-14 00:12:34.567"
+[2.6] 唯一键冲突错误形态：name=QueryFailedError code=SQLITE_CONSTRAINT_UNIQUE errno=undefined driverCode=SQLITE_CONSTRAINT_UNIQUE driverErrno=undefined
+      message=SqliteError: UNIQUE constraint failed: t_ai_idempotency.tenant_id, t_ai_idempotency.tool_name, t_ai_idempotency.idem_key
+      ⇒ 对照 MySQL：code=ER_DUP_ENTRY errno=1062 ⇒ 判重逻辑需按方言扩展（改造量）
+[2.7] decimal(12,4) 读回：value=0.0019 类型=number
+=== 探针2 结束 ===

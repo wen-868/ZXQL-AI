@@ -1,0 +1,9 @@
+=== R101-AI-29 探针1：驱动可行性 ===
+[ENV] node=v24.18.0 platform=win32 arch=arm64
+[ENV] typeorm=1.1.0
+[A-libsql-type] FAIL（预期）：Wrong driver: "libsql" given. Supported drivers are: "aurora-mysql", "aurora-postgres", "better-sqlite3", "capacitor", "cockroachdb", "cordova", "expo", "mariadb", "mongodb", "mssql", "mysql", "nativescript", "oracle", "postgres", "react-native", "sap", "spanner", "sqljs".
+[B-libsql-binding] FAIL：Cannot find module '@libsql/win32-arm64-msvc'
+[C-better-sqlite3-binding] OK sqlite=3.53.2
+[C-typeorm-init] OK 建连+建表+读写 rows=[{"v":"hello"}]
+[D-driver-injection] OK：TypeORM 接受 options.driver 注入（= 可挂接兼容 SQLite API 的自带 driver，如未来的 libsql 适配）
+=== 探针1 结束 ===

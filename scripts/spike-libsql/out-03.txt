@@ -1,0 +1,18 @@
+=== R101-AI-29 探针3：幂等语义等价 ===
+[ENV] journal_mode=wal
+[A-MySQL方言] FAIL（预期）：SQLITE_ERROR near "DUPLICATE": syntax error
+   ⇒ FINDING F5：`ON DUPLICATE KEY UPDATE` 是 MySQL 专有 ⇒ 4 处写点（audit-logger:439/462/494、ai-usage-daily 注释处）必须改写
+[B-认领#1] changes=1 lastInsertRowid=1
+[B-认领#2 同键] changes=1 lastInsertRowid=1（DO UPDATE：同一行被改写）
+[D-DO NOTHING 冲突] changes=0（0 = 冲突，可无异常判重）行数=1
+--- AI-21 认领全链路（仲裁行为）---
+[C-1] 首次认领：changes=1（1 = 插入成功 ⇒ proceed）
+[C-1] 首次认领后（in_flight：执行中） → id=4 status=in_flight result=null
+[C-2] 第二次提交（同键冲突 ⇒ 本实现返回"处理中"，不执行） → id=4 status=in_flight result=null
+[C-3] 失败置 failed（允许同键重试） → id=4 status=failed result=null
+[C-4] failed 行上的条件重认领：changes=1（1 = 成功抢回；0 = 他人已抢 ⇒ 等价 MySQL 的 UPDATE ... WHERE status='failed'）
+[C-5] 执行完成置 succeeded（可回放） → id=4 status=succeeded result={"success":true,"data":{"orderNo":"SO-1"}}
+[C-6] 完成后再次提交：插入 changes=0 ⇒ 读既有行回放 result={"success":true,"data":{"orderNo":"SO-1"}}
+[C-7] 全链路后该键行数=1（始终 1 行 ⇒ 至多一次落单语义成立）
+[E-累加] 4 次 UPSERT（每次 chat+1 / cost+0.0015）⇒ chat_count=4（期望4） total_cost=0.006（期望0.0060）
+=== 探针3 结束 ===
