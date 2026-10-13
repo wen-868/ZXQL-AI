@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智享AI · 独立AI底座桌面软件</title>
+<style>
+/* ============================================================
+   智享AI 桌面端 —— 高保真原型 v1.0
+   视觉语言：沿用《智享全链_工作台电脑端_UI原型_融合版》品牌基因
+   （色板/圆角/阴影/字体/间距同源；三栏 IA 见 UI 设计方案 v1.0）
+   ============================================================ */
+:root{
+  --bg:#FFFFFF; --side:#F9FAFB; --panel2:#F4F6F8; --ink:#16181D; --sub:#8A8F98; --line:#ECEEF1; --line-strong:#DDE2E9;
+  --blue:#2563EB; --blue-l:#EFF4FF; --grad:linear-gradient(135deg,#3B82F6,#2563EB);
+  --amber:#D97706; --amber-bg:#FFFBF0; --amber-line:#F1E3C8; --amber-ink:#92400E;
+  --red:#DC2626; --green:#16A34A; --green-bg:#F0FBF4;
+  --rail-bg:#F7F9FC; --rail-sub:#68758A;
+  --shadow:0 8px 30px rgba(22,24,29,.06);
+  --r-s:6px; --r-m:10px; --r-l:14px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);font-size:13px;line-height:1.55;overflow:hidden;height:100vh}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:#D8DDE5;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#C2C9D4}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea{font-family:inherit;outline:none}
+
+/* ── 窗口壳（Electron 无边框：顶栏自绘 + 三钮） ── */
+.app{display:flex;flex-direction:column;height:100vh}
+.topbar{height:44px;background:var(--bg);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 12px;gap:10px;-webkit-app-region:drag;flex-shrink:0}
+.topbar .brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px}
+.topbar .brand .logo{width:20px;height:20px;border-radius:5px;background:var(--grad);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700}
+.topbar .tenant{margin-left:8px;font-size:11px;color:var(--sub);background:var(--panel2);padding:2px 8px;border-radius:4px}
+.topbar .spacer{flex:1}
+.topbar .icon-btn{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--sub);position:relative;-webkit-app-region:no-drag}
+.topbar .icon-btn:hover{background:var(--panel2);color:var(--ink)}
+.topbar .icon-btn .dot{position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--red);border:1.5px solid #fff}
+.topbar .win-ctrl{display:flex;gap:2px;-webkit-app-region:no-drag}
+.topbar .win-ctrl button{width:32px;height:26px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:12px}
+.topbar .win-ctrl button:hover{background:var(--panel2)}
+.topbar .win-ctrl button.close:hover{background:var(--red);color:#fff}
+
+/* ── 主体三栏 ── */
+.main{display:flex;flex:1;overflow:hidden}
+
+/* ① 左导航 */
+.rail{width:196px;background:var(--rail-bg);border-right:1px solid var(--line);display:flex;flex-direction:column;flex-shrink:0;padding:10px 8px}
+.rail .sec{margin:10px 4px 4px;font-size:10px;color:var(--rail-sub);letter-spacing:.5px}
+.rail .nav{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:var(--r-m);color:var(--ink);font-size:12.5px;cursor:pointer;position:relative}
+.rail .nav:hover{background:#EDF1F7}
+.rail .nav.on{background:var(--blue-l);color:var(--blue);font-weight:600}
+.rail .nav .ic{width:16px;height:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.rail .nav .badge{margin-left:auto;background:var(--red);color:#fff;font-size:9px;min-width:15px;height:15px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.rail .nav .sub{margin-left:auto;color:var(--rail-sub);font-size:10px}
+.rail .navs{display:flex;flex-direction:column;gap:1px}
+.rail .foot{margin-top:auto;padding:8px 4px 0;border-top:1px solid var(--line);font-size:10px;color:var(--rail-sub)}
+
+/* ② 中工作区 */
+.work{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+.work .tabbar{height:40px;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 14px;gap:14px;flex-shrink:0}
+.work .tabbar .tab{font-size:12.5px;color:var(--sub);padding:4px 2px;cursor:pointer;border-bottom:2px solid transparent}
+.work .tabbar .tab.on{color:var(--ink);font-weight:600;border-bottom-color:var(--blue)}
+.work .tabbar .hint{margin-left:auto;font-size:10.5px;color:var(--rail-sub)}
+.pane{flex:1;overflow-y:auto;padding:16px 20px;display:none}
+.pane.on{display:block}
+
+/* ── 对话流 ── */
+.chat{display:flex;flex-direction:column;gap:14px;max-width:760px}
+.msg{display:flex;gap:10px}
+.msg .avatar{width:26px;height:26px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600}
+.msg.ai .avatar{background:var(--grad);color:#fff}
+.msg.user{flex-direction:row-reverse}
+.msg.user .avatar{background:var(--panel2);color:var(--sub)}
+.msg .body{max-width:calc(100% - 40px)}
+.msg.user .body{display:flex;flex-direction:column;align-items:flex-end}
+.bubble{background:var(--side);border:1px solid var(--line);border-radius:var(--r-l);padding:10px 13px;font-size:13px}
+.msg.user .bubble{background:var(--blue-l);border-color:#DCE7FD}
+.msg .name{font-size:10.5px;color:var(--sub);margin-bottom:3px}
+
+/* 工具时间线 */
+.tools{margin-top:8px;border:1px solid var(--line);border-radius:var(--r-m);overflow:hidden;background:#FCFDFE}
+.tools .t-head{padding:6px 10px;background:var(--side);border-bottom:1px solid var(--line);font-size:10.5px;color:var(--sub);display:flex;align-items:center;gap:6px}
+.tools .t-row{display:flex;align-items:center;gap:8px;padding:6px 10px;font-size:11.5px;border-bottom:1px solid var(--line)}
+.tools .t-row:last-child{border-bottom:none}
+.tools .t-ic{width:16px;height:16px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0}
+.tools .t-ic.ok{background:var(--green-bg);color:var(--green)}
+.tools .t-ic.run{background:var(--blue-l);color:var(--blue)}
+.tools .t-ic.warn{background:var(--amber-bg);color:var(--amber-ink)}
+.tools .t-name{font-weight:500}
+.tools .t-meta{margin-left:auto;color:var(--rail-sub);font-size:10px}
+.tools .t-detail{font-size:10.5px;color:var(--sub);padding:0 10px 6px 34px}
+
+/* 写确认卡 */
+.confirm{border:1px solid var(--amber-line);background:var(--amber-bg);border-radius:var(--r-l);padding:12px 14px;max-width:520px}
+.confirm .c-head{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--amber-ink);margin-bottom:8px}
+.confirm .c-count{margin-left:auto;font-size:10.5px;font-weight:500;color:var(--amber);background:#fff;border:1px solid var(--amber-line);border-radius:4px;padding:1px 6px}
+.confirm .c-op{font-size:13px;font-weight:600;margin-bottom:4px}
+.confirm .c-sum{font-size:11.5px;color:var(--sub);margin-bottom:8px}
+.confirm .c-rows{background:#fff;border:1px solid var(--amber-line);border-radius:var(--r-s);padding:8px 10px;font-size:11.5px;display:flex;flex-direction:column;gap:3px;margin-bottom:10px}
+.confirm .c-rows .r{display:flex;gap:8px}
+.confirm .c-rows .k{color:var(--sub);flex-shrink:0;width:64px}
+.confirm .c-warn{font-size:11px;color:var(--amber-ink);background:#FEF6E4;border:1px solid var(--amber-line);border-radius:var(--r-s);padding:6px 9px;margin-bottom:10px}
+.confirm .c-btns{display:flex;gap:8px}
+.btn{padding:6px 14px;border-radius:var(--r-s);font-size:12px;font-weight:500;border:1px solid transparent}
+.btn-p{background:var(--grad);color:#fff}
+.btn-p:hover{opacity:.92}
+.btn-g{background:#fff;border-color:var(--line-strong);color:var(--ink)}
+.btn-g:hover{background:var(--side)}
+.btn-d{background:#fff;border-color:#F3C9C9;color:var(--red)}
+.btn-d:hover{background:#FEF4F4}
+
+/* 输入区 */
+.inputer{border-top:1px solid var(--line);padding:10px 16px 14px;flex-shrink:0;background:var(--bg)}
+.inputer .box{border:1px solid var(--line-strong);border-radius:var(--r-l);background:#fff;box-shadow:var(--shadow);padding:10px 12px;transition:border-color .15s}
+.inputer .box:focus-within{border-color:var(--blue)}
+.inputer textarea{width:100%;border:none;resize:none;font-size:13px;min-height:22px;max-height:120px;background:transparent}
+.inputer .acts{display:flex;align-items:center;gap:6px;margin-top:8px}
+.inputer .acts .ia{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--sub)}
+.inputer .acts .ia:hover{background:var(--panel2);color:var(--ink)}
+.inputer .model-pick{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--sub);background:var(--side);border:1px solid var(--line);border-radius:6px;padding:3px 9px;cursor:pointer}
+.inputer .model-pick .m{font-weight:600;color:var(--ink)}
+.inputer .send{width:30px;height:30px;border-radius:8px;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px}
+.inputer .send:hover{opacity:.92}
+
+/* ── ③ 右上下文面板 ── */
+.ctx{width:264px;border-left:1px solid var(--line);background:var(--side);display:flex;flex-direction:column;flex-shrink:0}
+.ctx .c-tabs{display:flex;border-bottom:1px solid var(--line);flex-shrink:0}
+.ctx .c-tabs .t{flex:1;text-align:center;padding:9px 0;font-size:11px;color:var(--sub);cursor:pointer;border-bottom:2px solid transparent}
+.ctx .c-tabs .t.on{color:var(--blue);font-weight:600;border-bottom-color:var(--blue);background:#fff}
+.ctx .c-body{flex:1;overflow-y:auto;padding:12px}
+.ctx .c-sec{margin-bottom:14px}
+.ctx .c-sec .h{font-size:10.5px;color:var(--rail-sub);margin-bottom:6px;letter-spacing:.3px}
+.ctx .c-item{background:#fff;border:1px solid var(--line);border-radius:var(--r-m);padding:8px 10px;font-size:11.5px;margin-bottom:6px;cursor:pointer}
+.ctx .c-item:hover{border-color:var(--blue)}
+.ctx .c-item .t{font-weight:500;margin-bottom:2px;display:flex;align-items:center;gap:5px}
+.ctx .c-item .d{font-size:10px;color:var(--sub)}
+.ctx .c-item .tag{margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px}
+.ctx .tag-b{background:var(--blue-l);color:var(--blue)}
+.ctx .tag-a{background:var(--amber-bg);color:var(--amber-ink)}
+.ctx .tag-r{background:#FEF4F4;color:var(--red)}
+.ctx .c-item .kv{display:flex;gap:6px;font-size:10.5px;color:var(--sub);margin-top:2px}
+.ctx .empty{font-size:11px;color:var(--rail-sub);text-align:center;padding:20px 0}
+
+/* ── 办公域：文档 Tab ── */
+.docs{display:flex;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:var(--r-l);overflow:hidden;max-width:860px}
+.docs .d-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--side);border-bottom:1px solid var(--line)}
+.docs .d-bar .search{flex:1;max-width:280px;background:#fff;border:1px solid var(--line-strong);border-radius:6px;padding:5px 10px;font-size:11.5px}
+.docs .d-bar .btn{padding:4px 10px;font-size:11.5px}
+.docs table{width:100%;border-collapse:collapse;font-size:11.5px;background:#fff}
+.docs th{text-align:left;padding:8px 12px;font-size:10.5px;color:var(--sub);font-weight:500;border-bottom:1px solid var(--line);background:var(--side)}
+.docs td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+.docs tr:last-child td{border-bottom:none}
+.docs tr:hover td{background:#FCFDFE}
+.docs .nm{font-weight:500;display:flex;align-items:center;gap:7px}
+.docs .ft{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;flex-shrink:0}
+.docs .ft.pdf{background:#FEF4F4;color:var(--red)}
+.docs .ft.doc{background:var(--blue-l);color:var(--blue)}
+.docs .ft.xls{background:var(--green-bg);color:var(--green)}
+.docs .ft.txt{background:var(--panel2);color:var(--sub)}
+.docs .st{font-size:9.5px;padding:1px 6px;border-radius:3px}
+.docs .st.ok{background:var(--green-bg);color:var(--green)}
+.docs .st.in{background:var(--amber-bg);color:var(--amber-ink)}
+.docs .op{color:var(--blue);font-size:11px;cursor:pointer}
+.docs .op:hover{text-decoration:underline}
+
+/* ── 数字员工 Tab ── */
+.emp{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;max-width:860px}
+.emp .card{border:1px solid var(--line);border-radius:var(--r-l);padding:12px;background:#fff;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.emp .card:hover{border-color:var(--blue);box-shadow:var(--shadow)}
+.emp .card .hd{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.emp .card .av{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;flex-shrink:0}
+.emp .card .nm{font-size:12.5px;font-weight:600}
+.emp .card .rl{font-size:10px;color:var(--sub)}
+.emp .card .st{margin-left:auto;font-size:9.5px;padding:1px 6px;border-radius:3px}
+.emp .card .st.busy{background:var(--amber-bg);color:var(--amber-ink)}
+.emp .card .st.idle{background:var(--green-bg);color:var(--green)}
+.emp .card .ds{font-size:10.5px;color:var(--sub);line-height:1.5;margin-bottom:8px;min-height:32px}
+.emp .card .ft{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--rail-sub);border-top:1px solid var(--line);padding-top:7px}
+.emp .card .ft .bar{flex:1;height:3px;background:var(--line);border-radius:2px;overflow:hidden}
+.emp .card .ft .bar i{display:block;height:100%;background:var(--grad);border-radius:2px}
+
+/* 通用：空态/标题 */
+.pane-h{font-size:15px;font-weight:600;margin-bottom:4px}
+.pane-sub{font-size:11.5px;color:var(--sub);margin-bottom:16px}
+.soon{border:1px dashed var(--line-strong);border-radius:var(--r-l);padding:26px;text-align:center;color:var(--rail-sub);font-size:12px;max-width:860px}
+.soon .ic{font-size:22px;margin-bottom:6px;opacity:.5}
+.soon b{display:block;color:var(--ink);font-size:13px;margin-bottom:3px;font-weight:600}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ═══ 顶栏（无边框自绘） ═══ -->
+  <header class="topbar">
+    <div class="brand"><span class="logo">智</span>智享AI</div>
+    <span class="tenant" id="tenantTag">演示租户 · demo</span>
+    <div class="spacer"></div>
+    <button class="icon-btn" title="通知"><span>🔔</span><i class="dot"></i></button>
+    <button class="icon-btn" title="设置"><span>⚙</span></button>
+    <div class="win-ctrl">
+      <button title="最小化">—</button>
+      <button title="最大化">□</button>
+      <button class="close" title="关闭">✕</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- ═══ ① 左导航 ═══ -->
+    <nav class="rail">
+      <div class="navs">
+        <div class="nav on" data-pane="chat"><span class="ic">💬</span>对话<span class="badge" id="navPending">2</span></div>
+        <div class="nav" data-pane="emp"><span class="ic">🤖</span>数字员工</div>
+      </div>
+      <div class="sec">办公</div>
+      <div class="navs">
+        <div class="nav" data-pane="docs"><span class="ic">📄</span>文档</div>
+        <div class="nav" data-pane="todo"><span class="ic">✅</span>待办<span class="badge">3</span></div>
+        <div class="nav" data-pane="approval"><span class="ic">📋</span>审批<span class="badge">1</span></div>
+        <div class="nav" data-pane="calendar"><span class="ic">📅</span>日程</div>
+        <div class="nav" data-pane="meeting"><span class="ic">🎥</span>会议</div>
+        <div class="nav" data-pane="notice"><span class="ic">📣</span>通知<span class="badge">2</span></div>
+      </div>
+      <div class="sec">知识</div>
+      <div class="navs">
+        <div class="nav" data-pane="kb"><span class="ic">📚</span>知识库</div>
+      </div>
+      <div class="sec">系统</div>
+      <div class="navs">
+        <div class="nav" data-pane="settings"><span class="ic">⚙</span>设置</div>
+      </div>
+      <div class="foot">智享AI v1.1.0 · standalone</div>
+    </nav>
+
+    <!-- ═══ ② 中工作区 ═══ -->
+    <main class="work">
+      <div class="tabbar">
+        <span class="tab on" data-pane="chat">本月经营对话</span>
+        <span class="tab" data-pane="emp">数字员工</span>
+        <span class="tab" data-pane="docs">文档中心</span>
+        <span class="hint">💡 一切能力均可经对话触达 · 右侧面板可查待办与审批</span>
+      </div>
+
+      <!-- 对话 -->
+      <section class="pane on" id="pane-chat">
+        <div class="chat">
+          <div class="msg user"><div class="avatar">我</div><div class="body"><div class="name">我 · 14:02</div><div class="bubble">帮我看看红星商行这个月还欠多少货款</div></div></div>
+
+          <div class="msg ai"><div class="avatar">AI</div><div class="body">
+            <div class="name">智享AI · 14:02</div>
+            <div class="tools">
+              <div class="t-head">🔧 工具调用 · 2 项</div>
+              <div class="t-row"><span class="t-ic ok">✓</span><span class="t-name">searchCustomer</span><span class="t-meta">142ms</span></div>
+              <div class="t-detail">关键词「红星商行」→ memberId=14 · 批发客户 · 账期结算</div>
+              <div class="t-row"><span class="t-ic ok">✓</span><span class="t-name">queryReceivables</span><span class="t-meta">286ms</span></div>
+              <div class="t-detail">客户 14 · 未收 ¥12,800.00 · 3 笔逾期（最长 12 天）</div>
+            </div>
+            <div class="bubble" style="margin-top:8px">红星商行当前**未收货款 ¥12,800.00**，共 3 笔已逾期（最长逾期 12 天）。建议本周安排一次对账确认——需要我帮你起草一份催收函吗？</div>
+          </div></div>
+
+          <div class="msg user"><div class="avatar">我</div><div class="body"><div class="name">我 · 14:03</div><div class="bubble">好，先起草。另外把 8 月的那份对账单归档到合同文件夹</div></div></div>
+
+          <div class="msg ai"><div class="avatar">AI</div><div class="body">
+            <div class="name">智享AI · 14:03</div>
+            <div class="tools">
+              <div class="t-head">🔧 工具调用 · 1 项</div>
+              <div class="t-row"><span class="t-ic ok">✓</span><span class="t-name">ai_doc.create</span><span class="t-meta">1.2s</span></div>
+              <div class="t-detail">催收函已生成 → 文档中心「应收/催收函-红星商行-0814.docx」· 已同步至待办</div>
+            </div>
+            <div class="bubble" style="margin-top:8px">催收函已起草完成并归档；我已把「8 月对账单」移入「合同/对账」文件夹，并建了一条待办提醒你周三前确认。你可以在右侧面板或「文档」Tab 查看。</div>
+          </div></div>
+
+          <div class="msg user"><div class="avatar">我</div><div class="body"><div class="name">我 · 14:05</div><div class="bubble">给红星商行开一张销售单，五粮液 1 箱，单价 800</div></div></div>
+
+          <div class="msg ai"><div class="avatar">AI</div><div class="body">
+            <div class="name">智享AI · 14:05</div>
+            <div class="bubble" style="margin-bottom:8px">已生成预览，请确认后执行：</div>
+            <div class="confirm">
+              <div class="c-head">⚠️ 写操作确认<span class="c-count" id="cd">02:31</span></div>
+              <div class="c-op">创建销售单</div>
+              <div class="c-sum">红星商行 1 种商品，合计 4800.00 元（含 1 条警告）</div>
+              <div class="c-rows">
+                <div class="r"><span class="k">客户</span><span>红星商行（memberId=14 · 批发）</span></div>
+                <div class="r"><span class="k">商品</span><span>五粮液 SKU-10 · 1 箱（6 瓶）</span></div>
+                <div class="r"><span class="k">单价</span><span>¥800.00 × 6 瓶 = ¥4,800.00</span></div>
+                <div class="r"><span class="k">类型</span><span>现结（CASH）</span></div>
+              </div>
+              <div class="c-warn">⚠️ SKU-10 的单价 800 低于进价 850，可能造成亏损</div>
+              <div class="c-btns">
+                <button class="btn btn-p">确认执行</button>
+                <button class="btn btn-g">修改</button>
+                <button class="btn btn-d">取消</button>
+              </div>
+            </div>
+          </div></div>
+        </div>
+      </section>
+
+      <!-- 数字员工 -->
+      <section class="pane" id="pane-emp">
+        <div class="pane-h">数字员工</div>
+        <div class="pane-sub">经对话派单，员工自主执行并回传结果 · 当前 4 名在岗</div>
+        <div class="emp">
+          <div class="card"><div class="hd"><span class="av" style="background:var(--grad)">小</span><div><div class="nm">小库</div><div class="rl">库存专员</div></div><span class="st busy">执行中</span></div><div class="ds">核对本月库存差异，输出盘点建议</div><div class="ft">任务进度 <span class="bar"><i style="width:68%"></i></span> 68%</div></div>
+          <div class="card"><div class="hd"><span class="av" style="background:var(--green)">李</span><div><div class="nm">小李</div><div class="rl">对账专员</div></div><span class="st busy">执行中</span></div><div class="ds">整理红星商行近 3 月对账单差异</div><div class="ft">任务进度 <span class="bar"><i style="width:42%"></i></span> 42%</div></div>
+          <div class="card"><div class="hd"><span class="av" style="background:var(--amber)">采</span><div><div class="nm">小采</div><div class="rl">采购助理</div></div><span class="st idle">空闲</span></div><div class="ds">监控安全库存，触发补货建议</div><div class="ft">今日完成 <span class="bar"><i style="width:100%"></i></span> 100%</div></div>
+          <div class="card"><div class="hd"><span class="av" style="background:var(--blue)">报</span><div><div class="nm">小报</div><div class="rl">报表专员</div></div><span class="st idle">空闲</span></div><div class="ds">每日 8:30 经营简报自动生成</div><div class="ft">今日完成 <span class="bar"><i style="width:100%"></i></span> 100%</div></div>
+        </div>
+      </section>
+
+      <!-- 文档中心 -->
+      <section class="pane" id="pane-docs">
+        <div class="pane-h">文档中心</div>
+        <div class="pane-sub">上传 / 目录 / 标签 / 检索 · 文档对话 · AI 生成归档</div>
+        <div class="docs">
+          <div class="d-bar">
+            <input class="search" placeholder="搜索文档、标签、内容…">
+            <button class="btn btn-p">＋ 上传</button>
+            <button class="btn btn-g">📁 新建目录</button>
+          </div>
+          <table>
+            <thead><tr><th style="width:38%">文档</th><th>目录</th><th>标签</th><th>更新时间</th><th>状态</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><div class="nm"><span class="ft doc">DOC</span>催收函-红星商行-0814</div></td><td>应收 / 催收</td><td><span class="st in">催收</span> <span class="st in">红星</span></td><td>今天 14:03</td><td><span class="st ok">已归档</span></td><td class="op">对话</td></tr>
+              <tr><td><div class="nm"><span class="ft pdf">PDF</span>8月对账单-红星商行</div></td><td>合同 / 对账</td><td><span class="st in">对账</span></td><td>今天 14:03</td><td><span class="st ok">已归档</span></td><td class="op">对话</td></tr>
+              <tr><td><div class="nm"><span class="ft doc">DOC</span>供应商年度合同-五粮液经销</div></td><td>合同 / 采购</td><td><span class="st in">合同</span></td><td>昨天 17:20</td><td><span class="st ok">已索引</span></td><td class="op">对话</td></tr>
+              <tr><td><div class="nm"><span class="ft xls">XLS</span>8月费用明细表</div></td><td>财务 / 费用</td><td><span class="st in">费用</span></td><td>昨天 11:02</td><td><span class="st ok">已索引</span></td><td class="op">对话</td></tr>
+              <tr><td><div class="nm"><span class="ft txt">TXT</span>库存管理规则-v2</div></td><td>知识 / 规则</td><td><span class="st in">规则</span></td><td>8月12日</td><td><span class="st ok">已索引</span></td><td class="op">对话</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 待办 -->
+      <section class="pane" id="pane-todo"><div class="pane-h">待办</div><div class="pane-sub">对话式创建 · 数字员工任务 · 智能提醒</div><div class="soon"><div class="ic">✅</div><b>待办域 · 第二批规划</b>随 O2 批次点亮，交互范式同文档中心</div></section>
+      <section class="pane" id="pane-approval"><div class="pane-h">审批</div><div class="pane-sub">轻量审批 · AI 辅助填单 · 复用待审工单基座</div><div class="soon"><div class="ic">📋</div><b>审批域 · 第三批规划</b>复用 review-task 基座，AI 辅助生成申请</div></section>
+      <section class="pane" id="pane-calendar"><div class="pane-h">日程</div><div class="pane-sub">创建 / 提醒 / 冲突检测</div><div class="soon"><div class="ic">📅</div><b>日程域 · 第四批规划</b>复用主动能力触发器</div></section>
+      <section class="pane" id="pane-meeting"><div class="pane-h">会议</div><div class="pane-sub">会议安排 · 纪要闭环（office_minutes 已有雏形）</div><div class="soon"><div class="ic">🎥</div><b>会议域 · 第四批规划</b>会议纪要闭环落地</div></section>
+      <section class="pane" id="pane-notice"><div class="pane-h">通知</div><div class="pane-sub">站内通知 · 聚合 · 优先级</div><div class="soon"><div class="ic">📣</div><b>通知域 · 第五批规划</b>WebSocket 通道已有，补历史与聚合</div></section>
+      <section class="pane" id="pane-kb"><div class="pane-h">知识库</div><div class="pane-sub">文档入库 / 分块 / 向量 / 检索（RAG 引擎已有）</div><div class="soon"><div class="ic">📚</div><b>知识库 · 随文档域一并落地</b>RAG 能力已有，补管理面与入库通道</div></section>
+      <section class="pane" id="pane-settings"><div class="pane-h">设置</div><div class="pane-sub">服务地址 / 账号 / 模型 / 权限 / 关于</div><div class="soon"><div class="ic">⚙</div><b>设置 · 随独立部署形态完善</b>standalone / connected 双模式配置</div></section>
+    </main>
+
+    <!-- ═══ ③ 右上下文面板 ═══ -->
+    <aside class="ctx">
+      <div class="c-tabs">
+        <div class="t on" data-ctab="ctx">上下文</div>
+        <div class="t" data-ctab="todo">待办</div>
+        <div class="t" data-ctab="appr">审批</div>
+      </div>
+      <div class="c-body">
+        <div id="ctab-ctx">
+          <div class="c-sec"><div class="h">当前会话上下文</div>
+            <div class="c-item"><div class="t">🎯 目标</div><div class="d">本月应收对账与催收跟进</div></div>
+            <div class="c-item"><div class="t">👤 客户</div><div class="d">红星商行 · memberId=14 · 批发</div></div>
+            <div class="c-item"><div class="t">📊 关键数据</div><div class="kv"><span>未收 ¥12,800</span><span>逾期 3 笔</span></div></div>
+          </div>
+          <div class="c-sec"><div class="h">最近调用工具</div>
+            <div class="c-item"><div class="t">queryReceivables</div><div class="d">286ms · 成功</div></div>
+            <div class="c-item"><div class="t">searchCustomer</div><div class="d">142ms · 成功</div></div>
+          </div>
+        </div>
+        <div id="ctab-todo" style="display:none">
+          <div class="c-sec"><div class="h">我的待办 · 3</div>
+            <div class="c-item"><div class="t">✅ 确认 8 月对账单差异</div><div class="d">由对话「整理对账单」创建 · 周三截止</div><span class="tag tag-a">今天</span></div>
+            <div class="c-item"><div class="t">✅ 审核催收函</div><div class="d">AI 起草 · 需你确认后发出</div><span class="tag tag-a">今天</span></div>
+            <div class="c-item"><div class="t">✅ 库存盘点复核</div><div class="d">数字员工「小库」回传待验收</div><span class="tag tag-b">明天</span></div>
+          </div>
+          <div class="c-sec"><div class="h">员工任务</div>
+            <div class="c-item"><div class="t">🤖 小库 · 库存核对</div><div class="d">执行中 · 68%</div><span class="tag tag-b">进行中</span></div>
+            <div class="c-item"><div class="t">🤖 小李 · 对账整理</div><div class="d">执行中 · 42%</div><span class="tag tag-b">进行中</span></div>
+          </div>
+        </div>
+        <div id="ctab-appr" style="display:none">
+          <div class="c-sec"><div class="h">待我审批 · 1</div>
+            <div class="c-item"><div class="t">📋 采购申请 · 五粮液 20 箱</div><div class="d">小采提交 · ¥48,000 · 超日常额度</div><span class="tag tag-r">待审</span></div>
+          </div>
+          <div class="c-sec"><div class="h">我提交的</div>
+            <div class="c-item"><div class="t">📋 费用报销 · 差旅 ¥1,280</div><div class="d">AI 辅助填单 · 已提交</div><span class="tag tag-b">审批中</span></div>
+          </div>
+          <div class="c-sec"><div class="h">通知</div>
+            <div class="c-item"><div class="t">📣 库存预警 · SKU-10 低于安全线</div><div class="d">14:00 · 巡检触发</div><span class="tag tag-a">新</span></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ═══ ④ 输入区 ═══ -->
+  <footer class="inputer">
+    <div class="box">
+      <textarea id="ta" rows="1" placeholder="发消息，或直接说「让小李核对本月库存」…"></textarea>
+      <div class="acts">
+        <button class="ia" title="附件">📎</button>
+        <button class="ia" title="语音输入">🎤</button>
+        <button class="ia" title="文档">📄</button>
+        <button class="ia" title="员工">🤖</button>
+        <div class="model-pick">模型 <span class="m">Hy4 preview</span> ▾</div>
+        <button class="send" title="发送">↑</button>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script>
+/* 最小交互原型：导航/Tab/上下文面板切换 + 确认卡倒计时 */
+document.querySelectorAll('.rail .nav').forEach(n=>n.addEventListener('click',()=>{
+  document.querySelectorAll('.rail .nav').forEach(x=>x.classList.remove('on'));
+  n.classList.add('on');
+  const p=n.dataset.pane;
+  document.querySelectorAll('.pane').forEach(s=>s.classList.remove('on'));
+  const el=document.getElementById('pane-'+p); if(el)el.classList.add('on');
+  document.querySelectorAll('.tabbar .tab').forEach(t=>t.classList.toggle('on',t.dataset.pane===p));
+}));
+document.querySelectorAll('.tabbar .tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tabbar .tab').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');
+  const p=t.dataset.pane;
+  document.querySelectorAll('.pane').forEach(s=>s.classList.remove('on'));
+  const el=document.getElementById('pane-'+p); if(el)el.classList.add('on');
+  document.querySelectorAll('.rail .nav').forEach(n=>n.classList.toggle('on',n.dataset.pane===p));
+}));
+document.querySelectorAll('.ctx .c-tabs .t').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.ctx .c-tabs .t').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');
+  ['ctx','todo','appr'].forEach(k=>{const e=document.getElementById('ctab-'+k);if(e)e.style.display=(k===t.dataset.ctab)?'':'none';});
+}));
+/* 确认卡倒计时（2 分 31 秒） */
+(function(){let s=151;const el=document.getElementById('cd');if(!el)return;
+setInterval(()=>{if(s<=0){el.textContent='已过期';return;}s--;el.textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');},1000);})();
+/* 输入框自适应高度 */
+const ta=document.getElementById('ta');
+ta.addEventListener('input',()=>{ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,120)+'px';});
+</script>
+</body>
+</html>
