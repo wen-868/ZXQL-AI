@@ -10,9 +10,15 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
+import * as path from 'path';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import {
+  isStandaloneMode,
+  resolveStandaloneDatabasePath,
+  ensureStandaloneDbDirectory,
+} from './dialect';
 import { AiExperienceEntity } from './entities/ai-experience.entity';
 import { AiCorrectionEntity } from './entities/ai-correction.entity';
 import { AiSampleEntity } from './entities/ai-sample.entity';
@@ -35,23 +41,57 @@ export const AI_DB_CONNECTION = 'ai_db';
       name: AI_DB_CONNECTION,
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'mysql' as const,
-        host: configService.get<string>('DB_HOST', '127.0.0.1'),
-        port: configService.get<number>('DB_PORT', 3306),
-        username: configService.get<string>('DB_USERNAME', 'root'),
-        password: configService.get<string>('DB_PASSWORD', ''),
-        database: configService.get<string>('DB_AI_DATABASE', 'ai_db'),
-        entities: AI_DB_ENTITIES,
-        synchronize: false, // 迁移脚本建表（migrations/003）
-        logging:
-          configService.get<string>('NODE_ENV') === 'development'
-            ? ['error', 'warn']
-            : ['error'],
-        timezone: '+08:00',
-        charset: 'utf8mb4',
-        poolSize: 4,
-      }),
+      useFactory: (configService: ConfigService) => {
+        // R101-AI-30：双形态装配（照 database.module.ts 范式）——
+        // standalone（桌面嵌入）⇒ better-sqlite3 独立文件 data/ai.db（避免与主库同文件 WAL 锁竞争）；
+        // connected（缺省）⇒ MySQL 原样（逐键与改造前一致，生产零改动）。
+        if (isStandaloneMode()) {
+          // ai_db 用独立 sqlite 文件（避免与主库同文件 WAL 锁竞争）：
+          // 缺省 = 主库同目录的 ai.db；STANDALONE_AI_DB_PATH 可覆盖（绝对或相对 cwd）。
+          const override = process.env.STANDALONE_AI_DB_PATH;
+          const aiDbPath =
+            override && override.trim().length > 0
+              ? path.isAbsolute(override)
+                ? override
+                : path.resolve(process.cwd(), override)
+              : path.join(
+                  path.dirname(resolveStandaloneDatabasePath()),
+                  'ai.db',
+                );
+          ensureStandaloneDbDirectory(aiDbPath);
+          return {
+            type: 'better-sqlite3' as const,
+            database: aiDbPath,
+            entities: AI_DB_ENTITIES,
+            // ai_db 走 synchronize（乙案变体）：桌面端 ai.db 为**全新库、无存量数据**，
+            // 4 张进化表由实体直接建表最简；主库 data/app.db 仍走 000_baseline.sql（有历史语义）。
+            // AI_DB_ENTITIES 变更 ⇒ 删 ai.db 重建即可（无迁移负担）。
+            synchronize: true,
+            logging:
+              configService.get<string>('NODE_ENV') === 'development'
+                ? ['error', 'warn']
+                : ['error'],
+            enableWAL: true,
+          };
+        }
+        return {
+          type: 'mysql' as const,
+          host: configService.get<string>('DB_HOST', '127.0.0.1'),
+          port: configService.get<number>('DB_PORT', 3306),
+          username: configService.get<string>('DB_USERNAME', 'root'),
+          password: configService.get<string>('DB_PASSWORD', ''),
+          database: configService.get<string>('DB_AI_DATABASE', 'ai_db'),
+          entities: AI_DB_ENTITIES,
+          synchronize: false, // 迁移脚本建表（migrations/003）
+          logging:
+            configService.get<string>('NODE_ENV') === 'development'
+              ? ['error', 'warn']
+              : ['error'],
+          timezone: '+08:00',
+          charset: 'utf8mb4',
+          poolSize: 4,
+        };
+      },
     }),
     TypeOrmModule.forFeature(AI_DB_ENTITIES, AI_DB_CONNECTION),
   ],
