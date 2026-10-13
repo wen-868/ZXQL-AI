@@ -1,4 +1,5 @@
 import {
+  IsDefined,
   IsObject,
   IsNotEmpty,
   IsOptional,
@@ -61,7 +62,14 @@ export class ExecuteToolDto {
   @IsObject({ message: 'args 必须是对象' })
   args!: Record<string, unknown>;
 
-  /** 执行上下文（含 tenantId 等） */
+  /**
+   * 执行上下文（含 tenantId 等）
+   *
+   * R101-AI-28：补 `@IsDefined()` —— 此前仅 `@ValidateNested()`，对 `undefined`
+   * **不报错**，缺 context 会在 controller 读 `dto.context.tenantId` 时抛 TypeError ⇒ **500**；
+   * 现在缺 context 直接 **400**（错误信息可读）。
+   */
+  @IsDefined({ message: 'context 不能为空（至少需 context.tenantId）' })
   @ValidateNested()
   @Type(() => ToolContextDto)
   context!: ToolContextDto;

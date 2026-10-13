@@ -172,6 +172,10 @@ export class AdminController {
       sessionId: dto.context.sessionId,
       requestId: dto.context.requestId,
       role: dto.context.role,
+      // R101-AI-28：透传操作者本人的 Bearer JWT ⇒ 工具经 ServiceClient 调后端带
+      // Authorization（此前缺失 ⇒ 后端 401「未登录」，该端点实际不可用）。
+      // 权限 = 操作者本人；地址/端点不变，与 /chat 链路口径一致。
+      authToken: identity.authToken,
     };
 
     return this.executor.executeToolCall(toolCall, context);

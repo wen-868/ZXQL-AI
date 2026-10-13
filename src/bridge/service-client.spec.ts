@@ -238,3 +238,51 @@ describe('R101-AI-27 BridgeError 字段级 errors 透传', () => {
     ]);
   });
 });
+
+/**
+ * R101-AI-28：authToken ⇒ Authorization 头透传
+ *
+ * 用途：`POST /api/admin/tools/execute` 修复后的端到端断言 —— 管理端传入的
+ * `context.authToken` 必须变成后端请求的 `Authorization: Bearer <token>`，
+ * 否则工具调后端 401。
+ */
+describe('R101-AI-28 authToken ⇒ Authorization 头', () => {
+  it('context.authToken 存在 ⇒ 请求头含 Authorization: Bearer <token>', async () => {
+    const { client, request } = createClient(() =>
+      Promise.resolve({
+        data: { code: '0', msg: 'ok', data: { ok: 1 } },
+        status: 200,
+      }),
+    );
+
+    await client.get('/inventory', {
+      tenantId: 't1',
+      authToken: 'jwt-merchant-abc',
+    });
+
+    const firstCall = request.mock.calls[0] as unknown as [
+      { headers: Record<string, string> },
+      unknown,
+    ];
+    const config = firstCall[0];
+    expect(config.headers.Authorization).toBe('Bearer jwt-merchant-abc');
+    expect(config.headers['X-Tenant-Id']).toBe('t1');
+  });
+
+  it('context.authToken 缺失 ⇒ 不带 Authorization（不伪造身份）', async () => {
+    const { client, request } = createClient(() =>
+      Promise.resolve({
+        data: { code: '0', msg: 'ok', data: { ok: 1 } },
+        status: 200,
+      }),
+    );
+
+    await client.get('/inventory', { tenantId: 't1' });
+
+    const firstCall = request.mock.calls[0] as unknown as [
+      { headers: Record<string, string> },
+      unknown,
+    ];
+    expect(firstCall[0].headers.Authorization).toBeUndefined();
+  });
+});

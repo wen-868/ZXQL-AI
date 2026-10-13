@@ -49,6 +49,15 @@ export interface AdminIdentity {
   userId: number;
   username: string;
   roles?: string[];
+  /**
+   * 原始 Bearer JWT（R101-AI-28）
+   *
+   * 用途：管理端手动执行工具（`POST /api/admin/tools/execute`）需要把身份
+   * **透传给 ServiceClient** 调后端（Authorization），否则后端 401。
+   * 与 `/chat` 链路从 TenantContext 取 authToken 同口径。
+   * ⚠️ 仅随请求生命周期驻留内存，**严禁落日志/审计**。
+   */
+  authToken?: string;
 }
 
 /** express Request 上的身份挂载键 */
@@ -79,6 +88,8 @@ function attachIdentity(
     tenantId?: string;
     roles?: string[];
   },
+  /** 原始 Bearer JWT（R101-AI-28：供工具经 ServiceClient 透传 Authorization） */
+  rawToken?: string,
 ): void {
   (req as Request & { [IDENTITY_KEY]?: AdminIdentity }).adminIdentity = {
     identityType,
@@ -86,6 +97,7 @@ function attachIdentity(
     userId: payload.id,
     username: payload.username,
     roles: payload.roles,
+    authToken: rawToken,
   };
 }
 
@@ -132,7 +144,7 @@ export class AdminGuard implements CanActivate {
           }),
         });
       }
-      attachIdentity(req, 'merchant', payload);
+      attachIdentity(req, 'merchant', payload, token);
       return true;
     } catch (err) {
       if (err instanceof ForbiddenException) {
@@ -147,7 +159,7 @@ export class AdminGuard implements CanActivate {
         secret,
         PLATFORM_JWT_VERIFY,
       ) as unknown as PlatformJwtPayload;
-      attachIdentity(req, 'platform', payload);
+      attachIdentity(req, 'platform', payload, token);
       return true;
     } catch {
       throw new UnauthorizedException({
@@ -192,7 +204,7 @@ export class JwtGuard implements CanActivate {
         secret,
         MERCHANT_JWT_VERIFY,
       ) as unknown as MerchantJwtPayload;
-      attachIdentity(req, 'merchant', payload);
+      attachIdentity(req, 'merchant', payload, token);
       return true;
     } catch {
       // 商家 JWT 无效 → 尝试平台 JWT
@@ -204,7 +216,7 @@ export class JwtGuard implements CanActivate {
         secret,
         PLATFORM_JWT_VERIFY,
       ) as unknown as PlatformJwtPayload;
-      attachIdentity(req, 'platform', payload);
+      attachIdentity(req, 'platform', payload, token);
       return true;
     } catch {
       throw new UnauthorizedException({

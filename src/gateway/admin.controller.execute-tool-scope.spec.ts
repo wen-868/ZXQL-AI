@@ -99,3 +99,81 @@ describe('AdminController.executeTool 租户锁定（P0）', () => {
     expect(executor.executeToolCall).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * R101-AI-28：tools/execute 的 authToken 透传
+ *
+ * 缺陷：构造的 context 不含 authToken ⇒ 工具经 ServiceClient 调后端无 Authorization
+ * ⇒ 后端 401「未登录」，该端点实际不可用。修复：从 AdminIdentity.authToken 透传。
+ */
+describe('AdminController.executeTool authToken 透传（R101-AI-28）', () => {
+  /** 带 authToken 的 req（模拟 AdminGuard 验签后挂载） */
+  function reqWithToken(
+    identityType: 'merchant' | 'platform',
+    tenantId: string | undefined,
+    authToken: string | undefined,
+  ): Request {
+    return {
+      adminIdentity: {
+        identityType,
+        tenantId,
+        userId: 1,
+        username: 'tester',
+        authToken,
+      },
+    } as unknown as Request;
+  }
+
+  it('商户身份：context.authToken 透传为操作者本人 JWT（工具调后端带 Authorization）', async () => {
+    const { controller, executor } = createController();
+
+    await controller.executeTool(
+      reqWithToken('merchant', 'tenant-A', 'jwt-merchant-abc'),
+      baseDto as never,
+    );
+
+    expect(executor.executeToolCall).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tenantId: 'tenant-A',
+        authToken: 'jwt-merchant-abc',
+      }),
+    );
+  });
+
+  it('平台身份：同样透传操作者 JWT（跨租户代执行也须带身份）', async () => {
+    const { controller, executor } = createController();
+
+    await controller.executeTool(
+      reqWithToken('platform', 'tenant-B', 'jwt-platform-xyz'),
+      {
+        ...baseDto,
+        context: { ...baseDto.context, tenantId: 'tenant-B' },
+      },
+    );
+
+    expect(executor.executeToolCall).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tenantId: 'tenant-B',
+        authToken: 'jwt-platform-xyz',
+      }),
+    );
+  });
+
+  it('身份未携带 authToken（历史/异常路径）⇒ context.authToken 为 undefined（行为不变）', async () => {
+    const { controller, executor } = createController();
+
+    await controller.executeTool(
+      reqWithToken('merchant', 'tenant-A', undefined),
+      baseDto as never,
+    );
+
+    const [, ctx] = executor.executeToolCall.mock.calls[0] as [
+      unknown,
+      { authToken?: string; tenantId: string },
+    ];
+    expect(ctx.tenantId).toBe('tenant-A');
+    expect(ctx.authToken).toBeUndefined();
+  });
+});
