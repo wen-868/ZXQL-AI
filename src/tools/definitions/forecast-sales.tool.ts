@@ -47,8 +47,23 @@ interface ForecastPoint {
   confidence: number;
 }
 
+/** 维度（R101-AI-34 P0-1：MS 冻结契约 sales-series 的维度 + overall=整体） */
+type ForecastDimension =
+  'overall' | 'product' | 'sku' | 'category' | 'customer';
+
+const DIMENSIONS: readonly ForecastDimension[] = [
+  'overall',
+  'product',
+  'sku',
+  'category',
+  'customer',
+];
+
 /** 解析后的入参 */
 interface ForecastArgs {
+  dimension: ForecastDimension;
+  /** dimension !== 'overall' 时必填（MS 契约） */
+  targetId?: number;
   granularity: 'day' | 'week' | 'month';
   periods: number;
   historyPeriods: number;
@@ -78,6 +93,17 @@ export class ForecastSalesTool implements ITool {
   readonly parameters = {
     type: 'object' as const,
     properties: {
+      dimension: {
+        type: 'string',
+        enum: [...DIMENSIONS],
+        description:
+          '预测维度（可选，默认 overall）：overall=整体销售额、product=按商品、sku=按SKU、category=按分类、customer=按客户',
+      },
+      targetId: {
+        type: 'integer',
+        description:
+          '维度目标 ID（dimension 非 overall 时**必填**；如 product/sku/category/customer 的对应 ID）',
+      },
       granularity: {
         type: 'string',
         enum: [...GRANULARITIES],
@@ -109,11 +135,17 @@ export class ForecastSalesTool implements ITool {
         suggestion: parsed.suggestion,
       };
     }
-    const { granularity, periods, historyPeriods } = parsed.data;
+    const { dimension, targetId, granularity, periods, historyPeriods } =
+      parsed.data;
 
     let history: HistoryPoint[];
     try {
-      history = await this.fetchHistory(granularity, context);
+      history = await this.fetchHistory(
+        dimension,
+        targetId,
+        granularity,
+        context,
+      );
     } catch (err) {
       const errorMsg =
         err instanceof BridgeError
@@ -121,12 +153,12 @@ export class ForecastSalesTool implements ITool {
           : err instanceof Error
             ? err.message
             : String(err);
-      this.logger.error(`销售趋势取数失败：${errorMsg}`);
+      this.logger.error(`销售序列取数失败：${errorMsg}`);
       return {
         success: false,
         error: `销售预测取数失败：${errorMsg}`,
         suggestion:
-          '请确认后端 /api/admin/reports/sales-trend 可用，或稍后重试',
+          '请确认后端 /api/admin/sale-bills/sales-series 可用，或稍后重试',
       };
     }
 
@@ -199,13 +231,29 @@ export class ForecastSalesTool implements ITool {
     };
   }
 
-  /** 取历史趋势并归一为 {period, value} 序列 */
+  /**
+   * 取**按维度销售序列**（R101-AI-34 P0-1 真源）
+   *
+   * `GET /api/admin/sale-bills/sales-series?dimension=&targetId=&granularity=`
+   * 出参按期序列 `[{ period, qty, amount, orderCount }]`；本工具预测**销售额**口径 ⇒ 取 `amount`。
+   * ⚠️ **不得**用 `qty`（销量）冒充 `amount`（销售额）：口径混淆会给出无提示的错误预测。
+   */
   private async fetchHistory(
+    dimension: ForecastDimension,
+    targetId: number | undefined,
     granularity: ForecastArgs['granularity'],
     context: ToolContext,
   ): Promise<HistoryPoint[]> {
+    const query: string[] = [
+      `dimension=${encodeURIComponent(dimension)}`,
+      `granularity=${encodeURIComponent(granularity)}`,
+    ];
+    // overall = 整体，不传 targetId（MS 契约）
+    if (dimension !== 'overall' && targetId !== undefined) {
+      query.push(`targetId=${targetId}`);
+    }
     const result = await this.serviceClient.get<Record<string, unknown>>(
-      `${API_ENDPOINTS.REPORTS}/sales-trend?granularity=${granularity}`,
+      `${API_ENDPOINTS.SALE_BILLS}/sales-series?${query.join('&')}`,
       context,
     );
     const rawList = pickArray(result);
@@ -216,9 +264,10 @@ export class ForecastSalesTool implements ITool {
           record.period ?? record.date ?? record.month ?? record.label,
           `#${index + 1}`,
         );
+        // 销售额口径：amount 优先，兼容旧字段名；**不含 qty**（销量≠销售额）
         const value = Number(
-          record.salesAmount ??
-            record.amount ??
+          record.amount ??
+            record.salesAmount ??
             record.totalSales ??
             record.total ??
             record.value ??
@@ -252,6 +301,37 @@ export class ForecastSalesTool implements ITool {
   ):
     | { valid: true; data: ForecastArgs }
     | { valid: false; error: string; suggestion: string } {
+    // 维度（R101-AI-34 P0-1）：overall 之外**必须**带 targetId（MS 契约）
+    const dimension = this.toStringValue(
+      args.dimension,
+      'overall',
+    ) as ForecastDimension;
+    if (!DIMENSIONS.includes(dimension)) {
+      return {
+        valid: false,
+        error: `dimension 非法：${this.toStringValue(args.dimension, 'undefined')}`,
+        suggestion: `dimension 仅支持 ${DIMENSIONS.join(' / ')}`,
+      };
+    }
+    let targetId: number | undefined;
+    if (dimension !== 'overall') {
+      const rawTarget = args.targetId;
+      const parsedTarget = Number(rawTarget);
+      if (
+        rawTarget === undefined ||
+        !Number.isInteger(parsedTarget) ||
+        parsedTarget <= 0
+      ) {
+        return {
+          valid: false,
+          error: `dimension=${dimension} 时必须提供 targetId（正整数），当前：${this.toStringValue(rawTarget, '未提供')}`,
+          suggestion:
+            '请先查询目标对象 ID（如 searchProduct 取 skuId/productId）后再预测',
+        };
+      }
+      targetId = parsedTarget;
+    }
+
     const rawGranularity = args.granularity;
     const granularity = this.toStringValue(
       rawGranularity,
@@ -286,7 +366,10 @@ export class ForecastSalesTool implements ITool {
       };
     }
 
-    return { valid: true, data: { granularity, periods, historyPeriods } };
+    return {
+      valid: true,
+      data: { dimension, targetId, granularity, periods, historyPeriods },
+    };
   }
 }
 

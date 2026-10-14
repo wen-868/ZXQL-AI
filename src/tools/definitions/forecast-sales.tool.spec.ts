@@ -148,4 +148,63 @@ describe('ForecastSalesTool（R101-AI-32/33 ③ 销售预测）', () => {
     expect(result.error).toContain('periods 非法');
     expect(h.get).not.toHaveBeenCalled(); // 参数非法时不应发起取数
   });
+
+  // ── R101-AI-34 P0-1：切真源 `/api/admin/sale-bills/sales-series` + 维度扩展 ──
+
+  it('⑦ 非 overall 维度缺 targetId ⇒ 明确拒绝（mutation：去掉校验 ⇒ 本例红）', async () => {
+    const h = createHarness(risingSeries(6));
+
+    const result = await h.tool.execute({ dimension: 'product' }, CTX);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('必须提供 targetId');
+    expect(h.get).not.toHaveBeenCalled(); // 参数非法 ⇒ 不取数
+  });
+
+  it('⑧ 真源契约：打 sale-bills/sales-series、维度与 targetId 正确传参、按 amount 解析', async () => {
+    // MS 真实形态：records 包装（空数据为 []），每期 {period, qty, amount, orderCount}
+    const get = jest.fn(() =>
+      Promise.resolve({
+        total: 3,
+        page: 1,
+        pageSize: 20,
+        records: [
+          { period: '2026-07', qty: 30, amount: 1000, orderCount: 3 },
+          { period: '2026-08', qty: 33, amount: 1100, orderCount: 3 },
+          { period: '2026-09', qty: 36, amount: 1200, orderCount: 4 },
+        ],
+      }),
+    );
+    const tool = new ForecastSalesTool({ get } as unknown as ServiceClient);
+
+    const result = await tool.execute(
+      { dimension: 'product', targetId: 77, granularity: 'month' },
+      CTX,
+    );
+
+    expect(result.success).toBe(true);
+    const calledUrl = (get.mock.calls[0] as unknown as [string])[0];
+    expect(calledUrl).toContain('/api/admin/sale-bills/sales-series');
+    expect(calledUrl).toContain('dimension=product');
+    expect(calledUrl).toContain('targetId=77');
+    expect(calledUrl).toContain('granularity=month');
+    // 用 amount 序列（1000→1100→1200）：中心值量级应落在 amount 口径（≈1200 起算），
+    // 而非 qty 口径（≈36）⇒ 该断言能压住"误用 qty 冒充销售额"
+    const data = dataOf(result);
+    expect(data.basis.historyUsed).toBe(3);
+    expect(data.basis.growthRate).toBeGreaterThan(0);
+    expect(data.forecast[0].central).toBeGreaterThan(1000);
+  });
+
+  it('⑨ 真源空数据（records: []）⇒ 明确提示"历史不足"，不崩', async () => {
+    const get = jest.fn(() =>
+      Promise.resolve({ total: 0, page: 1, pageSize: 20, records: [] }),
+    );
+    const tool = new ForecastSalesTool({ get } as unknown as ServiceClient);
+
+    const result = await tool.execute({ dimension: 'overall' }, CTX);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('历史数据不足');
+  });
 });
