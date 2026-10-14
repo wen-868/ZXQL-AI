@@ -40,6 +40,7 @@ import { CreatePaymentReconciliationTool } from './definitions/create-payment-re
 import { SalesReportTool } from './definitions/sales-report.tool';
 // R101-AI-32/33 ③：销售预测（读工具，走 ToolExecutor 治理链）
 import { ForecastSalesTool } from './definitions/forecast-sales.tool';
+import { AnalyzePriceTrendTool } from './definitions/analyze-price-trend.tool';
 import { InventoryReportTool } from './definitions/inventory-report.tool';
 import { ProfitReportTool } from './definitions/profit-report.tool';
 // R70 完善度 P1: 营销/采购计划/信用 6 个精调写操作工具（清单第一批 P0）
@@ -110,6 +111,8 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     IdempotencyGateService,
     // R101-AI-32/33 ③：销售预测（读工具）
     ForecastSalesTool,
+    // R101-AI-32/33 ④：价格走势分析（读工具）
+    AnalyzePriceTrendTool,
     DispatchEmployeeTaskTool,
     CircuitBreakerService,
     ToolBootstrap,
