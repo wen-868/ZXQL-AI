@@ -38,6 +38,8 @@ import { CreateSalesReturnTool } from './definitions/create-sales-return.tool';
 import { CreateRefundTool } from './definitions/create-refund.tool';
 import { CreatePaymentReconciliationTool } from './definitions/create-payment-reconciliation.tool';
 import { SalesReportTool } from './definitions/sales-report.tool';
+// R101-AI-32/33 ③：销售预测（读工具，走 ToolExecutor 治理链）
+import { ForecastSalesTool } from './definitions/forecast-sales.tool';
 import { InventoryReportTool } from './definitions/inventory-report.tool';
 import { ProfitReportTool } from './definitions/profit-report.tool';
 // R70 完善度 P1: 营销/采购计划/信用 6 个精调写操作工具（清单第一批 P0）
@@ -106,6 +108,8 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     ToolExecutor,
     // R101-AI-21：写工具幂等闸门（Redis SET NX 前置 + MySQL 唯一键认领兜底）
     IdempotencyGateService,
+    // R101-AI-32/33 ③：销售预测（读工具）
+    ForecastSalesTool,
     DispatchEmployeeTaskTool,
     CircuitBreakerService,
     ToolBootstrap,
