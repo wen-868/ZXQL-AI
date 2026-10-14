@@ -4,12 +4,10 @@
  * 数据链路「统计 → 分析 → 建议」段：基于【商品价格历史序列】分析价格走势
  * （方向 / 涨跌幅 / 波动区间 / 调价次数），并给出自然语言结论与风险提示。
  *
- * ⚠️ 数据源现状（2026-10-15）：
- *   - 管理系统**尚无价格历史接口**（价格能力只有写：`updateProductPrice` 改价），
- *     已由业主中转向 MS 线提需求（见 MS 仓
- *     `docs/tasks/cards/跨线协作-MS侧数据接口需求-销售序列与价格历史.md`）。
- *   - 本工具本轮按**契约 mock 序列**实现，真实接口就位后在
- *     `fetchPriceSeries()` 内切真源（替换 mock 分支即可，其余逻辑不变）。
+ * ⚠️ 数据源（2026-10-15 起为**真实接口**，MS 冻结契约 S3-204）：
+ *   - `GET /api/admin/products/:skuId/price-history`（priceLevel/start/end 可选，租户隔离）
+ *   - 改价落库：`t_product_price_log`（MS 已存在；任何改价都落历史：旧值/新值/时间/操作人/来源）
+ *   - **AI 改价必须传 `source:'ai'`**（见 updateProductPrice；否则历史记成 admin，"AI 可追溯"失效）
  *   - **不自建价格表**：价格业务真源在管理系统，AI 侧只消费接口（哪端数据归哪端）。
  *
  * 红线：
@@ -20,7 +18,11 @@
  */
 import { Injectable, Logger } from '@nestjs/common';
 import type { ITool, ToolContext, ToolResult } from '../tool.interface';
-import { ServiceClient } from '../../bridge/service-client';
+import {
+  ServiceClient,
+  API_ENDPOINTS,
+  BridgeError,
+} from '../../bridge/service-client';
 
 /** 价格等级（与 updateProductPrice 的口径对齐） */
 const PRICE_LEVELS = [
@@ -84,7 +86,7 @@ export class AnalyzePriceTrendTool implements ITool {
 
   async execute(
     args: Record<string, unknown>,
-    _context: ToolContext,
+    context: ToolContext,
   ): Promise<ToolResult> {
     // ── ① 入参校验：必须指定商品 ──
     const skuId = this.toNumber(args.skuId);
@@ -103,16 +105,37 @@ export class AnalyzePriceTrendTool implements ITool {
         ? rawLevel
         : null;
 
-    // ── ② 取序列（真源异步；本轮 mock 同步值经 Promise.resolve 返回，保持链路一致） ──
+    // ── ② 取序列（真源：MS 价格历史接口；异常由 catch 统一转 success:false） ──
     // ⚠️ series 恒为【同一价格等级】的序列；进价单独取（purchasePrice）用于亏损比较，
     //    不混入序列（否则 last 会被取成进价本身，方向/风险判断都会错）
-    const { series, purchasePrice } = await this.fetchPriceSeries({
-      skuId,
-      productId,
-      priceLevel,
-      start: typeof args.start === 'string' ? args.start : undefined,
-      end: typeof args.end === 'string' ? args.end : undefined,
-    });
+    let fetched: { series: PricePoint[]; purchasePrice?: number };
+    try {
+      fetched = await this.fetchPriceSeries(
+        {
+          skuId,
+          productId,
+          priceLevel,
+          start: typeof args.start === 'string' ? args.start : undefined,
+          end: typeof args.end === 'string' ? args.end : undefined,
+        },
+        context,
+      );
+    } catch (err) {
+      // 红线：execute 禁抛异常 ⇒ 真源失败统一转 success:false（含字段级细节见 BridgeError）
+      const errorMsg =
+        err instanceof BridgeError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : String(err);
+      this.logger.error(`价格历史取数失败：${errorMsg}`);
+      return {
+        success: false,
+        error: `价格走势取数失败：${errorMsg}`,
+        suggestion: '请确认后端价格历史接口可用，或稍后重试',
+      };
+    }
+    const { series, purchasePrice } = fetched;
 
     if (series.length === 0) {
       return {
@@ -204,44 +227,41 @@ export class AnalyzePriceTrendTool implements ITool {
    *
    * ⚠️ series 恒为【同一价格等级】的序列；进价单独取（purchasePrice）用于亏损比较，
    *    不混入序列（否则 last 会被取成进价本身，方向/风险判断都会错）。
-   * ⚠️ 真实接口未就位 ⇒ 本轮 **同步返回契约 mock**（仅打通链路 + 反测）。
-   *    接口就位后：改回 `async` + `await`（调用方同步改），函数体替换为
-   *      `await this.serviceClient.get(API_ENDPOINTS.PRICE_HISTORY, {...}, ctx)`
-   *    其余（校验 / 走势 / 结论 / 风险提示）逻辑完全复用。
    */
-  private async fetchPriceSeries(params: {
-    skuId: number | null;
-    productId: number | null;
-    priceLevel: string | null;
-    start?: string;
-    end?: string;
-  }): Promise<{ series: PricePoint[]; purchasePrice?: number }> {
-    // MS 价格历史接口就位前：**契约 mock**（仅打通链路 + 反测）。
-    // 真源切换点：见文件头 ⚠️ 数据源现状段（替换本函数体即可，其余逻辑复用）。
-    this.logger.warn(
-      '价格历史接口（MS 侧）尚未就位：本轮按契约 mock 返回；接口就位后切换真源' +
-        `（sku=${params.skuId} spu=${params.productId} level=${params.priceLevel ?? 'all'}）`,
-    );
-    // TODO(real-api): MS 价格历史接口就位后走这里（见文件头说明）
-    // 真源将经 this.serviceClient 调管理系统（与 salesReport 等 59 处调用同范式）：
-    //   await this.serviceClient.get(
-    //     `${API_ENDPOINTS.PRICE_HISTORY}?skuId=${params.skuId}&level=${params.priceLevel}`,
-    //     undefined, ctx);
-    // 说明：此刻未调 serviceClient 是因为接口未就位（契约 mock），保留引用以固化切换点。
-    void this.serviceClient;
-
-    // ── 契约 mock：同为 retail 的递增序列（用于验证方向/涨跌幅/调价次数） ──
-    // 经 Promise.resolve 返回：真源是异步 HTTP，mock 保持同一异步形态（接口切换零改调用方）
-    const level = params.priceLevel ?? 'retail';
-    return Promise.resolve({
-      series: [
-        { date: '2026-07-01', priceLevel: level, price: 800 },
-        { date: '2026-08-01', priceLevel: level, price: 850 },
-        { date: '2026-09-01', priceLevel: level, price: 896 },
-      ],
-      // 进价（亏损比较基准）：高于当前售价 ⇒ 不触发亏损提示
-      purchasePrice: 700,
+  private async fetchPriceSeries(
+    params: {
+      skuId: number | null;
+      productId: number | null;
+      priceLevel: string | null;
+      start?: string;
+      end?: string;
+    },
+    context: ToolContext,
+  ): Promise<{ series: PricePoint[]; purchasePrice?: number }> {
+    // R101-AI-34 P0-2：**切真源**（S3-204 交付的 MS 端点）
+    //   GET /api/admin/products/:skuId/price-history?priceLevel=&start=&end=
+    // mock 分支已删除；不可用时由 execute 的 catch 统一转 success:false（execute 禁抛）。
+    const skuId = params.skuId ?? params.productId;
+    if (skuId === null) {
+      return { series: [] };
+    }
+    const query = buildQueryString({
+      priceLevel: params.priceLevel,
+      start: params.start,
+      end: params.end,
     });
+    const payload = await this.serviceClient.get<Record<string, unknown>>(
+      `${API_ENDPOINTS.PRODUCTS}/${skuId}/price-history${query}`,
+      context,
+    );
+
+    const allPoints = normalizePricePoints(payload);
+    // ⚠️ series 恒为【同一价格等级】；进价**单独取**（不混入序列，否则 last 会变成进价本身）
+    const series = params.priceLevel
+      ? allPoints.filter((p) => p.priceLevel === params.priceLevel)
+      : allPoints.filter((p) => p.priceLevel === 'retail');
+
+    return { series, purchasePrice: resolvePurchasePrice(payload, allPoints) };
   }
 
   /** 安全取数字 */
@@ -257,4 +277,78 @@ export class AnalyzePriceTrendTool implements ITool {
   private round2(value: number): number {
     return Math.round(value * 100) / 100;
   }
+}
+
+/** 构造查询串（只含显式提供的参数） */
+function buildQueryString(params: {
+  priceLevel?: string | null;
+  start?: string;
+  end?: string;
+}): string {
+  const parts: string[] = [];
+  if (params.priceLevel) {
+    parts.push(`priceLevel=${encodeURIComponent(params.priceLevel)}`);
+  }
+  if (params.start) parts.push(`start=${encodeURIComponent(params.start)}`);
+  if (params.end) parts.push(`end=${encodeURIComponent(params.end)}`);
+  return parts.length > 0 ? `?${parts.join('&')}` : '';
+}
+
+/**
+ * 归一后端价格历史序列（R101-AI-34 P0-2 真源）
+ *
+ * 兼容 `list/records/data/history/items` 多种包裹形态与常见字段名；
+ * 仅保留可解析出正数价格的记录（其余丢弃，避免污染走势）。
+ */
+function normalizePricePoints(payload: Record<string, unknown>): PricePoint[] {
+  let raw: unknown[] = [];
+  for (const key of ['list', 'records', 'data', 'history', 'items']) {
+    const value = payload[key];
+    if (Array.isArray(value)) {
+      raw = value;
+      break;
+    }
+  }
+
+  const points: PricePoint[] = [];
+  raw.forEach((item, index) => {
+    const record = item as Record<string, unknown>;
+    const dateCandidate =
+      record.date ??
+      record.effectiveFrom ??
+      record.effectiveDate ??
+      record.createdAt ??
+      record.time;
+    const date =
+      typeof dateCandidate === 'string'
+        ? dateCandidate.slice(0, 10)
+        : `#${index + 1}`;
+    const levelCandidate = record.priceLevel ?? record.level ?? record.type;
+    const priceLevel =
+      typeof levelCandidate === 'string' ? levelCandidate : 'retail';
+    const price = Number(record.price ?? record.value ?? record.amount);
+    if (Number.isFinite(price) && price > 0) {
+      points.push({ date, priceLevel, price });
+    }
+  });
+  return points;
+}
+
+/**
+ * 进价**单独取**（不混入分析序列）
+ *
+ * 优先 `payload.purchasePrice`；否则取 priceLevel=purchase 序列的最新一条。
+ */
+function resolvePurchasePrice(
+  payload: Record<string, unknown>,
+  allPoints: PricePoint[],
+): number | undefined {
+  const direct = Number(payload.purchasePrice);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  const purchasePoints = allPoints
+    .filter((p) => p.priceLevel === 'purchase')
+    .sort((a, b) => a.date.localeCompare(b.date));
+  return purchasePoints.length > 0
+    ? purchasePoints[purchasePoints.length - 1].price
+    : undefined;
 }
