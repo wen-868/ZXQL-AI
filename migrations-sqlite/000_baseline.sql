@@ -104,6 +104,11 @@ CREATE INDEX "ai_execution_plan__idx_tenant" ON "ai_execution_plan" ("tenant_id"
 
 CREATE TABLE "t_ai_idempotency" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "tenant_id" varchar(36) NOT NULL, "tool_name" varchar(64) NOT NULL, "idem_key" varchar(64) NOT NULL, "key_source" varchar(16) NOT NULL, "status" varchar(16) NOT NULL DEFAULT ('in_flight'), "result_json" text, "error_text" varchar(512), "first_seen_at" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP), "completed_at" datetime, "created_at" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP), "updated_at" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP));
 
+-- F10：幂等第二道闸门（唯一键兜底）—— 与 MySQL 016 的 uk_ai_idempotency 同构。
+-- 实体未声明 @Index(unique)（唯一键是 016 在 DB 层建的）⇒ 基线须显式补，
+-- 否则 standalone 下 Redis 失效时无法防重（实测：同键二次 insert 不撞键）。
+CREATE UNIQUE INDEX "uk_ai_idempotency" ON "t_ai_idempotency" ("tenant_id", "tool_name", "idem_key");
+
 CREATE TABLE "t_ai_dead_letter" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "op" varchar(64) NOT NULL, "tenant_id" varchar(36), "detail" text, "error" text NOT NULL, "stack" text, "level" varchar(16) NOT NULL DEFAULT ('best_effort'), "at" datetime(3) NOT NULL, "created_at" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP));
 
 CREATE TABLE "t_ai_employee" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "tenant_id" varchar(32) NOT NULL, "employee_uid" varchar(40) NOT NULL, "name" varchar(64) NOT NULL, "post" varchar(64) NOT NULL, "department" varchar(64) NOT NULL, "persona_prompt" text, "tool_categories" json, "data_scope" json, "dispatch_uids" json, "reply_style" varchar(128), "status" tinyint NOT NULL DEFAULT (1), "created_at" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP), "updated_at" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP));
