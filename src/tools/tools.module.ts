@@ -41,6 +41,8 @@ import { SalesReportTool } from './definitions/sales-report.tool';
 // R101-AI-32/33 ③：销售预测（读工具，走 ToolExecutor 治理链）
 import { ForecastSalesTool } from './definitions/forecast-sales.tool';
 import { AnalyzePriceTrendTool } from './definitions/analyze-price-trend.tool';
+// R101-AI-34 P1-4：系统状态自检（读工具）
+import { GetSystemStatusTool } from './definitions/get-system-status.tool';
 import { InventoryReportTool } from './definitions/inventory-report.tool';
 import { ProfitReportTool } from './definitions/profit-report.tool';
 // R70 完善度 P1: 营销/采购计划/信用 6 个精调写操作工具（清单第一批 P0）
@@ -74,6 +76,8 @@ import { HandleSubscriptionApplyTool } from './definitions/handle-subscription-a
 import { BridgeModule } from '../bridge/bridge.module';
 import { CommonModule } from '../common/common.module';
 import { DatabaseModule } from '../database/database.module';
+// R101-AI-34 P1-4：getSystemStatus 需要 AiConfigService（TenantModule 导出；同 brain/bridge/evolution 范式，无环）
+import { TenantModule } from '../tenant/tenant.module';
 import { IdempotencyGateService } from './idempotency-gate.service';
 
 /**
@@ -103,7 +107,13 @@ import { IdempotencyGateService } from './idempotency-gate.service';
  * 3. 在 ToolBootstrap 构造函数注入该工具，并在 onModuleInit 的 registerAll 数组中添加
  */
 @Module({
-  imports: [BridgeModule, CommonModule, EmployeeModule, DatabaseModule],
+  imports: [
+    BridgeModule,
+    CommonModule,
+    EmployeeModule,
+    DatabaseModule,
+    TenantModule,
+  ],
   providers: [
     ToolRegistry,
     ToolExecutor,
@@ -113,6 +123,8 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     ForecastSalesTool,
     // R101-AI-32/33 ④：价格走势分析（读工具）
     AnalyzePriceTrendTool,
+    // R101-AI-34 P1-4：系统状态自检（读工具）
+    GetSystemStatusTool,
     DispatchEmployeeTaskTool,
     CircuitBreakerService,
     ToolBootstrap,
