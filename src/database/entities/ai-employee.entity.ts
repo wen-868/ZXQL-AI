@@ -11,11 +11,12 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-09-05
  */
-import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
+import { primaryGeneratedColumn } from '../dialect';
 
 @Entity('t_ai_employee')
 export class AiEmployeeEntity {
-  @PrimaryGeneratedColumn({ type: 'int', unsigned: true, comment: '主键ID' })
+  @primaryGeneratedColumn('int', { comment: '主键ID' })
   id!: number;
 
   /** 所属租户（多租户隔离） */
@@ -129,7 +130,7 @@ export class AiEmployeeEntity {
 @Entity('t_ai_employee_task')
 @Index('idx_emp_task_emp', ['employeeId'])
 export class AiEmployeeTaskEntity {
-  @PrimaryGeneratedColumn({ type: 'int', unsigned: true, comment: '主键ID' })
+  @primaryGeneratedColumn('int', { comment: '主键ID' })
   id!: number;
 
   /**

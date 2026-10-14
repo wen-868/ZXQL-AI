@@ -7,11 +7,12 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
-import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
+import { dialectColumnType, primaryGeneratedColumn } from '../dialect';
 
 @Entity('ai_experience')
 export class AiExperienceEntity {
-  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true, comment: '主键ID' })
+  @primaryGeneratedColumn('bigint', { comment: '主键ID' })
   id!: number;
 
   /** 租户 ID */
@@ -43,7 +44,7 @@ export class AiExperienceEntity {
   @Index('idx_exp_input_hash')
   @Column({
     name: 'input_hash',
-    type: 'char',
+    type: dialectColumnType('char', 'varchar'),
     length: 32,
     nullable: true,
     comment: '输入脱敏指纹',

@@ -598,3 +598,83 @@ describe('R101-AI-03 费用三列（t_ai_usage_daily）', () => {
     expect(h.saved).toHaveLength(1); // 审计主流水不受影响
   });
 });
+
+/**
+ * R101-AI-30 F5：SQL 方言分支（connected=MySQL / standalone=better-sqlite3）
+ *
+ * 守两条：
+ * 1. connected（缺省）SQL **逐字不变**（生产零改动；既有 R101-AI-03 断言即守此线）
+ * 2. standalone 用 `ON CONFLICT(...) DO UPDATE` + `excluded.` + `CURRENT_TIMESTAMP`
+ *    （SQLite 无 `ON DUPLICATE KEY` / `VALUES()` / `NOW()`）
+ *
+ * 反测载体：去掉 isStandaloneMode 分支（只留 MySQL 串）⇒ 下面 standalone 断言变红。
+ */
+describe('R101-AI-30 F5：用量 UPSERT 的方言分支', () => {
+  const saved = process.env.INTEGRATION_MODE;
+  afterEach(() => {
+    if (saved === undefined) {
+      delete process.env.INTEGRATION_MODE;
+    } else {
+      process.env.INTEGRATION_MODE = saved;
+    }
+  });
+
+  const PRICE_F5: ModelPrice = {
+    provider: 'deepseek',
+    model: 'deepseek-chat',
+    promptPrice: 0.001,
+    completionPrice: 0.002,
+    currency: 'CNY',
+    effectiveFrom: new Date('2026-07-01T00:00:00+08:00'),
+  };
+
+  it('connected（缺省）⇒ 保持 MySQL ON DUPLICATE KEY + VALUES() + NOW()', async () => {
+    delete process.env.INTEGRATION_MODE;
+    const h = createHarness();
+    h.price = PRICE_F5;
+    h.logger.logAiCall({
+      tenantId: 't1',
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+      promptTokens: 10,
+      completionTokens: 10,
+      success: true,
+    });
+    await flush();
+
+    const sql = h.usageSql[0];
+    expect(sql).toContain('ON DUPLICATE KEY UPDATE');
+    expect(sql).toContain('total_cost = total_cost + VALUES(total_cost)');
+    expect(sql).toContain('NOW()');
+    expect(sql).not.toContain('ON CONFLICT');
+  });
+
+  it('standalone ⇒ ON CONFLICT(...) DO UPDATE + excluded. + CURRENT_TIMESTAMP（无 MySQL 语法）', async () => {
+    process.env.INTEGRATION_MODE = 'standalone';
+    const h = createHarness();
+    h.price = PRICE_F5;
+    h.logger.logAiCall({
+      tenantId: 't1',
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+      promptTokens: 10,
+      completionTokens: 10,
+      success: true,
+    });
+    await flush();
+
+    const sql = h.usageSql[0];
+    // SQLite upsert 语法
+    expect(sql).toContain(
+      'ON CONFLICT(tenant_id, stat_date, provider) DO UPDATE SET',
+    );
+    // 累加语义等价（spike 探针3 E 段实证）
+    expect(sql).toContain('chat_count = chat_count + excluded.chat_count');
+    expect(sql).toContain('total_cost = total_cost + excluded.total_cost');
+    expect(sql).toContain('CURRENT_TIMESTAMP');
+    // 不得残留 MySQL 专有语法
+    expect(sql).not.toContain('ON DUPLICATE KEY');
+    expect(sql).not.toContain('VALUES(');
+    expect(sql).not.toContain('NOW()');
+  });
+});

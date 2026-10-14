@@ -6,11 +6,12 @@
  *
  * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-15
  */
-import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
+import { Entity, Column, Index } from 'typeorm';
+import { primaryGeneratedColumn } from '../dialect';
 
 @Entity('t_ai_ltm_profile')
 export class AiLtmProfileEntity {
-  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true, comment: '主键ID' })
+  @primaryGeneratedColumn('bigint', { comment: '主键ID' })
   id!: number;
 
   @Index('uk_ltm_profile', { unique: true })

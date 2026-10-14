@@ -8,11 +8,12 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
-import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
+import { primaryGeneratedColumn } from '../dialect';
 
 @Entity('ai_evolution_version')
 export class AiEvolutionVersionEntity {
-  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true, comment: '主键ID' })
+  @primaryGeneratedColumn('bigint', { comment: '主键ID' })
   id!: number;
 
   /** 制品（如 write_schema.customer_create / attr_template.margin） */

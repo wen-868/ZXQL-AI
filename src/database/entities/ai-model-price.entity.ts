@@ -13,7 +13,8 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-10-09
  */
-import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
+import { Entity, Column, Index } from 'typeorm';
+import { dialectColumnType, primaryGeneratedColumn } from '../dialect';
 
 @Entity('t_ai_model_price')
 @Index(
@@ -29,7 +30,7 @@ import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
 ])
 export class AiModelPriceEntity {
   /** 主键ID */
-  @PrimaryGeneratedColumn({ type: 'int', unsigned: true, comment: '主键ID' })
+  @primaryGeneratedColumn('int', { comment: '主键ID' })
   id!: number;
 
   /**
@@ -84,7 +85,7 @@ export class AiModelPriceEntity {
   /** 币种（ISO 4217 三字母） */
   @Column({
     name: 'currency',
-    type: 'char',
+    type: dialectColumnType('char', 'varchar'),
     length: 3,
     default: 'CNY',
     comment: '币种（ISO 4217）',

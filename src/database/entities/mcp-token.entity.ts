@@ -7,11 +7,12 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
-import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
+import { primaryGeneratedColumn } from '../dialect';
 
 @Entity('t_mcp_token')
 export class McpTokenEntity {
-  @PrimaryGeneratedColumn({ type: 'int', comment: '主键ID' })
+  @primaryGeneratedColumn('int', { comment: '主键ID', unsigned: false })
   id!: number;
 
   /** 绑定的租户 ID */

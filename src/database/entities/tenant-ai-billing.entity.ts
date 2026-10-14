@@ -7,7 +7,8 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-08-01
  */
-import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
+import { Entity, Column, Index } from 'typeorm';
+import { primaryGeneratedColumn } from '../dialect';
 
 @Entity('t_tenant_ai_billing')
 @Index('idx_tenant_id', ['tenantId'])
@@ -15,7 +16,7 @@ import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
 @Index('idx_tenant_created', ['tenantId', 'createdAt'])
 export class TenantAiBillingEntity {
   /** 主键ID */
-  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true, comment: '主键ID' })
+  @primaryGeneratedColumn('bigint', { comment: '主键ID' })
   id!: number;
 
   /** 租户ID（唯一约束，每租户1条） */

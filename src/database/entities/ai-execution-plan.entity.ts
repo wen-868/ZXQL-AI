@@ -8,7 +8,8 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
-import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
+import { dialectColumnType, primaryGeneratedColumn } from '../dialect';
 
 /** 计划/步骤六态（文档 22.4 统一口径） */
 export type PlanState =
@@ -16,7 +17,7 @@ export type PlanState =
 
 @Entity('ai_execution_plan')
 export class AiExecutionPlanEntity {
-  @PrimaryGeneratedColumn({ type: 'int', comment: '主键ID' })
+  @primaryGeneratedColumn('int', { comment: '主键ID', unsigned: false })
   id!: number;
 
   /** 租户 ID */
@@ -50,7 +51,7 @@ export class AiExecutionPlanEntity {
   /** 计划级状态（与步骤级六态一致，见 22.4） */
   @Column({
     name: 'state',
-    type: 'enum',
+    type: dialectColumnType('enum', 'varchar'),
     enum: ['pending', 'running', 'success', 'failed', 'suspended', 'skipped'],
     default: 'pending',
     comment: '计划状态：pending/running/success/failed/suspended/skipped',

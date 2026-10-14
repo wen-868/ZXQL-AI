@@ -7,11 +7,12 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
-import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
+import { primaryGeneratedColumn } from '../dialect';
 
 @Entity('t_ai_session_archive')
 export class AiSessionArchiveEntity {
-  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true, comment: '主键ID' })
+  @primaryGeneratedColumn('bigint', { comment: '主键ID' })
   id!: number;
 
   /** 会话 ID */

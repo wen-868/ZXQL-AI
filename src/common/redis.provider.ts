@@ -26,6 +26,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import type { RedisOptions } from 'ioredis';
+import { isStandaloneMode } from '../database/dialect';
+import { RedisMemoryClient } from './redis-memory.client';
 
 /** 长连接重试策略（与原 5 处一一对应；调用方按用途选择，语义不可混用） */
 export type RedisRetryPolicy = 'stop-after-3' | 'retry-forever';
@@ -61,6 +63,8 @@ export class RedisProvider {
   private readonly logger = new Logger(RedisProvider.name);
   /** 按策略缓存的共享长连接（同策略全仓唯一） */
   private readonly sharedClients = new Map<RedisRetryPolicy, Redis>();
+  /** standalone 形态按策略缓存的内存客户端（R101-AI-30） */
+  private readonly memoryClients = new Map<RedisRetryPolicy, Redis>();
   /** 各策略已注册的"停止重连"回调 */
   private readonly giveUpHandlers = new Map<
     RedisRetryPolicy,
@@ -76,6 +80,17 @@ export class RedisProvider {
     policy: RedisRetryPolicy,
     onGiveUp?: RedisGiveUpHandler,
   ): Redis {
+    // R101-AI-30：standalone（桌面嵌入）⇒ **内存实现**（不连 Redis 进程）
+    // connected（缺省）⇒ 下方 ioredis 原样路径（生产零改动）
+    if (isStandaloneMode()) {
+      const cachedMemory = this.memoryClients.get(policy);
+      if (cachedMemory) {
+        return cachedMemory;
+      }
+      const memory = this.newMemoryClient();
+      this.memoryClients.set(policy, memory);
+      return memory;
+    }
     if (onGiveUp) {
       const handlers = this.giveUpHandlers.get(policy) ?? new Set();
       handlers.add(onGiveUp);
@@ -88,6 +103,17 @@ export class RedisProvider {
     const client = this.newClient({ policy });
     this.sharedClients.set(policy, client);
     return client;
+  }
+
+  /**
+   * standalone 内存客户端工厂（**全仓唯一类型收敛点**）
+   *
+   * 内存客户端覆盖全仓实测调用的命令面（含 write-guard 释放锁 CAS、rate-limiter 令牌桶两个 Lua 等价、
+   * 死信 Stream、写令牌索引集合、multi 事务、记忆 setex）；未知 Lua **fail-fast 抛错**（不静默）。
+   * 消费方签名均按 ioredis `Redis`，故仅此处 `as unknown as Redis`，避免改动全仓消费点。
+   */
+  private newMemoryClient(): Redis {
+    return new RedisMemoryClient() as unknown as Redis;
   }
 
   /**

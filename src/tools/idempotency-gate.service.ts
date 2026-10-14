@@ -578,25 +578,46 @@ export class IdempotencyGateService {
     return out;
   }
 
-  /** 唯一键冲突识别（TypeORM QueryFailedError / mysql2 driverError 两种形态） */
+  /**
+   * 唯一键冲突识别（**双方言**：MySQL + SQLite/better-sqlite3）
+   *
+   * - MySQL（mysql2）：TypeORM QueryFailedError 包一层，`code='ER_DUP_ENTRY'`、`errno=1062`
+   * - SQLite（better-sqlite3，standalone 形态）：`code='SQLITE_CONSTRAINT_UNIQUE'`
+   *   （主键冲突为 `SQLITE_CONSTRAINT_PRIMARYKEY`），**errno 为 undefined**
+   *   ⇒ R101-AI-30 F4：仅认 MySQL 码会导致 standalone 形态把"已认领"误判为 DB 故障而 fail-open
+   *   （重复落单风险）。
+   *
+   * 判定保持**保守**：不认 SQLite 的泛化码 `SQLITE_CONSTRAINT`（CHECK/NOT NULL/FK 也会用它），
+   * 只认 UNIQUE/PRIMARYKEY 两个具体子码 + 消息兜底。
+   */
   private isDuplicateKeyError(err: unknown): boolean {
     const e = err as {
       code?: string;
       errno?: number;
       message?: string;
-      driverError?: { code?: string; errno?: number };
+      driverError?: { code?: string; errno?: number; message?: string };
     };
-    if (e?.code === 'ER_DUP_ENTRY' || e?.errno === 1062) {
+    const codes = [e?.code, e?.driverError?.code];
+    const errnos = [e?.errno, e?.driverError?.errno];
+    const messages = [e?.message, e?.driverError?.message];
+
+    // ① MySQL
+    if (codes.includes('ER_DUP_ENTRY') || errnos.includes(1062)) {
       return true;
     }
+    // ② SQLite（better-sqlite3）：UNIQUE 约束 / 主键约束
     if (
-      e?.driverError?.code === 'ER_DUP_ENTRY' ||
-      e?.driverError?.errno === 1062
+      codes.includes('SQLITE_CONSTRAINT_UNIQUE') ||
+      codes.includes('SQLITE_CONSTRAINT_PRIMARYKEY')
     ) {
       return true;
     }
-    return (
-      typeof e?.message === 'string' && e.message.includes('Duplicate entry')
+    // ③ 消息兜底（两方言各自的原文）
+    return messages.some(
+      (m) =>
+        typeof m === 'string' &&
+        (m.includes('Duplicate entry') ||
+          m.includes('UNIQUE constraint failed')),
     );
   }
 

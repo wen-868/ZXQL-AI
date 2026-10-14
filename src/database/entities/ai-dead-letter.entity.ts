@@ -10,12 +10,13 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-10-12
  */
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity } from 'typeorm';
+import { primaryGeneratedColumn } from '../dialect';
 
 @Entity('t_ai_dead_letter')
 export class AiDeadLetterEntity {
   /** 主键 ID（BIGINT UNSIGNED；mysql2 以字符串返回） */
-  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
+  @primaryGeneratedColumn('bigint')
   id!: string;
 
   /** 失败的操作名（模块.动作，如 `idem.claim`） */

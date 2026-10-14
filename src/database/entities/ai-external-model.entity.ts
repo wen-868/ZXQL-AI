@@ -8,11 +8,12 @@
  *
  * 负责人: 凌舟(AI协助) | 创建日期: 2026-08-15
  */
-import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
+import { Entity, Column, Index } from 'typeorm';
+import { primaryGeneratedColumn } from '../dialect';
 
 @Entity('t_ai_external_model')
 export class AiExternalModelEntity {
-  @PrimaryGeneratedColumn({ type: 'int', comment: '主键ID' })
+  @primaryGeneratedColumn('int', { comment: '主键ID', unsigned: false })
   id!: number;
 
   /** 唯一标识（provider 类型名，如 custom_kimi） */

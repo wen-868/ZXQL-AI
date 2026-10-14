@@ -7,7 +7,8 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-08-01
  */
-import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
+import { Entity, Column, Index } from 'typeorm';
+import { primaryGeneratedColumn } from '../dialect';
 
 @Entity('t_ai_audit_log')
 @Index('idx_tenant_id', ['tenantId'])
@@ -16,7 +17,7 @@ import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
 @Index('idx_session', ['sessionId'])
 export class AiAuditLogEntity {
   /** 主键ID */
-  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true, comment: '主键ID' })
+  @primaryGeneratedColumn('bigint', { comment: '主键ID' })
   id!: number;
 
   /** 租户ID */

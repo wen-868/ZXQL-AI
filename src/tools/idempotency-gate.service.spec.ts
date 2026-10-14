@@ -110,6 +110,47 @@ function duplicateKeyError(): Error {
   return err;
 }
 
+/** SQLite/better-sqlite3 的冲突形态（R101-AI-30 F4）：无 errno、code 为具体子码 */
+function sqliteDuplicateKeyError(): Error {
+  const err = new Error(
+    'UNIQUE constraint failed: t_ai_idempotency.tenant_id, t_ai_idempotency.tool_name, t_ai_idempotency.idem_key',
+  ) as Error & { code: string };
+  err.code = 'SQLITE_CONSTRAINT_UNIQUE';
+  return err;
+}
+
+/** SQLite 的主键冲突形态（子码不同，同样应被识别） */
+function sqlitePkError(): Error {
+  const err = new Error(
+    'UNIQUE constraint failed: t_ai_idempotency.id',
+  ) as Error & { code: string };
+  err.code = 'SQLITE_CONSTRAINT_PRIMARYKEY';
+  return err;
+}
+
+/** SQLite 的非唯一类约束（CHECK/NOT NULL/FK）：**不得**被误判为重复键 */
+function sqliteOtherConstraintError(): Error {
+  const err = new Error(
+    'NOT NULL constraint failed: t_ai_idempotency.idem_key',
+  ) as Error & {
+    code: string;
+  };
+  err.code = 'SQLITE_CONSTRAINT_NOTNULL';
+  return err;
+}
+
+/**
+ * SQLite 唯一冲突但**消息不可辨识**（仅 code 可判）
+ *
+ * 用途：压住"按 code 识别"这条腿 —— 真实驱动消息可能随版本/方言变化或被包装，
+ * 不能只靠消息兜底（反测时注释掉 code 分支，本用例必须变红）。
+ */
+function sqliteOpaqueMessageUniqueError(): Error {
+  const err = new Error('constraint failed') as Error & { code: string };
+  err.code = 'SQLITE_CONSTRAINT_UNIQUE';
+  return err;
+}
+
 /**
  * 内存仓储替身：**真实模拟唯一键**（uk_ai_idempotency）与 FindOperator
  *
@@ -119,6 +160,11 @@ class FakeIdempotencyRepo {
   rows: FakeRow[] = [];
   /** 非唯一键冲突的 DB 故障（模拟 MySQL 不可用） */
   insertError: Error | null = null;
+  /**
+   * 冲突错误工厂（R101-AI-30 F4：双方言共用同一替身）
+   * 缺省 = MySQL 形态（既有用例零变化）；standalone 用 sqliteDuplicateKeyError()
+   */
+  duplicateErrorFactory: () => Error = duplicateKeyError;
   private seq = 0;
 
   insert = jest.fn(
@@ -135,7 +181,7 @@ class FakeIdempotencyRepo {
           r.idemKey === entity.idemKey,
       );
       if (dup) {
-        return Promise.reject(duplicateKeyError());
+        return Promise.reject(this.duplicateErrorFactory());
       }
       const row = {
         id: String(++this.seq),
@@ -902,5 +948,83 @@ describe('IdempotencyGateService（阶段 3 幂等键）', () => {
       );
       expect(byToken.handle?.keySource).toBe('confirm_token');
     });
+  });
+});
+
+/**
+ * R101-AI-30 F4：判重**双方言**（connected=MySQL / standalone=better-sqlite3）
+ *
+ * 反测载体：把 `isDuplicateKeyError` 的 SQLite 分支去掉 ⇒ 第二个请求不再判重复，
+ * 走 fail-open（proceed）⇒ 下面两条 replay 断言变红。
+ */
+describe('R101-AI-30 F4：判重双方言（MySQL + SQLite）', () => {
+  let warnSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    resetErrorSemanticsMetrics();
+    warnSpy = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+    jest.restoreAllMocks();
+  });
+
+  it('MySQL 形态（ER_DUP_ENTRY/1062）⇒ 第二次提交回放（回归）', async () => {
+    const h = createHarness();
+    h.repo.duplicateErrorFactory = duplicateKeyError;
+    await claimAndComplete(h, makeInput());
+    // 清掉 Redis 预过滤键（模拟 TTL 到期/重启）⇒ 第二次必须走 MySQL 唯一键路径，
+    // 这样才真正压到 isDuplicateKeyError 的方言判定
+    h.redisStore.clear();
+
+    const again = await h.gate.check(makeInput());
+    expect(again.decision).toBe('replay');
+  });
+
+  it('SQLite 形态（SQLITE_CONSTRAINT_UNIQUE，**errno 为 undefined**）⇒ 第二次提交回放', async () => {
+    const h = createHarness();
+    h.repo.duplicateErrorFactory = sqliteDuplicateKeyError;
+    await claimAndComplete(h, makeInput());
+    // 清掉 Redis 预过滤键（模拟 TTL 到期/重启）⇒ 第二次必须走 MySQL 唯一键路径，
+    // 这样才真正压到 isDuplicateKeyError 的方言判定
+    h.redisStore.clear();
+
+    const again = await h.gate.check(makeInput());
+    expect(again.decision).toBe('replay');
+  });
+
+  it('SQLite 主键冲突子码（SQLITE_CONSTRAINT_PRIMARYKEY）同样识别 ⇒ 回放', async () => {
+    const h = createHarness();
+    h.repo.duplicateErrorFactory = sqlitePkError;
+    await claimAndComplete(h, makeInput());
+    // 清掉 Redis 预过滤键（模拟 TTL 到期/重启）⇒ 第二次必须走 MySQL 唯一键路径，
+    // 这样才真正压到 isDuplicateKeyError 的方言判定
+    h.redisStore.clear();
+
+    const again = await h.gate.check(makeInput());
+    expect(again.decision).toBe('replay');
+  });
+
+  it('SQLite 非唯一约束（NOT NULL）**不得**误判为重复 ⇒ 走 fail-open 放行（不做回放）', async () => {
+    const h = createHarness();
+    h.repo.duplicateErrorFactory = sqliteOtherConstraintError;
+
+    const decision = await h.gate.check(makeInput());
+    expect(decision.decision).toBe('proceed');
+  });
+
+  it('SQLite 唯一冲突但**消息不可辨识**（仅 SQLITE_CONSTRAINT_UNIQUE 可判）⇒ 仍回放', async () => {
+    const h = createHarness();
+    h.repo.duplicateErrorFactory = sqliteOpaqueMessageUniqueError;
+    await claimAndComplete(h, makeInput());
+    // 清掉 Redis 预过滤键（模拟 TTL 到期/重启）⇒ 第二次必须走 MySQL 唯一键路径，
+    // 这样才真正压到 isDuplicateKeyError 的方言判定
+    h.redisStore.clear();
+
+    const again = await h.gate.check(makeInput());
+    expect(again.decision).toBe('replay');
   });
 });

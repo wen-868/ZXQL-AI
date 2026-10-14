@@ -29,6 +29,7 @@ import {
   ToolRisk,
 } from '../tools/tool.interface';
 import { bestEffort } from '../common/error-semantics';
+import { isStandaloneMode } from '../database/dialect';
 import { AiConfigService } from '../tenant/ai-config.service';
 
 /**
@@ -487,8 +488,24 @@ export class AuditLogger {
     await bestEffort(
       async () => {
         // 使用原生 SQL UPSERT（TypeORM upsert 在 1.x 版本可能不兼容，用原生 SQL 更可靠）
-        await this.dataSource.query(
-          `INSERT INTO t_ai_usage_daily
+        // R101-AI-30 F5：按方言分支 —— connected(MySQL) 的 SQL **逐字不变**；
+        // standalone(better-sqlite3) 用 `ON CONFLICT(...) DO UPDATE` + `excluded.` + `CURRENT_TIMESTAMP`
+        // （SQLite 无 `ON DUPLICATE KEY` / `VALUES()` / `NOW()`；等价性见 spike 探针3 E 段）。
+        const upsertSql = isStandaloneMode()
+          ? `INSERT INTO t_ai_usage_daily
+          (tenant_id, stat_date, chat_count, tool_call_count, prompt_tokens, completion_tokens, total_tokens, prompt_cost, completion_cost, total_cost, provider, model, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON CONFLICT(tenant_id, stat_date, provider) DO UPDATE SET
+          chat_count = chat_count + excluded.chat_count,
+          tool_call_count = tool_call_count + excluded.tool_call_count,
+          prompt_tokens = prompt_tokens + excluded.prompt_tokens,
+          completion_tokens = completion_tokens + excluded.completion_tokens,
+          total_tokens = total_tokens + excluded.total_tokens,
+          prompt_cost = prompt_cost + excluded.prompt_cost,
+          completion_cost = completion_cost + excluded.completion_cost,
+          total_cost = total_cost + excluded.total_cost,
+          updated_at = CURRENT_TIMESTAMP`
+          : `INSERT INTO t_ai_usage_daily
           (tenant_id, stat_date, chat_count, tool_call_count, prompt_tokens, completion_tokens, total_tokens, prompt_cost, completion_cost, total_cost, provider, model, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
          ON DUPLICATE KEY UPDATE
@@ -500,25 +517,24 @@ export class AuditLogger {
           prompt_cost = prompt_cost + VALUES(prompt_cost),
           completion_cost = completion_cost + VALUES(completion_cost),
           total_cost = total_cost + VALUES(total_cost),
-          updated_at = NOW()`,
-          [
-            params.tenantId,
-            today,
-            params.chatCount,
-            params.toolCallCount,
-            params.promptTokens,
-            params.completionTokens,
-            totalTokens,
-            promptCost,
-            completionCost,
-            totalCost,
-            // P0-014 重做：唯一索引对每个 NULL 视为互不相同 ⇒ 传 NULL 的行不会被去重；
-            // 且列定义已是 NOT NULL DEFAULT 'unknown'（014 第 6 步），传 NULL 会被拒绝。
-            // 哨兵值 'unknown' 与「库默认值 / 迁移回填值」三处完全一致（见上方注释）。
-            params.provider ?? 'unknown',
-            params.model ?? 'unknown',
-          ],
-        );
+          updated_at = NOW()`;
+        await this.dataSource.query(upsertSql, [
+          params.tenantId,
+          today,
+          params.chatCount,
+          params.toolCallCount,
+          params.promptTokens,
+          params.completionTokens,
+          totalTokens,
+          promptCost,
+          completionCost,
+          totalCost,
+          // P0-014 重做：唯一索引对每个 NULL 视为互不相同 ⇒ 传 NULL 的行不会被去重；
+          // 且列定义已是 NOT NULL DEFAULT 'unknown'（014 第 6 步），传 NULL 会被拒绝。
+          // 哨兵值 'unknown' 与「库默认值 / 迁移回填值」三处完全一致（见上方注释）。
+          params.provider ?? 'unknown',
+          params.model ?? 'unknown',
+        ]);
       },
       {
         op: 'audit.upsertDailyUsage',

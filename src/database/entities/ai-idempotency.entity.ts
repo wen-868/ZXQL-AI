@@ -17,7 +17,8 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-10-12
  */
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity } from 'typeorm';
+import { dialectColumnType, primaryGeneratedColumn } from '../dialect';
 
 /** 幂等键来源（可观测键质量；与迁移 key_source 列取值一致） */
 export type IdempotencyKeySource =
@@ -32,7 +33,7 @@ export type IdempotencyStatus = 'in_flight' | 'succeeded' | 'failed';
 @Entity('t_ai_idempotency')
 export class AiIdempotencyEntity {
   /** 主键 ID（BIGINT UNSIGNED；mysql2 以字符串返回） */
-  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
+  @primaryGeneratedColumn('bigint')
   id!: string;
 
   /** 租户 ID（幂等键第一段，多租户隔离） */
@@ -44,7 +45,11 @@ export class AiIdempotencyEntity {
   toolName!: string;
 
   /** 幂等键 sha256 hex（第三段） */
-  @Column({ name: 'idem_key', type: 'char', length: 64 })
+  @Column({
+    name: 'idem_key',
+    type: dialectColumnType('char', 'varchar'),
+    length: 64,
+  })
   idemKey!: string;
 
   /** 键来源：confirm_token / explicit / payload_hash */
@@ -56,7 +61,11 @@ export class AiIdempotencyEntity {
   status!: IdempotencyStatus;
 
   /** 首次执行结果（ToolResult JSON，供重复请求回放） */
-  @Column({ name: 'result_json', type: 'mediumtext', nullable: true })
+  @Column({
+    name: 'result_json',
+    type: dialectColumnType('mediumtext', 'text'),
+    nullable: true,
+  })
   resultJson!: string | null;
 
   /** 失败摘要（脱敏，仅排障） */
