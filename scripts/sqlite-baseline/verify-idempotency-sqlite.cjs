@@ -11,6 +11,19 @@
  * 运行：node scripts/sqlite-baseline/verify-idempotency-sqlite.cjs
  * 红线：不改 src/；只读验证 + 临时临时库（不碰 data/app.db 正式产物）
  * 负责人: 凌舟（代笔） | 日期: 2026-10-14
+ *
+ * ⚠️⚠️ 判定有误声明（2026-10-15 阿坚发现 + 凌舟复核确认）——本脚本有【两条假通过】：
+ *   ① ⑤「预览不耗键」= **空转通过**：用明文键 `repo.count({idemKey:'verify-key-005'})` 查，
+ *      而库里存的是【键哈希】（见 ② 的 handle.idemKey）⇒ 明文查恒为 0 ⇒
+ *      `before===after===0` 永远成立 ⇒ 该 ✅ 不构成任何证明
+ *   ② ③「唯一键冲突」= **误匹配**：正则 /UNIQUE|CONSTRAINT/i 把
+ *      `NOT NULL constraint failed: first_seen_at`（insert 时没给时间）误判为 UNIQUE 冲突
+ * ⇒ **以 `src/tools/idempotency-gate.sqlite.spec.ts`（阿坚，4 例：真口径 + DROP INDEX mutation）为准**
+ *   本脚本仅作"独立复核参考"，其 ✅ 不代表门禁守得住
+ *
+ * 教训（入册）：验证 ✅ ≠ 门禁守得住。三类陷阱——
+ *   ① 不进 jest（本 .cjs）② 空转（明文查哈希恒 0）③ 误匹配（正则把 NOT NULL 当 UNIQUE）
+ * ⇒ 任何"通过"必须能回答："如果功能坏了，这条会红吗？"（mutation 是唯一可靠检验）
  */
 process.env.INTEGRATION_MODE = 'standalone';
 process.env.IDEMPOTENCY_ENABLED = 'true';
