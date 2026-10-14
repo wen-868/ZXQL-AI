@@ -220,7 +220,9 @@ export class UpdateProductPriceTool implements ITool {
     // ── 4. 执行阶段：调用后端更新价格 ──
     try {
       // 将 LLM 友好参数转换为后端 body 结构（价格字段平铺）
-      const requestBody = { [priceType]: newPrice };
+      // R101-AI-34 P0-3（MS 必做）：**改价来源标记** —— 缺省会被后端记成 `admin`，
+      // "AI 改动可追溯"能力随之失效；AI 侧改价一律传 `source: 'ai'`。
+      const requestBody = { [priceType]: newPrice, source: 'ai' };
 
       const result = await this.serviceClient.put<UpdatePriceResult>(
         `${API_ENDPOINTS.PRODUCTS}/${skuId}/price`,

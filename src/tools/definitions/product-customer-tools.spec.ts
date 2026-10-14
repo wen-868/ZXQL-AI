@@ -211,6 +211,24 @@ describe('R70-11 商品管理 + 客户管理工具', () => {
       expect(result.error).toContain('newPrice');
     });
 
+    it('R101-AI-34 P0-3：执行时 body 必带 source=ai（AI 改动可追溯）', async () => {
+      mockServiceClient.put.mockResolvedValue({ skuId: 101, retailPrice: 100 });
+
+      const result = await updateProductPrice.execute(
+        { skuId: 101, priceType: 'retailPrice', newPrice: 100, confirm: true },
+        mockContext,
+      );
+
+      expect(result.success).toBe(true);
+      const firstCall = mockServiceClient.put.mock.calls[0] as unknown as [
+        string,
+        Record<string, unknown>,
+      ];
+      expect(firstCall[0]).toContain('/api/admin/products/101/price');
+      // 关键：AI 侧改价必须带来源标记（mutation：去掉 source ⇒ 本例红）
+      expect(firstCall[1]).toEqual({ retailPrice: 100, source: 'ai' });
+    });
+
     it('后端错误应返回错误信息', async () => {
       mockServiceClient.put.mockRejectedValue(
         new Error('后端 HTTP 500：服务器内部错误'),
