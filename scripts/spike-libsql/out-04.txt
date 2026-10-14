@@ -1,0 +1,17 @@
+=== R101-AI-29 探针4：逐类型支持矩阵（better-sqlite3）===
+[OK  ] varchar              → SQLite 列: varchar(36)
+[OK  ] text                 → SQLite 列: text
+[FAIL] mediumtext           → DataTypeNotSupportedError: Data type "mediumtext" in "Probe.v" is not supported by "better-sqlite3" database.
+[FAIL] char                 → DataTypeNotSupportedError: Data type "char" in "Probe.v" is not supported by "better-sqlite3" database.
+[OK  ] int                  → SQLite 列: integer
+[OK  ] tinyint              → SQLite 列: tinyint
+[OK  ] bigint-nonpk         → SQLite 列: bigint
+[OK  ] decimal              → SQLite 列: decimal(12
+[OK  ] json                 → SQLite 列: json
+[OK  ] date                 → SQLite 列: date
+[OK  ] datetime             → SQLite 列: datetime
+[OK  ] datetime-precision3  → SQLite 列: datetime(3)
+[FAIL] enum                 → DataTypeNotSupportedError: Data type "enum" in "Probe.v" is not supported by "better-sqlite3" database.
+[OK  ] boolean              → SQLite 列: boolean
+--- 支持 11/14：不支持 = mediumtext, char, enum
+=== 探针4 结束 ===

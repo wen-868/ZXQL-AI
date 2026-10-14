@@ -102,9 +102,9 @@ CREATE TABLE "ai_execution_plan" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NUL
 
 CREATE INDEX "ai_execution_plan__idx_tenant" ON "ai_execution_plan" ("tenant_id");
 
-CREATE TABLE "t_ai_idempotency" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "tenant_id" varchar(36) NOT NULL, "tool_name" varchar(64) NOT NULL, "idem_key" varchar(64) NOT NULL, "key_source" varchar(16) NOT NULL, "status" varchar(16) NOT NULL DEFAULT ('in_flight'), "result_json" text, "error_text" varchar(512), "first_seen_at" datetime NOT NULL, "completed_at" datetime, "created_at" datetime NOT NULL, "updated_at" datetime NOT NULL);
+CREATE TABLE "t_ai_idempotency" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "tenant_id" varchar(36) NOT NULL, "tool_name" varchar(64) NOT NULL, "idem_key" varchar(64) NOT NULL, "key_source" varchar(16) NOT NULL, "status" varchar(16) NOT NULL DEFAULT ('in_flight'), "result_json" text, "error_text" varchar(512), "first_seen_at" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP), "completed_at" datetime, "created_at" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP), "updated_at" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP));
 
-CREATE TABLE "t_ai_dead_letter" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "op" varchar(64) NOT NULL, "tenant_id" varchar(36), "detail" text, "error" text NOT NULL, "stack" text, "level" varchar(16) NOT NULL DEFAULT ('best_effort'), "at" datetime(3) NOT NULL, "created_at" datetime NOT NULL);
+CREATE TABLE "t_ai_dead_letter" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "op" varchar(64) NOT NULL, "tenant_id" varchar(36), "detail" text, "error" text NOT NULL, "stack" text, "level" varchar(16) NOT NULL DEFAULT ('best_effort'), "at" datetime(3) NOT NULL, "created_at" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP));
 
 CREATE TABLE "t_ai_employee" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "tenant_id" varchar(32) NOT NULL, "employee_uid" varchar(40) NOT NULL, "name" varchar(64) NOT NULL, "post" varchar(64) NOT NULL, "department" varchar(64) NOT NULL, "persona_prompt" text, "tool_categories" json, "data_scope" json, "dispatch_uids" json, "reply_style" varchar(128), "status" tinyint NOT NULL DEFAULT (1), "created_at" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP), "updated_at" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP));
 

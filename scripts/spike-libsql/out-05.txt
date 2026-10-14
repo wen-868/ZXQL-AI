@@ -1,0 +1,19 @@
+R101-AI-30 探针 5 原始输出（Windows 11 build 26300 ARM64，2026-10-14）
+=====================================================================
+[env] process.arch=x64 os.arch=x64 PROCESSOR_ARCHITECTURE=AMD64        <-- x64 进程在 ARM64 上可运行
+[pe]  .../better_sqlite3.node -> machine=0xaa64                        <-- 本地装到的是 ARM64 绑定（非 x64）
+[verdict] native 加载失败：ERR_DLOPEN_FAILED
+          ...\better_sqlite3.node is not a valid Win32 application    <-- 架构不匹配 = 硬失败，报错明确
+
+未能获取 x64 绑定（本环境阻塞点）：
+  prebuild-install http request GET https://github.com/WiseLibs/better-sqlite3/releases/download/v12.11.1/better-sqlite3-v12.11.1-node-v137-win32-x64.tar.gz
+  prebuild-install warn install read ECONNRESET
+  （直接 Invoke-WebRequest 同样 0 字节 / 连接被强制关闭）
+
+本机已有的 x64 二进制（另一条佐证：x64 产物可在本机存在与运行）：
+  desktop/release/win-unpacked/智享AI.exe -> PE machine=0x8664 (x64)     <-- electron-builder 在本机产出的 x64 应用
+  desktop/node_modules/electron/dist/electron.exe -> 0xaa64 (arm64)      <-- 开发依赖装的是 arm64 Electron
+
+待补的直接证明（需可访问 GitHub releases 的机器）：
+  cd node_modules/better-sqlite3 && prebuild-install --arch=x64 --platform=win32 --runtime=node
+  再在本探针同等的 x64 进程里 require，并核对 PE machine=0x8664 与 SQLite 版本

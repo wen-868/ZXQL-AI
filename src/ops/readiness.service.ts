@@ -266,16 +266,45 @@ export class ReadinessService {
       0,
     );
 
-    // 实际清单：一条 information_schema 查询取全量
+    // 实际清单：一条 SQL 取全量（按 driver 双形态）
     let actual: SchemaProbe;
     try {
       // TypeORM 的 query() 签名返回 any。此处先落到 unknown 再收窄为已声明的行类型，
       // 让 any 不越过类型边界（直接写 `as SchemaRow[]` 会被 lint 的
       // no-unsafe-assignment autofix 删掉，因为它把断言本身视为问题）。
-      const raw: unknown = await dataSource.query(
-        'SELECT TABLE_NAME AS `t`, COLUMN_NAME AS `c` ' +
-          'FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()',
-      );
+      const raw: unknown =
+        // 防御取 options：伪 DataSource（单测）可能没有 options ⇒ 视为 MySQL 路径（既有行为不变）
+        dataSource.options?.type === 'better-sqlite3'
+          ? // R101-AI-30：standalone（sqlite）⇒ PRAGMA 双查询拼装（information_schema 是 MySQL 专有）：
+            //   table_list 取全部表，再逐表 table_info 取列。表数量小（~20），单次探测毫秒级。
+            await (async () => {
+              const rows: SchemaRow[] = [];
+              // 同上：query() 返回 any ⇒ 先落 unknown 再收窄，避免 no-unsafe-assignment
+              const tablesRaw: unknown = await dataSource.query(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+              );
+              const tables = (
+                Array.isArray(tablesRaw) ? tablesRaw : []
+              ) as Array<{
+                name: string;
+              }>;
+              for (const { name } of tables) {
+                const colsRaw: unknown = await dataSource.query(
+                  `PRAGMA table_info("${name}")`,
+                );
+                const cols = (Array.isArray(colsRaw) ? colsRaw : []) as Array<{
+                  name: string;
+                }>;
+                for (const col of cols) {
+                  rows.push({ t: name, c: col.name });
+                }
+              }
+              return rows;
+            })()
+          : await dataSource.query(
+              'SELECT TABLE_NAME AS `t`, COLUMN_NAME AS `c` ' +
+                'FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()',
+            );
       const rows: SchemaRow[] = Array.isArray(raw) ? (raw as SchemaRow[]) : [];
       const tableColumns = new Map<string, Set<string>>();
       for (const { t, c } of rows) {
