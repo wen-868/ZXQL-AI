@@ -25,6 +25,7 @@ function docOf(over: Partial<AiDocEntity>): AiDocEntity {
     tenantId: 't1',
     title: '采购合同模板',
     category: 'contract',
+    tags: null,
     owner: 'u-1',
     sourceType: 'generated',
     contentHash: 'h1',
@@ -143,5 +144,33 @@ describe('AiDocSearchTool（R101-AI-35 S2 收官 · 结构化检索）', () => {
     const h = createHarness([]);
     expect(h.tool.isWriteOperation).toBe(false);
     expect(h.tool.name).toBe('aiDocSearch');
+  });
+
+  // ── R101-AI-35 tags 补齐 ──
+  // 契约演进留痕：tags 从「不参与检索」变为「参与检索」（本用例为该演进的正向断言）
+  it('⑦ 【契约演进·R101-AI-35 tags 补齐】search 按**单个标签**命中，matchedIn 含 tags', async () => {
+    const h = createHarness([
+      docOf({ id: '1', title: '无关标题', category: 'misc', tags: '酒,饮料' }),
+      docOf({ id: '2', title: '无关标题2', category: 'misc', tags: null }),
+    ]);
+
+    // 命中单个标签（'酒'）⇒ 命中 doc 1（演进前：tags 不参与检索 ⇒ 恒不命中）
+    const hit = await h.tool.execute({ keyword: '酒' }, CTX);
+    const data = hit.data as {
+      total: number;
+      hits: Array<{ docId: string; matchedIn: string[] }>;
+    };
+    expect(data.total).toBe(1);
+    expect(data.hits[0].docId).toBe('1');
+    expect(data.hits[0].matchedIn).toContain('tags');
+    // mutation 检验点：去掉 tags 匹配分支 ⇒ 本用例红（total 变 0）
+
+    // 单个标签粒度：'饮' 命中 '饮料' 这个标签（仍是标签级匹配）
+    const partial = await h.tool.execute({ keyword: '饮' }, CTX);
+    expect((partial.data as { total: number }).total).toBe(1);
+
+    // 未出现在任何标签里的字 ⇒ 不命中（证明不是"整串模糊"的副作用）
+    const miss = await h.tool.execute({ keyword: '浆' }, CTX);
+    expect((miss.data as { total: number }).total).toBe(0);
   });
 });

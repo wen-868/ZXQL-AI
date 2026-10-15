@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS "t_ai_doc" (
   "owner" varchar(64),
   "source_type" varchar(16) NOT NULL DEFAULT ('upload'),
   "content_hash" varchar(64) NOT NULL,
+  "tags" text,
   "storage_path" varchar(512),
   "status" varchar(16) NOT NULL DEFAULT ('active'),
   "version" integer NOT NULL DEFAULT (1),

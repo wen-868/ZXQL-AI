@@ -30,6 +30,7 @@ function docOf(over: Partial<AiDocEntity> = {}): AiDocEntity {
     tenantId: 't1',
     title: '既有文档',
     category: 'default',
+    tags: null,
     owner: 'u-x',
     sourceType: 'generated',
     contentHash: sha256('same content'),
@@ -150,5 +151,64 @@ describe('AiDocCreateTool（R101-AI-35 S2 写工具）', () => {
     const h = createHarness();
     expect(h.tool.isWriteOperation).toBe(true);
     expect(h.tool.name).toBe('aiDocCreate');
+  });
+
+  // ── R101-AI-35 tags 补齐（契约演进：tags 从"被静默丢弃"变为"入库并可检索"）──
+  it('⑥ tags：归一化（去空/去重/trim）后入库，preview 也带 tags', async () => {
+    const h = createHarness(null);
+
+    const preview = await h.tool.execute(
+      { title: 'T', content: 'C', tags: ' 酒 , ,饮料,酒 ' },
+      CTX,
+    );
+    const pDetails = preview.preview?.details as Record<string, unknown>;
+    expect(pDetails.tags).toBe('酒,饮料');
+    expect(h.save).not.toHaveBeenCalled();
+
+    await h.tool.execute(
+      { title: 'T', content: 'C', tags: ' 酒 , ,饮料,酒 ', confirm: true },
+      CTX,
+    );
+    const saved = (
+      h.save.mock.calls[0] as unknown as [Partial<AiDocEntity>]
+    )[0];
+    // mutation 检验点：save 不带 tags（即"解析了没写"的原缺陷）⇒ 本行红
+    expect(saved.tags).toBe('酒,饮料');
+  });
+
+  it('⑦ tags：超长 ⇒ 截断到 500（截到最后完整标签）且 preview **如实展示已截断**', async () => {
+    const h = createHarness(null);
+    const longTags = Array.from(
+      { length: 60 },
+      (_, i) => `标签${i}${'x'.repeat(10)}`,
+    );
+
+    const result = await h.tool.execute(
+      { title: 'T', content: 'C', tags: longTags.join(',') },
+      CTX,
+    );
+
+    const details = result.preview?.details as Record<string, unknown>;
+    const value = String(details.tags);
+    expect(value.length).toBeLessThanOrEqual(500);
+    expect(value.endsWith('x')).toBe(true); // 截到最后完整标签（未被切断）
+    // 不静默：必须显式告知已截断
+    expect(details.tagsTruncated).toBe(true);
+    expect(String(details.tagsNote)).toContain('截断');
+  });
+
+  it('⑧ tags 为空 ⇒ 正常入库为 null（不报错）', async () => {
+    const h = createHarness(null);
+
+    const result = await h.tool.execute(
+      { title: 'T', content: 'C', tags: '   ,  ', confirm: true },
+      CTX,
+    );
+
+    expect(result.success).toBe(true);
+    const saved = (
+      h.save.mock.calls[0] as unknown as [Partial<AiDocEntity>]
+    )[0];
+    expect(saved.tags).toBeNull();
   });
 });

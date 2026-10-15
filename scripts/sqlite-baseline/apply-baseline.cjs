@@ -68,6 +68,8 @@ ensureColumn(
   'doc_id',
   '"doc_id" bigint',
 );
+// R101-AI-35 tags 补齐：既有库补 t_ai_doc.tags（001 的 CREATE TABLE IF NOT EXISTS 对已存在表整条跳过）
+ensureColumn('t_ai_doc', 'tags', '"tags" text');
 db.exec(
   'CREATE INDEX IF NOT EXISTS "t_ai_knowledge_chunks__idx_kc_tenant_doc" ON "t_ai_knowledge_chunks" ("tenant_id", "doc_id")',
 );

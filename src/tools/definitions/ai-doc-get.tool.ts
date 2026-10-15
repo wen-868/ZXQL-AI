@@ -78,6 +78,8 @@ export class AiDocGetTool implements ITool {
           status: doc.status,
           version: doc.version,
           contentHash: doc.contentHash,
+          // R101-AI-35 tags 补齐
+          tags: doc.tags ?? null,
           storagePath: doc.storagePath,
           createdAt: new Date(doc.createdAt).toISOString(),
           updatedAt: new Date(doc.updatedAt).toISOString(),

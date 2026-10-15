@@ -49,6 +49,16 @@ export class AiDocEntity {
   owner!: string | null;
 
   @Column({
+    name: 'tags',
+    // MySQL=VARCHAR(500) / sqlite=TEXT（R101-AI-35 tags 补齐）
+    type: dialectColumnType('varchar', 'text'),
+    length: 500,
+    nullable: true,
+    comment: '标签（逗号分隔串；入库前归一化：去空/去重/trim/总长截断 500）',
+  })
+  tags!: string | null;
+
+  @Column({
     name: 'source_type',
     type: dialectColumnType('enum', 'varchar'),
     enum: ['upload', 'generated'],

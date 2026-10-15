@@ -24,6 +24,8 @@ interface DocListItem {
   title: string;
   category: string;
   owner: string | null;
+  /** R101-AI-35 tags 补齐 */
+  tags: string | null;
   status: string;
   version: number;
   updatedAt: string;
@@ -84,6 +86,7 @@ export class AiDocListTool implements ITool {
         title: doc.title,
         category: doc.category,
         owner: doc.owner,
+        tags: doc.tags ?? null,
         status: doc.status,
         version: doc.version,
         updatedAt: new Date(doc.updatedAt).toISOString(),

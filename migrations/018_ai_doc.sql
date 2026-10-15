@@ -121,6 +121,26 @@ PREPARE kc_idx_stmt FROM @kc_idx_ddl;
 EXECUTE kc_idx_stmt;
 DEALLOCATE PREPARE kc_idx_stmt;
 
+-- ──────────── 6. t_ai_doc 条件加列 tags（R101-AI-35 tags 补齐） ────────────
+-- 口径：逗号分隔标签串 VARCHAR(500)；入库前归一化（去空项/去重/trim/总长截断）。
+-- 与 doc_id 同法：information_schema 判定 ⇒ 既有库补列、既有列不受影响、幂等可复跑。
+SET @doc_tags_exists := (
+  SELECT COUNT(1) FROM information_schema.COLUMNS
+   WHERE TABLE_SCHEMA = DATABASE()
+     AND TABLE_NAME = 't_ai_doc'
+     AND COLUMN_NAME = 'tags'
+);
+
+SET @doc_tags_ddl := IF(
+  @doc_tags_exists = 0,
+  'ALTER TABLE t_ai_doc ADD COLUMN tags VARCHAR(500) NULL COMMENT ''标签（逗号分隔；归一化后入库）''',
+  'SELECT 1'
+);
+
+PREPARE doc_tags_stmt FROM @doc_tags_ddl;
+EXECUTE doc_tags_stmt;
+DEALLOCATE PREPARE doc_tags_stmt;
+
 -- 五、回滚 SQL（文档·勿执行；按 migrations/README.md 二.5，回滚走反向迁移）
 --   回滚 = 反向迁移，单独执行下列语句（刻意不在注释内写句末分号，避免破坏分号拆分）：
 --     ALTER TABLE t_ai_knowledge_chunks DROP COLUMN doc_id

@@ -26,7 +26,7 @@ interface DocHit {
   category: string;
   status: string;
   version: number;
-  matchedIn: Array<'title' | 'category'>;
+  matchedIn: Array<'title' | 'category' | 'tags'>;
 }
 
 @Injectable()
@@ -35,9 +35,9 @@ export class AiDocSearchTool implements ITool {
 
   readonly name = 'aiDocSearch';
   readonly description =
-    '文档中心-检索文档（只读，**结构化检索**）：在你有权查看的文档中，按关键词匹配**标题/目录**' +
-    '（大小写不敏感），可叠加目录与状态筛选。注意：本工具不做语义/向量检索（归知识库检索）。' +
-    '适合"有没有关于采购的文档""合同目录里有哪些"等场景。' +
+    '文档中心-检索文档（只读，**结构化检索**）：在你有权查看的文档中，按关键词匹配**标题/目录/标签**' +
+    '（大小写不敏感；标签按单个标签匹配）。注意：本工具不做语义/向量检索（归知识库检索）。' +
+    '适合"有没有关于采购的文档""合同目录里有哪些""带【酒】标签的文档"等场景。' +
     '示例参数：{"keyword":"采购","category":"contract"}';
   readonly category = 'report' as const;
   readonly isWriteOperation = false;
@@ -88,9 +88,17 @@ export class AiDocSearchTool implements ITool {
       const kw = keyword.toLowerCase();
       const hits: DocHit[] = [];
       for (const doc of docs) {
-        const matchedIn: Array<'title' | 'category'> = [];
+        const matchedIn: Array<'title' | 'category' | 'tags'> = [];
         if (doc.title.toLowerCase().includes(kw)) matchedIn.push('title');
         if (doc.category.toLowerCase().includes(kw)) matchedIn.push('category');
+        // R101-AI-35 tags 补齐：**按单个标签**匹配（逗号拆开，非整串模糊）
+        const tagList = (doc.tags ?? '')
+          .split(',')
+          .map((t) => t.trim())
+          .filter((t) => t.length > 0);
+        if (tagList.some((t) => t.toLowerCase().includes(kw))) {
+          matchedIn.push('tags');
+        }
         if (matchedIn.length > 0) {
           hits.push({
             docId: doc.id,
@@ -111,7 +119,7 @@ export class AiDocSearchTool implements ITool {
           hits,
           ...(hits.length === 0
             ? {
-                note: '未命中：本工具按标题/目录做结构化匹配；若需语义检索请使用知识库检索（S3 贯通后可用）',
+                note: '未命中：本工具按标题/目录/标签做结构化匹配；若需语义检索请使用知识库检索（S3 贯通后可用）',
               }
             : {}),
         },

@@ -81,6 +81,8 @@ export class AiDocCreateTool implements ITool {
     }
     const { title, content, category, confirm } = parsed.data;
     const contentHash = sha256(content);
+    // R101-AI-35 tags 补齐：入库前归一化（去空项/去重/trim/总长截断 500）
+    const tagsInfo = normalizeTags(parsed.data.tags);
 
     // ── 预览阶段：**绝不落库**（红线）──
     if (!confirm) {
@@ -96,6 +98,14 @@ export class AiDocCreateTool implements ITool {
             contentHash,
             sourceType: 'generated',
             owner: context.userId,
+            tags: tagsInfo.value,
+            // 超长截断**如实展示**（不静默）
+            ...(tagsInfo.truncated
+              ? {
+                  tagsTruncated: true,
+                  tagsNote: `标签超长已截断至 ${tagsInfo.value?.split(',').length ?? 0} 个（上限 500 字符）`,
+                }
+              : {}),
             note: '确认后入库；同租户同内容重复入库将自动回放既有文档',
           },
         },
@@ -133,6 +143,7 @@ export class AiDocCreateTool implements ITool {
           owner: context.userId,
           sourceType: 'generated',
           contentHash,
+          tags: tagsInfo.value,
           storagePath: null,
           status: 'active',
           version: 1,
@@ -218,4 +229,44 @@ export class AiDocCreateTool implements ITool {
 /** 内容哈希（sha256 hex；与迁移 018 的 uk_ai_doc_tenant_hash 口径一致） */
 function sha256(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex');
+}
+
+/**
+ * 标签归一化（R101-AI-35 tags 补齐）
+ *
+ * 口径：逗号分隔串 ⇒ 去空项、去重（保序）、trim、**总长截断 500**（截断不报错，
+ * 但由调用方在 preview 里**如实展示**"已截断"——不搞静默）。
+ */
+export function normalizeTags(raw?: string): {
+  value: string | null;
+  truncated: boolean;
+} {
+  if (typeof raw !== 'string' || raw.trim().length === 0) {
+    return { value: null, truncated: false };
+  }
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  for (const piece of raw.split(',')) {
+    const tag = piece.trim();
+    if (tag.length === 0 || seen.has(tag)) continue;
+    seen.add(tag);
+    parts.push(tag);
+  }
+  if (parts.length === 0) return { value: null, truncated: false };
+
+  const LIMIT = 500;
+  const joined = parts.join(',');
+  if (joined.length <= LIMIT) return { value: joined, truncated: false };
+
+  // 截断到 limit 内**最后一个完整标签**（不切断标签）
+  let acc = '';
+  for (const tag of parts) {
+    const next = acc.length === 0 ? tag : `${acc},${tag}`;
+    if (next.length > LIMIT) break;
+    acc = next;
+  }
+  return {
+    value: acc.length > 0 ? acc : parts[0].slice(0, LIMIT),
+    truncated: true,
+  };
 }
