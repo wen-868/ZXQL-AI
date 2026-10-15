@@ -24,10 +24,10 @@ import { AiApprovalListTool } from './ai-approval-list.tool';
 import { AiApprovalUpdateTool } from './ai-approval-update.tool';
 
 function opValue(v: unknown): unknown[] | null {
-  if (v && typeof v === "object") {
+  if (v && typeof v === 'object') {
     const o = v as { value?: unknown; _value?: unknown; type?: string };
     const raw = o.value ?? o._value;
-    if (o.type === "in" && Array.isArray(raw)) return raw as unknown[];
+    if (o.type === 'in' && Array.isArray(raw)) return raw as unknown[];
   }
   return null;
 }
