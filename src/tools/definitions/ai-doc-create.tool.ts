@@ -13,10 +13,11 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-10-15
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
 import { Repository } from 'typeorm';
+import { DocRagService } from '../../rag/doc-rag.service';
 import { AiDocEntity } from '../../database/entities/ai-doc.entity';
 import { ITool, ToolContext, ToolResult } from '../tool.interface';
 
@@ -65,6 +66,9 @@ export class AiDocCreateTool implements ITool {
   constructor(
     @InjectRepository(AiDocEntity)
     private readonly docRepo: Repository<AiDocEntity>,
+    // R101-AI-35 S3：文档 ↔ RAG 贯通（@Optional ⇒ 单测可只传仓储；生产由模块注入）
+    @Optional()
+    private readonly docRag?: DocRagService,
   ) {}
 
   async execute(
@@ -148,8 +152,39 @@ export class AiDocCreateTool implements ITool {
           status: 'active',
           version: 1,
           createdBy: context.userId,
+          // S3：入库即 pending，RAG 成功后转 ready（失败不影响入库）
+          ragStatus: 'pending',
         }),
       );
+
+      // ── S3：喂 RAG（**失败不影响入库** —— 主次不能倒置）──
+      let ragStatus: 'pending' | 'ready' | 'failed' = 'pending';
+      if (this.docRag) {
+        try {
+          ragStatus = await this.docRag.indexDoc(
+            { id: saved.id, tenantId: context.tenantId },
+            content,
+          );
+        } catch (err) {
+          // 纵深防御：DocRagService 契约上"绝不抛"，但**不信任**该契约 ——
+          // 万一 RAG 侧同步/异步抛错，也绝不能把"文档已入库成功"误报为失败
+          // （否则前端认为失败、DB 里却有文档 ⇒ 状态不一致）
+          ragStatus = 'failed';
+          const m = err instanceof Error ? err.message : String(err);
+          this.logger.warn(
+            `RAG 索引异常（已隔离，不影响入库）：doc=${saved.id} ${m}`,
+          );
+        }
+        if (ragStatus === 'ready') {
+          await this.docRepo.update({ id: saved.id }, { ragStatus: 'ready' });
+        } else {
+          // 失败：**不抛、不回滚文档**；置 failed 供重试（reindexPending）
+          await this.docRepo.update({ id: saved.id }, { ragStatus: 'failed' });
+          this.logger.warn(
+            `文档已入库但向量索引失败：doc=${saved.id}（可经 reindexPending 重试）`,
+          );
+        }
+      }
 
       return {
         success: true,
@@ -159,7 +194,13 @@ export class AiDocCreateTool implements ITool {
           category: saved.category,
           status: saved.status,
           contentHash,
-          message: `文档「${title}」已入库（文档ID=${saved.id}）`,
+          ragStatus,
+          message:
+            ragStatus === 'ready'
+              ? `文档「${title}」已入库并可被知识库检索（文档ID=${saved.id}）`
+              : ragStatus === 'failed'
+                ? `文档「${title}」已入库，但**向量索引失败**（稍后可重试；文档仍可查阅）`
+                : `文档「${title}」已入库（文档ID=${saved.id}）`,
         },
       };
     } catch (err) {

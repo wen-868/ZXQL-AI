@@ -141,6 +141,26 @@ PREPARE doc_tags_stmt FROM @doc_tags_ddl;
 EXECUTE doc_tags_stmt;
 DEALLOCATE PREPARE doc_tags_stmt;
 
+-- ────── 7. t_ai_doc 条件加列 rag_status（R101-AI-35 S3：RAG 索引状态） ──────
+-- 语义：pending=待索引 / ready=已索引可检索 / failed=索引失败（可重试）。
+-- 🔴 RAG 失败**不影响**文档入库（RAG 是增强、不是前提）⇒ 该列是"可观测 + 可重试"的落点。
+SET @doc_rag_exists := (
+  SELECT COUNT(1) FROM information_schema.COLUMNS
+   WHERE TABLE_SCHEMA = DATABASE()
+     AND TABLE_NAME = 't_ai_doc'
+     AND COLUMN_NAME = 'rag_status'
+);
+
+SET @doc_rag_ddl := IF(
+  @doc_rag_exists = 0,
+  'ALTER TABLE t_ai_doc ADD COLUMN rag_status ENUM(''pending'',''ready'',''failed'') NOT NULL DEFAULT ''pending'' COMMENT ''RAG 索引状态（失败不影响入库）''',
+  'SELECT 1'
+);
+
+PREPARE doc_rag_stmt FROM @doc_rag_ddl;
+EXECUTE doc_rag_stmt;
+DEALLOCATE PREPARE doc_rag_stmt;
+
 -- 五、回滚 SQL（文档·勿执行；按 migrations/README.md 二.5，回滚走反向迁移）
 --   回滚 = 反向迁移，单独执行下列语句（刻意不在注释内写句末分号，避免破坏分号拆分）：
 --     ALTER TABLE t_ai_knowledge_chunks DROP COLUMN doc_id

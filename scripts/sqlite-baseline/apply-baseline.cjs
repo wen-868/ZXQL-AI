@@ -70,6 +70,12 @@ ensureColumn(
 );
 // R101-AI-35 tags 补齐：既有库补 t_ai_doc.tags（001 的 CREATE TABLE IF NOT EXISTS 对已存在表整条跳过）
 ensureColumn('t_ai_doc', 'tags', '"tags" text');
+// R101-AI-35 S3：既有库补 rag_status
+ensureColumn(
+  't_ai_doc',
+  'rag_status',
+  `"rag_status" varchar(16) NOT NULL DEFAULT ('pending')`,
+);
 db.exec(
   'CREATE INDEX IF NOT EXISTS "t_ai_knowledge_chunks__idx_kc_tenant_doc" ON "t_ai_knowledge_chunks" ("tenant_id", "doc_id")',
 );

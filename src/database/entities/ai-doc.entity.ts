@@ -59,6 +59,17 @@ export class AiDocEntity {
   tags!: string | null;
 
   @Column({
+    name: 'rag_status',
+    // MySQL=ENUM / sqlite=VARCHAR（R101-AI-35 S3：RAG 索引状态；失败不影响入库）
+    type: dialectColumnType('enum', 'varchar'),
+    enum: ['pending', 'ready', 'failed'],
+    default: 'pending',
+    comment:
+      'RAG 索引状态：pending=待索引、ready=已索引可检索、failed=索引失败（可重试）',
+  })
+  ragStatus!: 'pending' | 'ready' | 'failed';
+
+  @Column({
     name: 'source_type',
     type: dialectColumnType('enum', 'varchar'),
     enum: ['upload', 'generated'],

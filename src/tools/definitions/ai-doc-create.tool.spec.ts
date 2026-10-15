@@ -31,6 +31,7 @@ function docOf(over: Partial<AiDocEntity> = {}): AiDocEntity {
     title: '既有文档',
     category: 'default',
     tags: null,
+    ragStatus: 'pending',
     owner: 'u-x',
     sourceType: 'generated',
     contentHash: sha256('same content'),

@@ -88,6 +88,13 @@ import { CommonModule } from '../common/common.module';
 import { DatabaseModule } from '../database/database.module';
 // R101-AI-34 P1-4：getSystemStatus 需要 AiConfigService（TenantModule 导出；同 brain/bridge/evolution 范式，无环）
 import { TenantModule } from '../tenant/tenant.module';
+// R101-AI-35 S3：文档 ↔ RAG 贯通（DocRagService 由 RagModule 导出；RagModule 不依赖 ToolsModule，无环）
+import { RagModule } from '../rag/rag.module';
+// R101-AI-35 S3：文档↔RAG 贯通。RagModule 的 providers/exports 是 R70-21 精确契约（其 spec 断言精确列表）
+// ⇒ **不改 RagModule**：在本模块提供 DocRagService；Embedding/VectorStore 复用 RagModule 导出单例
+//（VectorStore 持有内存态，必须共用！），TextSplitterService 无状态 ⇒ 本模块独立实例无害
+import { DocRagService } from '../rag/doc-rag.service';
+import { TextSplitterService } from '../rag/text-splitter.service';
 import { IdempotencyGateService } from './idempotency-gate.service';
 
 /**
@@ -123,6 +130,7 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     EmployeeModule,
     DatabaseModule,
     TenantModule,
+    RagModule,
   ],
   providers: [
     ToolRegistry,
@@ -152,6 +160,9 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     // R101-AI-35 S2：文档 ACL 判定服务（独立可单测；依赖 AiDocEntity/AiDocAclEntity 仓储，
     // 与 IdempotencyGateService 同范式在本模块提供 ⇒ 无需跨模块导出）
     DocAclService,
+    // R101-AI-35 S3：文档↔RAG 贯通服务（见文件顶部 import 处说明：不动 RagModule 的精确契约）
+    DocRagService,
+    TextSplitterService,
     DispatchEmployeeTaskTool,
     CircuitBreakerService,
     ToolBootstrap,
