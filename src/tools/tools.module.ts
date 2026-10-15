@@ -51,6 +51,7 @@ import { AiDocGetTool } from './definitions/ai-doc-get.tool';
 // R101-AI-36：取消销售单 SO/SB（写工具，高危；P1-3 兑现）
 import { CancelSalesOrderTool } from './definitions/cancel-sales-order.tool';
 import { AiDocArchiveTool } from './definitions/ai-doc-archive.tool';
+import { AiDocSearchTool } from './definitions/ai-doc-search.tool';
 import { DocAclService } from '../rag/doc-acl.service';
 import { InventoryReportTool } from './definitions/inventory-report.tool';
 import { ProfitReportTool } from './definitions/profit-report.tool';
@@ -146,6 +147,8 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     CancelSalesOrderTool,
     // R101-AI-35 S2：文档中心写工具（aiDocArchive；canAdmin + 重复归档回放）
     AiDocArchiveTool,
+    // R101-AI-35 S2：文档中心读工具（aiDocSearch；结构化检索，必经 ACL）
+    AiDocSearchTool,
     // R101-AI-35 S2：文档 ACL 判定服务（独立可单测；依赖 AiDocEntity/AiDocAclEntity 仓储，
     // 与 IdempotencyGateService 同范式在本模块提供 ⇒ 无需跨模块导出）
     DocAclService,
