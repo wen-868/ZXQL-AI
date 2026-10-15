@@ -17,11 +17,14 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-10-16
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { ProactivePushService } from './proactive-push.service';
+// R101-AI-40 S3：站内通知旁路（有则"先落通知、再推实时"；无则退回既有 push 路径）
+import { NoticeBridgeService } from './notice-bridge.service';
+import { parseParticipants } from '../../tools/definitions/schedule-participants.util';
 
 /** 单次扫描上限（防一次性推送风暴） */
 const SCAN_LIMIT = 50;
@@ -44,6 +47,9 @@ export class ScheduleReminderService {
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly pushService: ProactivePushService,
+    // R101-AI-40：站内通知旁路（@Optional ⇒ 既有单测保持原路径；模块注入后自动走"落通知+推送"）
+    @Optional()
+    private readonly noticeBridge?: NoticeBridgeService,
   ) {}
 
   /**
@@ -89,18 +95,35 @@ export class ScheduleReminderService {
     const scheduleId = String(row.id);
     try {
       const startText = toIso(row.start_at);
-      const ok = await this.pushService.push(
-        row.tenant_id,
-        'schedule_reminder',
-        {
-          type: 'system',
-          title: `日程提醒：${row.title}`,
-          // ⚠️ 租户级广播：消息体带 owner/participants 供前端过滤（定向到人属独立缺口）
-          content: `「${row.title}」将于 ${startText} 开始（归属人 ${row.owner ?? '-'}；参与者 ${row.participants ?? '-'}；日程ID ${scheduleId}）`,
-          priority: 'reminder',
-        },
-      );
+      // R101-AI-40：接收人 = owner + participants（NoticeService 内部归一化为首尾逗号）
+      const receiver = [row.owner ?? '', ...parseParticipants(row.participants)]
+        .filter((x) => x.length > 0)
+        .join(',');
+      const push = {
+        type: 'system' as const,
+        title: `日程提醒：${row.title}`,
+        // ⚠️ 租户级广播：消息体带 owner/participants 供前端过滤（定向到人属独立缺口）
+        content: `「${row.title}」将于 ${startText} 开始（归属人 ${row.owner ?? '-'}；参与者 ${row.participants ?? '-'}；日程ID ${scheduleId}）`,
+        priority: 'reminder' as const,
+      };
+      // S3 打通：有旁路 ⇒ **先落站内通知（无条件）再推实时**；无旁路 ⇒ 退回既有 push 路径
+      const ok = this.noticeBridge
+        ? await this.noticeBridge.pushWithNotice(
+            row.tenant_id,
+            'schedule_reminder',
+            push,
+            {
+              receiver,
+              source: 'schedule',
+              refId: scheduleId,
+              // 去重键：同一日程同一提醒时间只落一条未读通知（重试不会重复打扰）
+              dedupeKey: `schedule:${scheduleId}:${toIso(row.remind_at)}`,
+            },
+          )
+        : await this.pushService.push(row.tenant_id, 'schedule_reminder', push);
       if (!ok) {
+        // 推送失败不写 reminded_at ⇒ 下次扫描重试；
+        // 通知侧有 dedupeKey ⇒ 重试也不会重复插入未读通知（不会重复打扰）
         this.logger.warn(
           `日程提醒推送失败（不写标记，下次重试）：schedule=${scheduleId}`,
         );

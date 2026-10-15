@@ -19,7 +19,8 @@ export type AclPrincipalType = 'user' | 'role' | 'employee';
 /** 权限级别 */
 export type AclPerm = 'read' | 'write' | 'admin';
 /** 资源类型（办公域通用） */
-export type AclResourceType = 'doc' | 'todo' | 'approval' | 'schedule';
+export type AclResourceType =
+  'doc' | 'todo' | 'approval' | 'schedule' | 'notice';
 
 @Entity('t_ai_acl')
 @Index('idx_ai_acl_resource', ['tenantId', 'resourceType', 'resourceId'])
@@ -45,7 +46,7 @@ export class AiAclEntity {
   @Column({
     name: 'resource_type',
     type: dialectColumnType('enum', 'varchar'),
-    enum: ['doc', 'todo', 'approval', 'schedule'],
+    enum: ['doc', 'todo', 'approval', 'schedule', 'notice'],
     default: 'doc',
     comment: '资源类型：doc/todo/approval/schedule',
   })

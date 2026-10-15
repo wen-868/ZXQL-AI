@@ -13,10 +13,13 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { ProactiveModule } from './proactive.module';
 import { ScheduleReminderService } from './schedule-reminder.service';
+// R101-AI-40：站内通知落库 + 旁路组合（推送 + 通知）
+import { NoticeService } from './notice.service';
+import { NoticeBridgeService } from './notice-bridge.service';
 
 @Module({
   imports: [ProactiveModule, DatabaseModule],
-  providers: [ScheduleReminderService],
-  exports: [ScheduleReminderService],
+  providers: [ScheduleReminderService, NoticeService, NoticeBridgeService],
+  exports: [ScheduleReminderService, NoticeService, NoticeBridgeService],
 })
 export class ScheduleReminderModule {}

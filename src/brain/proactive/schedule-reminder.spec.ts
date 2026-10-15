@@ -101,8 +101,9 @@ describe('ScheduleReminderService（R101-AI-39 日程提醒）', () => {
 
   it('⑤ 结构性保证：只依赖既有 push（未注入新通道/调度器）', () => {
     const h = createHarness();
-    // 构造参数仅 (DataSource, ProactivePushService) ⇒ 结构上无法"另起推送通道"
-    expect(ScheduleReminderService.length).toBe(2);
+    // 契约演进（R101-AI-40 S3）：构造参数由 2 个变为 3 个 —— 新增 `@Optional()` 的通知旁路
+    //（有则"先落站内通知、再推实时"；无则退回既有 push 路径 ⇒ 既有 2 参构造仍可用）
+    expect(ScheduleReminderService.length).toBeGreaterThanOrEqual(2);
     expect(typeof h.svc.scanDueReminders).toBe('function');
   });
 });

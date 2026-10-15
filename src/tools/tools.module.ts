@@ -73,6 +73,11 @@ import { AiScheduleCreateTool } from './definitions/ai-schedule-create.tool';
 import { AiScheduleUpdateTool } from './definitions/ai-schedule-update.tool';
 import { AiScheduleCompleteTool } from './definitions/ai-schedule-complete.tool';
 import { AiScheduleCancelTool } from './definitions/ai-schedule-cancel.tool';
+// R101-AI-40 办公批次 5：站内通知（List/MarkRead/Archive/UnreadCount）
+import { AiNoticeListTool } from './definitions/ai-notice-list.tool';
+import { AiNoticeMarkReadTool } from './definitions/ai-notice-mark-read.tool';
+import { AiNoticeArchiveTool } from './definitions/ai-notice-archive.tool';
+import { AiNoticeUnreadCountTool } from './definitions/ai-notice-unread-count.tool';
 import { OfficeAclService } from '../rag/office-acl.service';
 import { InventoryReportTool } from './definitions/inventory-report.tool';
 import { ProfitReportTool } from './definitions/profit-report.tool';
@@ -196,6 +201,10 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     AiScheduleUpdateTool,
     AiScheduleCompleteTool,
     AiScheduleCancelTool,
+    AiNoticeListTool,
+    AiNoticeMarkReadTool,
+    AiNoticeArchiveTool,
+    AiNoticeUnreadCountTool,
     // R101-AI-35 S2：文档 ACL 判定服务（独立可单测；依赖 AiDocEntity/AiAclEntity 仓储，
     // 与 IdempotencyGateService 同范式在本模块提供 ⇒ 无需跨模块导出）
     OfficeAclService,
