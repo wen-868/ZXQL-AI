@@ -100,6 +100,27 @@ PREPARE kc_stmt FROM @kc_ddl;
 EXECUTE kc_stmt;
 DEALLOCATE PREPARE kc_stmt;
 
+-- ──────────── 5. 分块表条件加索引（补 S2 前置 scratch 发现的缺口） ────────────
+-- 实测发现：`CREATE TABLE IF NOT EXISTS` 命中**已存在**的表时，整条建表语句（含其中 KEY 定义）
+-- 被跳过 ⇒ 既有生产库拿不到 idx_kc_tenant_doc_name（RAG 按 tenant_id + doc_name 查/删，缺索引会全表扫）。
+-- 故索引必须**独立条件创建**（与 doc_id 加列同法，幂等）。
+SET @kc_idx_exists := (
+  SELECT COUNT(1) FROM information_schema.STATISTICS
+   WHERE TABLE_SCHEMA = DATABASE()
+     AND TABLE_NAME = 't_ai_knowledge_chunks'
+     AND INDEX_NAME = 'idx_kc_tenant_doc_name'
+);
+
+SET @kc_idx_ddl := IF(
+  @kc_idx_exists = 0,
+  'CREATE INDEX idx_kc_tenant_doc_name ON t_ai_knowledge_chunks (tenant_id, doc_name)',
+  'SELECT 1'
+);
+
+PREPARE kc_idx_stmt FROM @kc_idx_ddl;
+EXECUTE kc_idx_stmt;
+DEALLOCATE PREPARE kc_idx_stmt;
+
 -- 五、回滚 SQL（文档·勿执行；按 migrations/README.md 二.5，回滚走反向迁移）
 --   回滚 = 反向迁移，单独执行下列语句（刻意不在注释内写句末分号，避免破坏分号拆分）：
 --     ALTER TABLE t_ai_knowledge_chunks DROP COLUMN doc_id
