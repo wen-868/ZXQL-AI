@@ -70,6 +70,14 @@ function isLike(v: unknown): boolean {
   return t === 'like' && typeof raw === 'string' && raw.includes('%,');
 }
 
+/** 取出 Like 算子的原始模式串（用于断言到关键内容） */
+function likeValue(v: unknown): string {
+  const raw =
+    (v as { value?: unknown; _value?: unknown }).value ??
+    (v as { _value?: unknown })._value;
+  return String(raw);
+}
+
 describe('AiNoticeListTool（R101-AI-40 通知列表 · 库层隔离）', () => {
   it('① 库层条件：授予支内容 + 每个 principal 一支 receiver LIKE', async () => {
     const find = jest.fn(() => Promise.resolve([noticeOf()]));
@@ -88,6 +96,8 @@ describe('AiNoticeListTool（R101-AI-40 通知列表 · 库层隔离）', () => 
     // 支 1 = 授予支；支 2 = user:u-1 的 receiver LIKE
     expect(opValue(branches[0].id)).toEqual(['7']);
     expect(isLike(branches[1].receiver)).toBe(true);
+    // 形状断言断言到关键内容：这一支必须带我的 principal 值（不只是有 LIKE）
+    expect(likeValue(branches[1].receiver)).toContain('user:u-1');
     // 未读 + 未归档条件在每支上（库层过滤）
     expect(branches.every((b) => b.tenantId === 't1')).toBe(true);
     expect(Object.keys(branches[0])).toContain('readAt');
