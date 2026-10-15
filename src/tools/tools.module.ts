@@ -48,6 +48,8 @@ import { AiDocCreateTool } from './definitions/ai-doc-create.tool';
 import { AiDocListTool } from './definitions/ai-doc-list.tool';
 import { AiDocUpdateTool } from './definitions/ai-doc-update.tool';
 import { AiDocGetTool } from './definitions/ai-doc-get.tool';
+// R101-AI-36：取消销售单 SO/SB（写工具，高危；P1-3 兑现）
+import { CancelSalesOrderTool } from './definitions/cancel-sales-order.tool';
 import { DocAclService } from '../rag/doc-acl.service';
 import { InventoryReportTool } from './definitions/inventory-report.tool';
 import { ProfitReportTool } from './definitions/profit-report.tool';
@@ -139,6 +141,8 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     AiDocUpdateTool,
     // R101-AI-35 S2：文档中心读工具（aiDocGet；无权统一"不存在"口径）
     AiDocGetTool,
+    // R101-AI-36：取消销售单 SO/SB（写工具；高危 + source:'ai' + 业务键幂等）
+    CancelSalesOrderTool,
     // R101-AI-35 S2：文档 ACL 判定服务（独立可单测；依赖 AiDocEntity/AiDocAclEntity 仓储，
     // 与 IdempotencyGateService 同范式在本模块提供 ⇒ 无需跨模块导出）
     DocAclService,
