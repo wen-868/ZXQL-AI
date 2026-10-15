@@ -52,7 +52,14 @@ import { AiDocGetTool } from './definitions/ai-doc-get.tool';
 import { CancelSalesOrderTool } from './definitions/cancel-sales-order.tool';
 import { AiDocArchiveTool } from './definitions/ai-doc-archive.tool';
 import { AiDocSearchTool } from './definitions/ai-doc-search.tool';
-import { DocAclService } from '../rag/doc-acl.service';
+// R101-AI-37 步骤 3：待办清单（读工具；ACL 可见集作为库查询条件）
+import { AiTodoListTool } from './definitions/ai-todo-list.tool';
+// R101-AI-37 步骤 3：新建待办（写工具；幂等双保险 + 复用既有派单）
+import { AiTodoCreateTool } from './definitions/ai-todo-create.tool';
+// R101-AI-37 步骤 3：修改/完成待办（写工具）
+import { AiTodoUpdateTool } from './definitions/ai-todo-update.tool';
+import { AiTodoCompleteTool } from './definitions/ai-todo-complete.tool';
+import { OfficeAclService } from '../rag/office-acl.service';
 import { InventoryReportTool } from './definitions/inventory-report.tool';
 import { ProfitReportTool } from './definitions/profit-report.tool';
 // R70 完善度 P1: 营销/采购计划/信用 6 个精调写操作工具（清单第一批 P0）
@@ -145,7 +152,7 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     GetSystemStatusTool,
     // R101-AI-35 S2：文档中心写工具（aiDocCreate；preview→confirm + 幂等）
     AiDocCreateTool,
-    // R101-AI-35 S2：文档中心读工具（aiDocList；必经 DocAclService）
+    // R101-AI-35 S2：文档中心读工具（aiDocList；必经 OfficeAclService）
     AiDocListTool,
     // R101-AI-35 S2：文档中心写工具（aiDocUpdate；乐观锁 + preview→confirm）
     AiDocUpdateTool,
@@ -157,9 +164,15 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     AiDocArchiveTool,
     // R101-AI-35 S2：文档中心读工具（aiDocSearch；结构化检索，必经 ACL）
     AiDocSearchTool,
-    // R101-AI-35 S2：文档 ACL 判定服务（独立可单测；依赖 AiDocEntity/AiDocAclEntity 仓储，
+    // R101-AI-37 步骤 3：待办读工具
+    AiTodoListTool,
+    // R101-AI-37 步骤 3：待办写工具
+    AiTodoCreateTool,
+    AiTodoUpdateTool,
+    AiTodoCompleteTool,
+    // R101-AI-35 S2：文档 ACL 判定服务（独立可单测；依赖 AiDocEntity/AiAclEntity 仓储，
     // 与 IdempotencyGateService 同范式在本模块提供 ⇒ 无需跨模块导出）
-    DocAclService,
+    OfficeAclService,
     // R101-AI-35 S3：文档↔RAG 贯通服务（见文件顶部 import 处说明：不动 RagModule 的精确契约）
     DocRagService,
     TextSplitterService,

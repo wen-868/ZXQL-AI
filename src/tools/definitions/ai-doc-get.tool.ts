@@ -4,14 +4,14 @@
  * 治理链：`isWriteOperation=false` ⇒ 读全自动（不进写审核门、不耗幂等键）。
  *
  * 权限与"不泄露存在性"：
- * - **只依赖 `DocAclService`**（结构上拿不到仓储 ⇒ 无法绕过 ACL ⇒ 反测"直查 bypass"无从实现）
+ * - **只依赖 `OfficeAclService`**（结构上拿不到仓储 ⇒ 无法绕过 ACL ⇒ 反测"直查 bypass"无从实现）
  * - `getVisible` 对无权文档返回 `doc=null` ⇒ 本工具统一按"**文档不存在**"口径回复，
  *   **不区分**"不存在"与"存在但无权"（防信息泄漏；S4 反测：改成"存在但无权"⇒ 红）
  *
  * 负责人: 阿坚 | 创建日期: 2026-10-15
  */
 import { Injectable, Logger } from '@nestjs/common';
-import { DocAclService } from '../../rag/doc-acl.service';
+import { OfficeAclService } from '../../rag/office-acl.service';
 import { ITool, ToolContext, ToolResult } from '../tool.interface';
 import { principalOf } from './ai-doc-list.tool';
 
@@ -34,7 +34,7 @@ export class AiDocGetTool implements ITool {
     },
   };
 
-  constructor(private readonly docAcl: DocAclService) {}
+  constructor(private readonly docAcl: OfficeAclService) {}
 
   async execute(
     args: Record<string, unknown>,

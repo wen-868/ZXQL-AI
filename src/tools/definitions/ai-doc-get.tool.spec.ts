@@ -12,10 +12,10 @@
  */
 import { AiDocEntity } from '../../database/entities/ai-doc.entity';
 import {
-  DocAclContext,
-  DocAccess,
-  DocAclService,
-} from '../../rag/doc-acl.service';
+  OfficeAclContext,
+  OfficeAccess,
+  OfficeAclService,
+} from '../../rag/office-acl.service';
 import { ToolContext } from '../tool.interface';
 import { AiDocGetTool } from './ai-doc-get.tool';
 
@@ -27,6 +27,8 @@ function docOf(): AiDocEntity {
     tenantId: 't1',
     title: '采购合同',
     category: 'contract',
+    tags: null,
+    ragStatus: 'pending',
     owner: 'u-owner',
     sourceType: 'generated',
     contentHash: 'h12',
@@ -39,11 +41,14 @@ function docOf(): AiDocEntity {
   };
 }
 
-function createHarness(result: { doc: AiDocEntity | null; access: DocAccess }) {
-  const getVisible = jest.fn((_id: string, _ctx: DocAclContext) =>
+function createHarness(result: {
+  doc: AiDocEntity | null;
+  access: OfficeAccess;
+}) {
+  const getVisible = jest.fn((_id: string, _ctx: OfficeAclContext) =>
     Promise.resolve(result),
   );
-  const tool = new AiDocGetTool({ getVisible } as unknown as DocAclService);
+  const tool = new AiDocGetTool({ getVisible } as unknown as OfficeAclService);
   return { tool, getVisible };
 }
 
@@ -101,7 +106,7 @@ describe('AiDocGetTool（R101-AI-35 S2 读工具 · 存在性不泄露）', () =
   it('⑤ ACL 抛错 ⇒ 不崩，返回 success=false + 建议', async () => {
     const tool = new AiDocGetTool({
       getVisible: jest.fn(() => Promise.reject(new Error('DB down'))),
-    } as unknown as DocAclService);
+    } as unknown as OfficeAclService);
 
     const result = await tool.execute({ docId: '12' }, CTX);
 

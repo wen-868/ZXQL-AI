@@ -5,7 +5,7 @@
  * 幂等（唯一键 `(tenant_id, content_hash)` ⇒ 同内容重复入库**回放**既有文档，不新增行）。
  *
  * 语义要点：
- * - `source_type='generated'`（AI 生成）；`owner` = 调用者（`context.userId`）⇒ 由 DocAclService
+ * - `source_type='generated'`（AI 生成）；`owner` = 调用者（`context.userId`）⇒ 由 OfficeAclService
  *   的"owner ⇒ admin"规则自然取得管理权
  * - `content_hash = sha256(content)` ⇒ 幂等依据（与迁移 018 的 `uk_ai_doc_tenant_hash` 一致）
  * - **preview 阶段绝不落库**（红线：预览不消耗任何幂等键、不写库）

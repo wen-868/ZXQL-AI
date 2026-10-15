@@ -14,7 +14,7 @@
  * 负责人: 阿坚 | 创建日期: 2026-10-15
  */
 import { AiDocEntity } from '../../database/entities/ai-doc.entity';
-import { DocAclService } from '../../rag/doc-acl.service';
+import { OfficeAclService } from '../../rag/office-acl.service';
 import { ToolContext } from '../tool.interface';
 import { AiDocArchiveTool } from './ai-doc-archive.tool';
 
@@ -26,6 +26,8 @@ function docOf(over: Partial<AiDocEntity> = {}): AiDocEntity {
     tenantId: 't1',
     title: '采购合同',
     category: 'contract',
+    tags: null,
+    ragStatus: 'pending',
     owner: 'u-1',
     sourceType: 'generated',
     contentHash: 'h12',
@@ -45,7 +47,7 @@ function createHarness(doc: AiDocEntity | null, canAdmin = true) {
   const canAdminFn = jest.fn(() => Promise.resolve(canAdmin));
   const tool = new AiDocArchiveTool(
     { findOne, save } as never,
-    { canAdmin: canAdminFn } as unknown as DocAclService,
+    { canAdmin: canAdminFn } as unknown as OfficeAclService,
   );
   return { tool, findOne, save, canAdminFn };
 }

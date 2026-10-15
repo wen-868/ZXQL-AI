@@ -13,7 +13,10 @@
  * 负责人: 阿坚 | 创建日期: 2026-10-15
  */
 import { AiDocEntity } from '../../database/entities/ai-doc.entity';
-import { DocAclContext, DocAclService } from '../../rag/doc-acl.service';
+import {
+  OfficeAclContext,
+  OfficeAclService,
+} from '../../rag/office-acl.service';
 import { ToolContext } from '../tool.interface';
 import { AiDocSearchTool } from './ai-doc-search.tool';
 
@@ -26,6 +29,7 @@ function docOf(over: Partial<AiDocEntity>): AiDocEntity {
     title: '采购合同模板',
     category: 'contract',
     tags: null,
+    ragStatus: 'pending',
     owner: 'u-1',
     sourceType: 'generated',
     contentHash: 'h1',
@@ -40,12 +44,12 @@ function docOf(over: Partial<AiDocEntity>): AiDocEntity {
 }
 
 function createHarness(visible: AiDocEntity[]) {
-  const listVisible = jest.fn((_c: DocAclContext, _f: unknown) =>
+  const listVisible = jest.fn((_c: OfficeAclContext, _f: unknown) =>
     Promise.resolve(visible),
   );
   const tool = new AiDocSearchTool({
     listVisible,
-  } as unknown as DocAclService);
+  } as unknown as OfficeAclService);
   return { tool, listVisible };
 }
 
@@ -134,7 +138,7 @@ describe('AiDocSearchTool（R101-AI-35 S2 收官 · 结构化检索）', () => {
 
     const broken = new AiDocSearchTool({
       listVisible: jest.fn(() => Promise.reject(new Error('DB down'))),
-    } as unknown as DocAclService);
+    } as unknown as OfficeAclService);
     const failed = await broken.execute({ keyword: 'x' }, CTX);
     expect(failed.success).toBe(false);
     expect(failed.error).toContain('检索文档失败');

@@ -10,7 +10,7 @@
  *    用户 preview 看到 `version=3` ⇒ confirm 时库里若已是 `version=4`（他人改过）⇒ **明确拒绝**
  *    "文档已被他人修改，请刷新后重试"，**绝不静默覆盖**
  *
- * 权限：`DocAclService.canWrite`（write/admin 且非 archived）；无权 ⇒ 明确拒绝且不落库。
+ * 权限：`OfficeAclService.canWrite`（write/admin 且非 archived）；无权 ⇒ 明确拒绝且不落库。
  *
  * 负责人: 阿坚 | 创建日期: 2026-10-15
  */
@@ -19,7 +19,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
 import { Repository } from 'typeorm';
 import { AiDocEntity } from '../../database/entities/ai-doc.entity';
-import { DocAclService } from '../../rag/doc-acl.service';
+import { OfficeAclService } from '../../rag/office-acl.service';
 import { ITool, ToolContext, ToolResult } from '../tool.interface';
 import { principalOf } from './ai-doc-list.tool';
 
@@ -69,7 +69,7 @@ export class AiDocUpdateTool implements ITool {
   constructor(
     @InjectRepository(AiDocEntity)
     private readonly docRepo: Repository<AiDocEntity>,
-    private readonly docAcl: DocAclService,
+    private readonly docAcl: OfficeAclService,
   ) {}
 
   async execute(

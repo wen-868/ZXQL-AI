@@ -8,14 +8,14 @@
  * - ⚠️ **标签（tags）暂不参与检索**：`t_ai_doc` 目前**没有 tags 列**（S1 迁移未含）⇒
  *   标签检索需先加列（增量脚本），**不在本步假装支持**
  *
- * ⚠️ 红线：**必经 `DocAclService.listVisible`** —— 工具只依赖 ACL 服务（结构上拿不到仓储），
+ * ⚠️ 红线：**必经 `OfficeAclService.listVisible`** —— 工具只依赖 ACL 服务（结构上拿不到仓储），
  *    从根上无法绕过 ACL（反测："绕过 ACL 直查" ⇒ 红）。
  *
  * 负责人: 阿坚 | 创建日期: 2026-10-15
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { AiDocEntity } from '../../database/entities/ai-doc.entity';
-import { DocAclService } from '../../rag/doc-acl.service';
+import { OfficeAclService } from '../../rag/office-acl.service';
 import { ITool, ToolContext, ToolResult } from '../tool.interface';
 import { principalOf } from './ai-doc-list.tool';
 
@@ -55,7 +55,7 @@ export class AiDocSearchTool implements ITool {
     },
   };
 
-  constructor(private readonly docAcl: DocAclService) {}
+  constructor(private readonly docAcl: OfficeAclService) {}
 
   async execute(
     args: Record<string, unknown>,

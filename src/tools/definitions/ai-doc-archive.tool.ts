@@ -18,7 +18,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AiDocEntity } from '../../database/entities/ai-doc.entity';
-import { DocAclService } from '../../rag/doc-acl.service';
+import { OfficeAclService } from '../../rag/office-acl.service';
 import { ITool, ToolContext, ToolResult } from '../tool.interface';
 import { principalOf } from './ai-doc-list.tool';
 
@@ -51,7 +51,7 @@ export class AiDocArchiveTool implements ITool {
   constructor(
     @InjectRepository(AiDocEntity)
     private readonly docRepo: Repository<AiDocEntity>,
-    private readonly docAcl: DocAclService,
+    private readonly docAcl: OfficeAclService,
   ) {}
 
   async execute(

@@ -3,10 +3,10 @@
  *
  * 治理链：`isWriteOperation=false` ⇒ **读全自动**（不进写审核门、不耗幂等键、限流走读宽桶）。
  *
- * ⚠️ 红线：**必须经 `DocAclService.listVisible` 过滤** —— 不得直接 `docRepo.find` 列表，
+ * ⚠️ 红线：**必须经 `OfficeAclService.listVisible` 过滤** —— 不得直接 `docRepo.find` 列表，
  *    否则 ACL 被架空（S2 反测第 3 组：把本工具改成直查 ⇒ 用例必红）。
  *
- * 身份来源（ToolContext → DocPrincipal）：
+ * 身份来源（ToolContext → OfficePrincipal）：
  * - `userId` ⇒ `user`
  * - `role`   ⇒ 附带 roles（命中 role 维度授权）
  * - `employeeId`（数字员工链路）⇒ `employee`（类型优先取 employee）
@@ -15,7 +15,10 @@
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { AiDocEntity } from '../../database/entities/ai-doc.entity';
-import { DocAclService, DocPrincipal } from '../../rag/doc-acl.service';
+import {
+  OfficeAclService,
+  OfficePrincipal,
+} from '../../rag/office-acl.service';
 import { ITool, ToolContext, ToolResult } from '../tool.interface';
 
 /** 列表项（摘要：不返回全文，避免列表接口过大） */
@@ -59,7 +62,7 @@ export class AiDocListTool implements ITool {
     },
   };
 
-  constructor(private readonly docAcl: DocAclService) {}
+  constructor(private readonly docAcl: OfficeAclService) {}
 
   async execute(
     args: Record<string, unknown>,
@@ -115,7 +118,7 @@ export class AiDocListTool implements ITool {
 }
 
 /** 从工具上下文推导主体身份（数字员工优先） */
-export function principalOf(context: ToolContext): DocPrincipal {
+export function principalOf(context: ToolContext): OfficePrincipal {
   const extended = context as ToolContext & { employeeId?: string };
   if (
     typeof extended.employeeId === 'string' &&

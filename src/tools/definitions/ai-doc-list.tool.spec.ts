@@ -2,7 +2,7 @@
  * aiDocList 工具测试（R101-AI-35 S2 · 反测第 3 组：读工具必须经 ACL）
  *
  * 关键反测（防"ACL 服务被架空"）：
- * - 桩：`DocAclService.listVisible` 返回 **[]**（无权），而 `docRepo.find` 若被直查会返回 **2 篇**
+ * - 桩：`OfficeAclService.listVisible` 返回 **[]**（无权），而 `docRepo.find` 若被直查会返回 **2 篇**
  *   ⇒ 只要工具绕过 ACL 直查，`total` 就会变成 2 ⇒ **用例红**
  *   （mutation：把 `this.docAcl.listVisible(...)` 换成 `this.docRepo.find(...)` ⇒ 本例必红）
  * - 同时断言 `listVisible` **被调用**且 tenant/principal 传参正确
@@ -10,7 +10,10 @@
  * 负责人: 阿坚 | 创建日期: 2026-10-15
  */
 import { AiDocEntity } from '../../database/entities/ai-doc.entity';
-import { DocAclContext, DocAclService } from '../../rag/doc-acl.service';
+import {
+  OfficeAclContext,
+  OfficeAclService,
+} from '../../rag/office-acl.service';
 import { ToolContext } from '../tool.interface';
 import { AiDocListTool, principalOf } from './ai-doc-list.tool';
 
@@ -22,6 +25,8 @@ function docOf(id: string): AiDocEntity {
     tenantId: 't1',
     title: `文档${id}`,
     category: 'contract',
+    tags: null,
+    ragStatus: 'pending',
     owner: 'u-owner',
     sourceType: 'upload',
     contentHash: `h${id}`,
@@ -35,7 +40,7 @@ function docOf(id: string): AiDocEntity {
 }
 
 function createHarness(visible: AiDocEntity[]) {
-  const listVisible = jest.fn((_ctx: DocAclContext, _f: unknown) =>
+  const listVisible = jest.fn((_ctx: OfficeAclContext, _f: unknown) =>
     Promise.resolve(visible),
   );
   // 「ACL 被架空」的诱饵：直查仓储会拿到 2 篇（≠ ACL 结果）
@@ -44,7 +49,7 @@ function createHarness(visible: AiDocEntity[]) {
   );
   const tool = new AiDocListTool({
     listVisible,
-  } as unknown as DocAclService);
+  } as unknown as OfficeAclService);
   return { tool, listVisible, docRepoFind };
 }
 
@@ -124,7 +129,7 @@ describe('AiDocListTool（R101-AI-35 S2 读工具 · 必经 ACL）', () => {
   it('⑥ ACL 抛错 ⇒ 不崩，返回 success=false + 提示', async () => {
     const tool = new AiDocListTool({
       listVisible: jest.fn(() => Promise.reject(new Error('DB down'))),
-    } as unknown as DocAclService);
+    } as unknown as OfficeAclService);
 
     const result = await tool.execute({}, CTX);
 

@@ -26,9 +26,22 @@ describe('AnalyzePriceTrendTool', () => {
       providers: [
         AnalyzePriceTrendTool,
         { provide: ServiceClient, useValue: { get: jest.fn() } },
+        // R101-AI-34 P0-2：切真源后，①② 依赖默认桩的**等价数据**
+        // （同一序列 800→850→896 + 进价 700 ⇒ direction=up、changeCount=2；**未改任何断言**）
       ],
     }).compile();
     tool = mod.get(AnalyzePriceTrendTool);
+    const client = mod.get<{ get: jest.Mock }>(ServiceClient, {
+      strict: false,
+    } as never);
+    client.get.mockResolvedValue({
+      list: [
+        { date: '2026-07-01', priceLevel: 'retail', price: 800 },
+        { date: '2026-08-01', priceLevel: 'retail', price: 850 },
+        { date: '2026-09-01', priceLevel: 'retail', price: 896 },
+      ],
+      purchasePrice: 700,
+    });
   });
 
   /** 取 data 中的 trend（类型收窄，避免 any 越界） */

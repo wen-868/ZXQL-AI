@@ -13,7 +13,7 @@
  */
 import { createHash } from 'crypto';
 import { AiDocEntity } from '../../database/entities/ai-doc.entity';
-import { DocAclService } from '../../rag/doc-acl.service';
+import { OfficeAclService } from '../../rag/office-acl.service';
 import { ToolContext } from '../tool.interface';
 import { AiDocUpdateTool } from './ai-doc-update.tool';
 
@@ -27,6 +27,8 @@ function docOf(over: Partial<AiDocEntity> = {}): AiDocEntity {
     tenantId: 't1',
     title: '原标题',
     category: 'contract',
+    tags: null,
+    ragStatus: 'pending',
     owner: 'u-1',
     sourceType: 'generated',
     contentHash: sha256('旧正文'),
@@ -46,7 +48,7 @@ function createHarness(doc: AiDocEntity | null, canWrite = true) {
   const canWriteFn = jest.fn(() => Promise.resolve(canWrite));
   const tool = new AiDocUpdateTool(
     { findOne, save } as never,
-    { canWrite: canWriteFn } as unknown as DocAclService,
+    { canWrite: canWriteFn } as unknown as OfficeAclService,
   );
   return { tool, findOne, save, canWriteFn };
 }
