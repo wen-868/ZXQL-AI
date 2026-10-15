@@ -43,6 +43,8 @@ import { ForecastSalesTool } from './definitions/forecast-sales.tool';
 import { AnalyzePriceTrendTool } from './definitions/analyze-price-trend.tool';
 // R101-AI-34 P1-4：系统状态自检（读工具）
 import { GetSystemStatusTool } from './definitions/get-system-status.tool';
+// R101-AI-35 S2：文档中心（办公能力第一批）—— 写工具 aiDocCreate（读工具/其余写工具后续步补）
+import { AiDocCreateTool } from './definitions/ai-doc-create.tool';
 import { InventoryReportTool } from './definitions/inventory-report.tool';
 import { ProfitReportTool } from './definitions/profit-report.tool';
 // R70 完善度 P1: 营销/采购计划/信用 6 个精调写操作工具（清单第一批 P0）
@@ -125,6 +127,8 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     AnalyzePriceTrendTool,
     // R101-AI-34 P1-4：系统状态自检（读工具）
     GetSystemStatusTool,
+    // R101-AI-35 S2：文档中心写工具（aiDocCreate；preview→confirm + 幂等）
+    AiDocCreateTool,
     DispatchEmployeeTaskTool,
     CircuitBreakerService,
     ToolBootstrap,
