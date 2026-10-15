@@ -59,6 +59,14 @@ import { AiTodoCreateTool } from './definitions/ai-todo-create.tool';
 // R101-AI-37 步骤 3：修改/完成待办（写工具）
 import { AiTodoUpdateTool } from './definitions/ai-todo-update.tool';
 import { AiTodoCompleteTool } from './definitions/ai-todo-complete.tool';
+// R101-AI-38 办公批次 3：审批流（Approve/Reject 共用 ApprovalDecisionBase 状态机）
+import { AiApprovalApproveTool } from './definitions/ai-approval-approve.tool';
+import { AiApprovalRejectTool } from './definitions/ai-approval-reject.tool';
+// R101-AI-38 办公批次 3：审批（提交/列表/撤回/改草稿）
+import { AiApprovalCreateTool } from './definitions/ai-approval-create.tool';
+import { AiApprovalListTool } from './definitions/ai-approval-list.tool';
+import { AiApprovalCancelTool } from './definitions/ai-approval-cancel.tool';
+import { AiApprovalUpdateTool } from './definitions/ai-approval-update.tool';
 import { OfficeAclService } from '../rag/office-acl.service';
 import { InventoryReportTool } from './definitions/inventory-report.tool';
 import { ProfitReportTool } from './definitions/profit-report.tool';
@@ -170,6 +178,13 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     AiTodoCreateTool,
     AiTodoUpdateTool,
     AiTodoCompleteTool,
+    // R101-AI-38 办公批次 3：审批决策（通过/驳回）
+    AiApprovalApproveTool,
+    AiApprovalRejectTool,
+    AiApprovalCreateTool,
+    AiApprovalListTool,
+    AiApprovalCancelTool,
+    AiApprovalUpdateTool,
     // R101-AI-35 S2：文档 ACL 判定服务（独立可单测；依赖 AiDocEntity/AiAclEntity 仓储，
     // 与 IdempotencyGateService 同范式在本模块提供 ⇒ 无需跨模块导出）
     OfficeAclService,
