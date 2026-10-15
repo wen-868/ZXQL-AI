@@ -67,6 +67,12 @@ import { AiApprovalCreateTool } from './definitions/ai-approval-create.tool';
 import { AiApprovalListTool } from './definitions/ai-approval-list.tool';
 import { AiApprovalCancelTool } from './definitions/ai-approval-cancel.tool';
 import { AiApprovalUpdateTool } from './definitions/ai-approval-update.tool';
+// R101-AI-39 办公批次 4：日程（List/Create/Update/Complete/Cancel）
+import { AiScheduleListTool } from './definitions/ai-schedule-list.tool';
+import { AiScheduleCreateTool } from './definitions/ai-schedule-create.tool';
+import { AiScheduleUpdateTool } from './definitions/ai-schedule-update.tool';
+import { AiScheduleCompleteTool } from './definitions/ai-schedule-complete.tool';
+import { AiScheduleCancelTool } from './definitions/ai-schedule-cancel.tool';
 import { OfficeAclService } from '../rag/office-acl.service';
 import { InventoryReportTool } from './definitions/inventory-report.tool';
 import { ProfitReportTool } from './definitions/profit-report.tool';
@@ -185,6 +191,11 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     AiApprovalListTool,
     AiApprovalCancelTool,
     AiApprovalUpdateTool,
+    AiScheduleListTool,
+    AiScheduleCreateTool,
+    AiScheduleUpdateTool,
+    AiScheduleCompleteTool,
+    AiScheduleCancelTool,
     // R101-AI-35 S2：文档 ACL 判定服务（独立可单测；依赖 AiDocEntity/AiAclEntity 仓储，
     // 与 IdempotencyGateService 同范式在本模块提供 ⇒ 无需跨模块导出）
     OfficeAclService,

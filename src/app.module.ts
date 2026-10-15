@@ -17,6 +17,8 @@ import { RagModule } from './rag/rag.module';
 import { OpsModule } from './ops/ops.module';
 import { EvolutionModule } from './evolution/evolution.module';
 import { ReadinessService } from './ops/readiness.service';
+// R101-AI-39：日程提醒（独立模块，避免循环依赖与既有精确断言冲突）
+import { ScheduleReminderModule } from './brain/proactive/schedule-reminder.module';
 
 /**
  * 应用根模块
@@ -63,6 +65,7 @@ import { ReadinessService } from './ops/readiness.service';
     OpsModule,
     // ai_db 认知闭环（采集→萃取→聚合→反哺）✅ P1-1 已接入
     EvolutionModule,
+    ScheduleReminderModule,
   ],
   controllers: [AppController],
   providers: [
