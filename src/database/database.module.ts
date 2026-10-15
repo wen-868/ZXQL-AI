@@ -34,6 +34,9 @@ import { AiSessionArchiveEntity } from './entities/ai-session-archive.entity';
 import { AiExecutionPlanEntity } from './entities/ai-execution-plan.entity';
 import { AiIdempotencyEntity } from './entities/ai-idempotency.entity';
 import { AiDeadLetterEntity } from './entities/ai-dead-letter.entity';
+// R101-AI-35 S1：文档中心（办公能力第一批）
+import { AiDocEntity } from './entities/ai-doc.entity';
+import { AiDocAclEntity } from './entities/ai-doc-acl.entity';
 import {
   ensureStandaloneDbDirectory,
   isStandaloneMode,
@@ -72,6 +75,10 @@ export const AI_ENTITIES = [
   AiDeadLetterEntity,
   AiEmployeeEntity,
   AiEmployeeTaskEntity,
+  // R101-AI-35 S1：办公能力第一批（文档中心）—— t_ai_doc / t_ai_doc_acl
+  // 注：结构变更走增量 migrations-sqlite/001_ai_doc.sql（**不重生成 000 基线**，R101-AI-30 乙案）
+  AiDocEntity,
+  AiDocAclEntity,
 ];
 
 /**
