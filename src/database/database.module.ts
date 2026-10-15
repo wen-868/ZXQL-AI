@@ -41,6 +41,8 @@ import { AiAclEntity } from './entities/ai-acl.entity';
 import { AiTodoEntity } from './entities/ai-todo.entity';
 // R101-AI-38 办公批次 3：审批实例
 import { AiApprovalEntity } from './entities/ai-approval.entity';
+// R101-AI-39 办公批次 4：日程
+import { AiScheduleEntity } from './entities/ai-schedule.entity';
 import {
   ensureStandaloneDbDirectory,
   isStandaloneMode,
@@ -87,6 +89,8 @@ export const AI_ENTITIES = [
   AiTodoEntity,
   // R101-AI-38 办公批次 3：审批实例（t_ai_approval，迁移 020 / sqlite 增量 003）
   AiApprovalEntity,
+  // R101-AI-39 办公批次 4：日程（t_ai_schedule，迁移 021 / sqlite 增量 004）
+  AiScheduleEntity,
 ];
 
 /**
