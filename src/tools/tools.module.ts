@@ -43,8 +43,10 @@ import { ForecastSalesTool } from './definitions/forecast-sales.tool';
 import { AnalyzePriceTrendTool } from './definitions/analyze-price-trend.tool';
 // R101-AI-34 P1-4：系统状态自检（读工具）
 import { GetSystemStatusTool } from './definitions/get-system-status.tool';
-// R101-AI-35 S2：文档中心（办公能力第一批）—— 写工具 aiDocCreate（读工具/其余写工具后续步补）
+// R101-AI-35 S2：文档中心（办公能力第一批）—— 读/写工具
 import { AiDocCreateTool } from './definitions/ai-doc-create.tool';
+import { AiDocListTool } from './definitions/ai-doc-list.tool';
+import { DocAclService } from '../rag/doc-acl.service';
 import { InventoryReportTool } from './definitions/inventory-report.tool';
 import { ProfitReportTool } from './definitions/profit-report.tool';
 // R70 完善度 P1: 营销/采购计划/信用 6 个精调写操作工具（清单第一批 P0）
@@ -129,6 +131,11 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     GetSystemStatusTool,
     // R101-AI-35 S2：文档中心写工具（aiDocCreate；preview→confirm + 幂等）
     AiDocCreateTool,
+    // R101-AI-35 S2：文档中心读工具（aiDocList；必经 DocAclService）
+    AiDocListTool,
+    // R101-AI-35 S2：文档 ACL 判定服务（独立可单测；依赖 AiDocEntity/AiDocAclEntity 仓储，
+    // 与 IdempotencyGateService 同范式在本模块提供 ⇒ 无需跨模块导出）
+    DocAclService,
     DispatchEmployeeTaskTool,
     CircuitBreakerService,
     ToolBootstrap,
