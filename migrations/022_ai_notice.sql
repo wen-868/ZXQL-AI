@@ -36,7 +36,10 @@ CREATE TABLE IF NOT EXISTS t_ai_notice (
   updated_at  DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '更新时间（毫秒）',
   PRIMARY KEY (id),
   UNIQUE KEY luk_ai_notice_dedupe (tenant_id, dedupe_key),
-  KEY idx_ai_notice_receiver (tenant_id, receiver),
+  -- 刻意**不建** receiver 二级索引（理由见本文件"四之三"）：
+  --   receiver 为 VARCHAR(1000) ⇒ (36+1000)×4 = 4144 字节 > InnoDB 3072 上限 ⇒ ERROR 1071
+  --   且 List 查询是 `receiver LIKE '%,me,%'`（**前导通配**）⇒ B+Tree 索引**本就无效**
+  --   tenant 过滤由 luk_ai_notice_dedupe 的 tenant_id 最左前缀服务
   KEY idx_ai_notice_unread (tenant_id, read_at),
   KEY idx_ai_notice_created (tenant_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='办公-站内通知';
@@ -46,6 +49,33 @@ CREATE TABLE IF NOT EXISTS t_ai_notice (
 --   - `MODIFY COLUMN` 天然幂等（重复执行结果一致）
 ALTER TABLE t_ai_acl
   MODIFY COLUMN resource_type ENUM('doc','todo','approval','schedule','notice') NOT NULL DEFAULT 'doc' COMMENT '资源类型 doc/todo/approval/schedule/notice';
+
+-- 四之三、幂等清尾：删除历史上可能已建的**无效** receiver 二级索引
+--   背景：022 早期版本含 `KEY idx_ai_notice_receiver (tenant_id, receiver)`
+--        在 InnoDB 上 (36+1000)×4 = 4144 字节 > 3072 上限 ⇒ **ERROR 1071 Specified key was too long**
+--        （生产 Auto Deploy 连续 9 次红，新版本无法上线；主系统不受影响）
+--   为什么是"去掉"而不是"缩短/加前缀"：
+--        List 的真实查询是 `tenant_id=? AND (id IN(...) OR receiver LIKE '%,me,%' …)`
+--        `receiver LIKE` 是**前导通配**（`%...`）⇒ B+Tree **用不上**该索引
+--        ⇒ 缩短到 191 或加前缀 receiver(191) 只是"把无效索引合法化"，白搭写入开销；
+--          **删除**零查询损失，且彻底消除 1071。tenant 过滤由 luk_ai_notice_dedupe 最左前缀服务。
+--   幂等：无论表是否已存在（含 scratch/测试库），重跑 022 都会把该索引清掉
+SET @notice_receiver_idx_exists := (
+  SELECT COUNT(1) FROM information_schema.STATISTICS
+   WHERE TABLE_SCHEMA = DATABASE()
+     AND TABLE_NAME = 't_ai_notice'
+     AND INDEX_NAME = 'idx_ai_notice_receiver'
+);
+
+SET @notice_drop_idx_ddl := IF(
+  @notice_receiver_idx_exists > 0,
+  'DROP INDEX idx_ai_notice_receiver ON t_ai_notice',
+  'SELECT 1'
+);
+
+PREPARE notice_drop_idx_stmt FROM @notice_drop_idx_ddl;
+EXECUTE notice_drop_idx_stmt;
+DEALLOCATE PREPARE notice_drop_idx_stmt;
 
 -- 五、回滚 SQL（文档·勿执行；按 migrations/README.md 二.5，回滚走反向迁移）
 --     DROP TABLE IF EXISTS t_ai_notice

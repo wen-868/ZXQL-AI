@@ -20,7 +20,10 @@ import { dialectColumnType, primaryGeneratedColumn } from '../dialect';
 export type NoticeSource = 'biz' | 'schedule' | 'system';
 
 @Entity('t_ai_notice')
-@Index('idx_ai_notice_receiver', ['tenantId', 'receiver'])
+// 刻意**不建** receiver 索引（R101-AI-42/P0 修复）：
+//   List 用前导通配 `receiver LIKE '%,me,%'` ⇒ B+Tree 无效；且 receiver VARCHAR(1000) 使该索引
+//   在 InnoDB 上 (36+1000)×4 = 4144 > 3072 ⇒ **ERROR 1071**（生产迁移连续失败）
+//   tenant 过滤由 luk_ai_notice_dedupe 的 tenant_id 最左前缀服务
 @Index('idx_ai_notice_unread', ['tenantId', 'readAt'])
 @Index('idx_ai_notice_created', ['tenantId', 'createdAt'])
 @Index('luk_ai_notice_dedupe', ['tenantId', 'dedupeKey'], { unique: true })

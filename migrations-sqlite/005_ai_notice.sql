@@ -27,8 +27,10 @@ CREATE TABLE IF NOT EXISTS "t_ai_notice" (
 -- sqlite 索引名库级唯一（F9 教训）⇒ 统一表名前缀
 CREATE UNIQUE INDEX IF NOT EXISTS "t_ai_notice__luk_ai_notice_dedupe"
   ON "t_ai_notice" ("tenant_id", "dedupe_key");
-CREATE INDEX IF NOT EXISTS "t_ai_notice__idx_ai_notice_receiver"
-  ON "t_ai_notice" ("tenant_id", "receiver");
+-- 刻意**不建** receiver 索引（双形态统一，理由同 MySQL 022 "四之三"）：
+--   List 用前导通配 `LIKE '%,me,%'` ⇒ B+Tree 无效；且 MySQL 侧该索引触发 ERROR 1071（字节上限）
+-- 幂等清尾：删除历史上可能已建的该索引（DROP INDEX IF EXISTS 天然幂等）
+DROP INDEX IF EXISTS "t_ai_notice__idx_ai_notice_receiver";
 CREATE INDEX IF NOT EXISTS "t_ai_notice__idx_ai_notice_unread"
   ON "t_ai_notice" ("tenant_id", "read_at");
 CREATE INDEX IF NOT EXISTS "t_ai_notice__idx_ai_notice_created"
