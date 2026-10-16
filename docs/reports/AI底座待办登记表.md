@@ -33,7 +33,7 @@
 
 | # | 待办 | 说明 | 阻塞什么 |
 |---|---|---|---|
-| 9 | **触发一次生产部署（经 MS 线）** | ✅ 通道已查实（此前两次误判已订正）：部署属 **MS 仓流水线** `deploy.yml`(含 `workflow_dispatch`)/`auto-deploy.sh` → `ai-base-deploy.sh`，靠 `git fetch origin main + reset --hard FETCH_HEAD` 拉 AI 仓。**AI 仓 `origin/main` 已含全部 25 办公工具**（实测 `ls-tree`，最新 `11349b5`）⇒ **代码到位、缺的是"触发一次部署"**（生产实测仍 96，说明最近未触发，或 `ai-base-deploy.sh` 容错跳过了 AI 底座）。⇒ 须**经业主/MS 线触发一次部署**（AI 线无该仓 workflow 权限，不越权代跑），部署后我方立即做真数据实测闭环 | 全部新工具上线；真数据实测闭环 |
+| 9 | **触发一次生产部署（须 MS 线跑 deploy.yml）** | ✅ 机制已查实（三轮误判全部订正）：① `ai-base-deploy.sh` 默认 `AI_REPO_URL=git@github.com:wen-868/ZXQL-AI.git`、`AI_TARGET_DIR=/opt/zhixiang/ai-base`，`git fetch origin main + reset --hard FETCH_HEAD`；② **gh-ip 与 github 是同一仓库**（`ls-remote` 实测两者 `main` 同一 SHA `3b5e2ee` ⇒ 推 gh-ip 即推 github，**无需双推**；此前"origin 只有 25 工具"是本地 ref 陈旧的假象）；③ **AI 仓 push 不触发部署**——触发器是 **MS 仓** `deploy.yml`（`push: branches:[main]` + `workflow_dispatch`），经 `auto-deploy.sh → ai-base-deploy.sh`。**部署源已含全部 27 办公工具 + AI-41**（`ls-tree gh-ip/main` 实测），生产仍 96 ⇒ **只差"MS 线跑一次 deploy.yml"**。⇒ **经业主/MS 线触发**（AI 线无该 MS 仓 workflow 权限，不越权代跑）；部署后我方立即真数据实测闭环 | 全部新工具上线；真数据实测闭环 |
 | 10 | **demo/测试租户基础数据** | 已由 MS 交付（12 商品）；若需更多场景数据可再提 | 真数据实测闭环 |
 | 11 | **embedding 服务配置** | 生产未配置 ⇒ 向量检索无法真实验证 | 待办 4、5 |
 
