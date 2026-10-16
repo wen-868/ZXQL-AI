@@ -33,7 +33,7 @@
 
 | # | 待办 | 说明 | 阻塞什么 |
 |---|---|---|---|
-| 9 | **触发一次生产部署（须 MS 线跑 deploy.yml）** | ✅ 机制已查实（三轮误判全部订正）：① `ai-base-deploy.sh` 默认 `AI_REPO_URL=git@github.com:wen-868/ZXQL-AI.git`、`AI_TARGET_DIR=/opt/zhixiang/ai-base`，`git fetch origin main + reset --hard FETCH_HEAD`；② **gh-ip 与 github 是同一仓库**（`ls-remote` 实测两者 `main` 同一 SHA `3b5e2ee` ⇒ 推 gh-ip 即推 github，**无需双推**；此前"origin 只有 25 工具"是本地 ref 陈旧的假象）；③ **AI 仓 push 不触发部署**——触发器是 **MS 仓** `deploy.yml`（`push: branches:[main]` + `workflow_dispatch`），经 `auto-deploy.sh → ai-base-deploy.sh`。**部署源已含全部 27 办公工具 + AI-41**（`ls-tree gh-ip/main` 实测），生产仍 96 ⇒ **只差"MS 线跑一次 deploy.yml"**。⇒ **经业主/MS 线触发**（AI 线无该 MS 仓 workflow 权限，不越权代跑）；部署后我方立即真数据实测闭环 | 全部新工具上线；真数据实测闭环 |
+| 9 | **触发一次生产部署（须 MS 线再跑 deploy.yml）** | ✅ 机制已查实（三轮误判全部订正）：① `ai-base-deploy.sh` 默认 `AI_REPO_URL=git@github.com:wen-868/ZXQL-AI.git`、`AI_TARGET_DIR=/opt/zhixiang/ai-base`，`git fetch origin main + reset --hard FETCH_HEAD`；② **gh-ip 与 github 同一仓库**（推 gh-ip 即推 github，无需双推）；③ **AI 仓 push 不触发部署**——触发器是 **MS 仓** `deploy.yml`（push:main + workflow_dispatch）→ `auto-deploy.sh` → `ai-base-deploy.sh`。**部署源已含 P0 修复 + 全部 27 工具 + AI-41**（`ls-tree` 实测 gh-ip/main=`7499e9e`：022 CREATE 已去 receiver 索引、DROP 清尾在位、实体无 @Index）。<br>🔴 **2026-10-16 实测：生产仍 96、新工具"未注册"——非代码/迁移缺陷**，而是**已登记机制坑（MS 仓第 75 项）**：合并后**第一次**部署执行的仍是**旧版** `ai-base-deploy.sh`（脚本自身要靠 `git reset` 才更新，本次跑的是上一版）⇒ **那次只跑了 3 个迁移就停、未执行到 022** ⇒ 新版本没上线（主系统不受影响）。**新脚本在下一次/手动重跑才生效**。<br>⇒ **待办：MS 线再跑一次 deploy.yml**（此时脚本已 reset 到新版，会跑完整迁移含 022 + 注册 27 工具）。AI 线无该 MS workflow 权限，不越权代跑；落地后我方立即做办公工具真数据实测闭环 | 全部新工具上线；真数据实测闭环 |
 | 10 | **demo/测试租户基础数据** | 已由 MS 交付（12 商品）；若需更多场景数据可再提 | 真数据实测闭环 |
 | 11 | **embedding 服务配置** | 生产未配置 ⇒ 向量检索无法真实验证 | 待办 4、5 |
 
