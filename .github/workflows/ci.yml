@@ -36,6 +36,14 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
 
+      # 迁移索引键长度静态检查（阻断）：InnoDB 索引键 3072 字节上限
+      #   起因：生产 Auto Deploy 连续 9 次红于 migrations/022_ai_notice.sql
+      #         —— KEY idx_ai_notice_receiver (tenant_id, receiver)，(36+1000)×4=4144>3072
+      #         ⇒ ERROR 1071 Specified key was too long（只有真 MySQL 才暴露，本地/CI 提前拦）
+      #   纯 Node 标准库脚本，零依赖，故置于 install 之前快速失败；exit 1 即不可合并
+      - name: 迁移索引键长度检查（InnoDB 3072 上限）
+        run: node scripts/check-index-key-length.cjs
+
       - name: 依赖安装（frozen-lockfile）
         run: pnpm install --frozen-lockfile
 
