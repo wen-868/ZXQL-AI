@@ -78,6 +78,9 @@ import { AiNoticeListTool } from './definitions/ai-notice-list.tool';
 import { AiNoticeMarkReadTool } from './definitions/ai-notice-mark-read.tool';
 import { AiNoticeArchiveTool } from './definitions/ai-notice-archive.tool';
 import { AiNoticeUnreadCountTool } from './definitions/ai-notice-unread-count.tool';
+// R101-AI-41：取消待办 + 丢弃审批草稿（补齐两处缺失的状态/生命周期入口）
+import { AiTodoCancelTool } from './definitions/ai-todo-cancel.tool';
+import { AiApprovalDraftDiscardTool } from './definitions/ai-approval-draft-discard.tool';
 import { OfficeAclService } from '../rag/office-acl.service';
 import { InventoryReportTool } from './definitions/inventory-report.tool';
 import { ProfitReportTool } from './definitions/profit-report.tool';
@@ -205,6 +208,8 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     AiNoticeMarkReadTool,
     AiNoticeArchiveTool,
     AiNoticeUnreadCountTool,
+    AiTodoCancelTool,
+    AiApprovalDraftDiscardTool,
     // R101-AI-35 S2：文档 ACL 判定服务（独立可单测；依赖 AiDocEntity/AiAclEntity 仓储，
     // 与 IdempotencyGateService 同范式在本模块提供 ⇒ 无需跨模块导出）
     OfficeAclService,

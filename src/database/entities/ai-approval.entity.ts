@@ -105,6 +105,16 @@ export class AiApprovalEntity {
   relatedBiz!: string | null;
 
   @Column({
+    name: 'deleted_at',
+    type: 'datetime',
+    precision: 3,
+    nullable: true,
+    comment:
+      '软删时间（**仅草稿可弃**；NULL=未弃；R101-AI-41 迁移 023 / sqlite 增量 006）',
+  })
+  deletedAt!: Date | null;
+
+  @Column({
     name: 'created_by',
     type: 'varchar',
     length: 64,

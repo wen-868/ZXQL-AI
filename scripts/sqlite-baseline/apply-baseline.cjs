@@ -76,6 +76,8 @@ ensureColumn(
   'rag_status',
   `"rag_status" varchar(16) NOT NULL DEFAULT ('pending')`,
 );
+// R101-AI-41 S2：既有库补 t_ai_approval.deleted_at（审批草稿软弃；仅草稿可弃）
+ensureColumn('t_ai_approval', 'deleted_at', '"deleted_at" datetime(3)');
 db.exec(
   'CREATE INDEX IF NOT EXISTS "t_ai_knowledge_chunks__idx_kc_tenant_doc" ON "t_ai_knowledge_chunks" ("tenant_id", "doc_id")',
 );

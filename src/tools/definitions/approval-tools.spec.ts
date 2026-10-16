@@ -46,6 +46,7 @@ function approvalOf(over: Partial<AiApprovalEntity> = {}): AiApprovalEntity {
     payload: null,
     decisionReason: null,
     relatedBiz: 'BILL-1',
+    deletedAt: null,
     createdBy: 'u-app',
     createdAt: new Date(),
     updatedAt: new Date(),

@@ -1,0 +1,10 @@
+-- R101-AI-41 · 桌面端（standalone）增量 006：审批草稿软弃列
+--
+-- 约定（R101-AI-30 乙案）：基线 000 不重生成；结构变更走增量；applier 自动按序应用（除 000）
+--
+-- ⚠️ **本增量无纯 SQL 语句**：sqlite 无 `ADD COLUMN IF NOT EXISTS` ⇒ 条件加列由
+--    `scripts/sqlite-baseline/apply-baseline.cjs` 的 `ensureColumn('t_ai_approval','deleted_at', ...)` 承担
+--    （同 tags / rag_status 范式；本文件作为"变更已登记"的占位与说明，避免增量序列出现缺号）
+--
+-- 语义：`deleted_at` 为**软删标记**（仅草稿可弃；NULL=未弃）；不做物理 DELETE
+-- 负责人: 阿坚 | 创建日期: 2026-10-16

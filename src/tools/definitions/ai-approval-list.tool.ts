@@ -18,7 +18,7 @@
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { AiApprovalEntity } from '../../database/entities/ai-approval.entity';
 import {
   OfficeAclService,
@@ -109,6 +109,8 @@ export class AiApprovalListTool implements ITool {
           });
 
       const base: Record<string, unknown> = {};
+      // R101-AI-41：已弃草稿（软删）默认不出现在列表（生命周期标记，非工作流状态）
+      base.deletedAt = IsNull();
       if (!principal.isPlatform) base.tenantId = context.tenantId;
       if (status !== undefined) base.status = status;
       if (view === 'to_approve' && status === undefined)
