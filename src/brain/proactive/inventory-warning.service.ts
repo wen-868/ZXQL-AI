@@ -15,9 +15,11 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-08-02
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { ProactivePushService } from './proactive-push.service';
+// R101-AI-43 S4：站内通知落库（"先落通知，再推送"——通知是持久化事实，推送只是实时增强）
+import { NoticeService } from './notice.service';
 import {
   IProactiveTask,
   ProactivePriority,
@@ -42,6 +44,8 @@ export class InventoryWarningService implements IProactiveTask {
   constructor(
     private readonly dataSource: DataSource,
     private readonly pushService: ProactivePushService,
+    // R101-AI-43 S4：@Optional ⇒ 10 份既有 spec 零改动即可构造（不注入时为 undefined）
+    @Optional() private readonly noticeService?: NoticeService,
   ) {}
 
   async execute(tenantId: string): Promise<ProactiveTaskResult> {
@@ -101,6 +105,33 @@ export class InventoryWarningService implements IProactiveTask {
         content: `以下商品库存不足，建议尽快补货：\n\n| 商品 | 当前库存 | 安全线 | 日均销量 | 预计售罄 |\n|------|----------|--------|----------|----------|\n${lines}`,
         extras: { taskName, count: rows.length },
       };
+
+      // ── R101-AI-43 S4：先落站内通知（无条件，不依赖 push 成败）──
+      // 为什么在 push 之前：通知是"持久化事实"，推送只是"实时增强"；
+      //   用户离线/未打开前端时 broadcast 收不到 ⇒ 只有站内通知能补"错过推送即丢"。
+      // 为什么 receiver 是 `tenant:{id}`：巡检是**租户级广播**（无个人目标），
+      //   由 List/Count 的第 4 支 `LIKE '%,tenant:{id},%'` 命中（见 ai-notice-list）。
+      // 主次不倒置（双层防护）：record() 契约上已吞异常，但调用方仍包 try ——
+      //   通知失败绝不能把"巡检失败"误报出去（那是 R101-AI-35 RAG 同类事故）。
+      if (this.noticeService) {
+        try {
+          await this.noticeService.record({
+            tenantId,
+            receiver: `tenant:${tenantId}`,
+            title: push.title,
+            content: push.content,
+            type: push.type,
+            priority: push.priority,
+            source: 'biz',
+            refId: null,
+            // 时间桶：同租户同日只落一条（防"每次巡检都刷屏"）
+            dedupeKey: `inventory:${tenantId}:${new Date().toISOString().slice(0, 10)}`,
+          });
+        } catch {
+          // 通知落库失败不影响巡检主流程（record 已吞，这里是结构性兜底）
+          this.logger.warn('库存预警：站内通知落库失败（已隔离，不影响巡检）');
+        }
+      }
 
       const pushed = await this.pushService.push(tenantId, taskName, push);
       this.logger.debug(

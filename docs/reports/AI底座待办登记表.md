@@ -9,31 +9,34 @@
 
 | # | 待办 | 单号 | 执行 | 状态 |
 |---|---|---|---|---|
-| 1 | **办公批次 3：审批流**（单级；资源 `approval`；原子状态迁移） | R101-AI-38 | 阿坚 | ✅ **已收口**（6 工具+回传+收官报告；177/1864）|
-| 1b | **办公批次 4：日程/提醒**（复用 proactive-push；resourceType=schedule） | R101-AI-39 | 阿坚 | ✅ **已收口**（5 工具+提醒服务；13 例/10 mutation；回传+收官报告；179/1877）|
-| 1c | **办公批次 5：通知中心**（补"错过推送即丢"；不侵入 ProactivePushService） | R101-AI-40 | 阿坚 | 🔄 **S1/S2/S3 已收口**（`2f250b7`，181/1888）；待补 8 mutation + 回传/收官 = 办公五批终 |
+| 5b | 🔴 **P0：31 个工具未进执行器注册表** | R101-AI-44 | **阿洲**（`src/tools/**`）| **待派**（根因与修法见 §三 5b 行；生产直调全"未注册"）|
+| 1d | **S4：10 巡检逐点切"先 record 后 push"** | R101-AI-43 | **阿澈**（`src/brain/proactive/**`）| ⏸ **待派**（方案已批准：`notice.module.ts` 只依赖 DatabaseModule ⇒ ProactiveModule 加 import ⇒ providers 仍 12/exports 仍 2；receiver=`tenant:{id}`、source 复用 `biz`；改一处验一处全绿再下一处）|
+| 1 | 办公批次 3：审批流 | R101-AI-38 | 阿坚 | ✅ 已收口（6 工具；177/1864）|
+| 1b | 办公批次 4：日程/提醒 | R101-AI-39 | 阿坚 | ✅ 已收口（5 工具+提醒服务；179/1877）|
+| 1c | 办公批次 5：通知中心 | R101-AI-40 | 阿坚 | ✅ 已收口（8 mutation 全有效 + 回传/收官；181/1888）|
 
 ## 二、待派（已登记，未开工）
 
 | # | 待办 | 说明 | 优先级 | 依赖 |
 |---|---|---|---|---|
-| 2 | **`aiTodoCancel`** | 待办取消工具（批次 2 缺口：Update 拒 status 后无取消工具） | 高 | 无（可并入批次 3 或独立） |
-| 2b | **草稿删除**（审批/待办同类） | AI-38 自查发现：Update 仅 draft 可改，但**无删除草稿工具** ⇒ 与 `aiTodoCancel` 同族，一并做 | 高 | 无 |
-| 3 | **数字员工回写**（员工完成任务 ⇒ 待办自动 done） | 需 `t_ai_employee_task` 加 `todo_id` 或 `run()` 返回 `linkedTodoId`；**属跨域联动**，改 `src/brain/employee/*` | 中 | 需独立设计（裁定③：不在批次 2 做） |
+| ~~2~~ | ~~`aiTodoCancel`~~ | ✅ **已由 R101-AI-41 交付**（原子 `WHERE status IN('pending','in_progress')`；已 done ⇒ 明确失败） | — | — |
+| ~~2b~~ | ~~草稿删除~~ | ✅ **已由 R101-AI-41 交付**（`aiApprovalDraftDiscard`，软删 `deleted_at`，仅 draft 可弃） | — | — |
+| 3 | **数字员工回写**（员工完成任务 ⇒ 待办自动 done） | 需 `t_ai_employee_task` 加 `todo_id` 或 `run()` 返回 `linkedTodoId`；**属跨域联动**，改 `src/brain/employee/*` | 中 | 需独立设计（裁定③：不在批次 2 做）+ **凌舟明确授权**（该目录属阿澈代码面）|
 | 4 | **向量检索分支**（`aiDocSearch` 加向量检索） | 需 **embedding 服务就绪**，否则"假绿" | 中 | embedding 配置 |
 | 5 | **`aiDocAsk` 对话式问答**（"这份文档的关键条款是什么"） | 需 LLM 路径 | 中 | 与 4 同批更好 |
 | 6 | **多轮/多级审批、会签** | 属产品复杂度 | 低 | 需业主确认产品形态 |
-| 7 | **`ToolCategory` 加 `office`** | 现有 6 办公工具归在 `report` 桶（注释已留"一行切换"） | 低 | 无 |
-| 8b | **定向提醒**（现租户级广播） | `t_push_log.user_id` 硬编码 0 + gateway 只按租户 broadcast ⇒ 需改 push 写真实 user_id + gateway 支持按用户定向 | 中 | 通知中心（AI-40）打通后一并做 |
+| 7 | **`ToolCategory` 加 `office`** | 现有办公工具归在 `report` 桶（注释已留"一行切换"） | 低 | 无（属 `src/tools/**` ⇒ 阿洲）|
+| 8b | **定向提醒**（现租户级广播） | `t_push_log.user_id` 硬编码 0 + gateway 只按租户 broadcast ⇒ 需改 push 写真实 user_id + gateway 支持按用户定向 | 中 | 通知中心（AI-40）已打通，可开工 |
 | 8c | **日程共享/代管、重复日程（recurrence）** | 批次 4 明确不做（复杂度高） | 低 | 需产品确认 |
 | 8d | **超时未提醒补偿窗口** | @Cron 停机期间的到期提醒如何补发（reminded_at 未写会重试，但停机跨天场景需确认） | 低 | 无 |
-| 8 | **readiness 导出化** | `ReadinessService` 仅在 app.module 提供未导出；P1-4 时裁定"记入待办，不另开单" | 低 | 无 |
+| 8 | **readiness 导出化** | `ReadinessService` 仅在 app.module 提供未导出；P1-4 时裁定"记入待办，不另开单" | 低 | 无（属 `src/**` 非 tools ⇒ 阿澈）|
 
 ## 三、环境/运营类（非代码）
 
 | # | 待办 | 说明 | 阻塞什么 |
 |---|---|---|---|
-| 9 | **触发一次生产部署（须 MS 线再跑 deploy.yml）** | ✅ 机制已查实（三轮误判全部订正）：① `ai-base-deploy.sh` 默认 `AI_REPO_URL=git@github.com:wen-868/ZXQL-AI.git`、`AI_TARGET_DIR=/opt/zhixiang/ai-base`，`git fetch origin main + reset --hard FETCH_HEAD`；② **gh-ip 与 github 同一仓库**（推 gh-ip 即推 github，无需双推）；③ **AI 仓 push 不触发部署**——触发器是 **MS 仓** `deploy.yml`（push:main + workflow_dispatch）→ `auto-deploy.sh` → `ai-base-deploy.sh`。**部署源已含 P0 修复 + 全部 27 工具 + AI-41**（`ls-tree` 实测 gh-ip/main=`7499e9e`：022 CREATE 已去 receiver 索引、DROP 清尾在位、实体无 @Index）。<br>🔴 **2026-10-16 实测：生产仍 96、新工具"未注册"——非代码/迁移缺陷**，而是**已登记机制坑（MS 仓第 75 项）**：合并后**第一次**部署执行的仍是**旧版** `ai-base-deploy.sh`（脚本自身要靠 `git reset` 才更新，本次跑的是上一版）⇒ **那次只跑了 3 个迁移就停、未执行到 022** ⇒ 新版本没上线（主系统不受影响）。**新脚本在下一次/手动重跑才生效**。<br>⇒ **待办：MS 线再跑一次 deploy.yml**（此时脚本已 reset 到新版，会跑完整迁移含 022 + 注册 27 工具）。AI 线无该 MS workflow 权限，不越权代跑；落地后我方立即做办公工具真数据实测闭环 | 全部新工具上线；真数据实测闭环 |
+| 9 | **触发一次生产部署（须 MS 线跑 deploy.yml）** | ✅ **2026-10-17 MS 线实证：部署已成功，本项结清**（run 38932199875：服务器 `/opt/zhixiang/ai-base` HEAD=`6ac1de6`=gh-ip/main；源码与 dist 27 工具 mtime 00:31:56；**迁移尝试 23 / 成功 13 / 跳过 10 / 失败 0**，022+023 均成功；pm2 重启、健康+就绪通过、部署完成 00:32:03）。<br>⚠️ 此前"首轮跑旧脚本只到 3 迁移"（MS 仓第 75 项机制坑）**已被该 run 推翻**；我也曾据 `total=96` 给过三个错误假设（旧脚本坑/fetch 不到/容错跳过）——**根因是代码注册表缺条目**（见 §5b），与部署无关。<br>机制备忘（仍有效）：AI 仓 push **不触发**部署；触发器是 MS 仓 `deploy.yml`（push:main + workflow_dispatch）→ `auto-deploy.sh` → `ai-base-deploy.sh`（`git fetch origin main + reset --hard FETCH_HEAD`）；gh-ip 与 github 同一仓库（单推即可）。 | 已结清 |
+| **5b** | 🔴 **P0：31 个工具未进执行器注册表（R101-AI-44，归阿洲）** | 根因：`tools.module.ts` 的 `providers` 只是 **Nest DI 容器**；执行器注册表是 `src/tools/tool-bootstrap.ts` 的 `onModuleInit() → registry.registerAll([…手工数组…])` ⇒ 办公 27 + ForecastSales/AnalyzePriceTrend/CancelSalesOrder/GetSystemStatus 共 **31 个零 import/零注入/零条目**（EchoTool 属刻意豁免）。生产同进程日志自证：`[AdminController] 96 个工具` vs `[ToolExecutor] "getSystemStatus" 未注册（已注册 107 个）`。<br>**修法三件套（缺一必复发）**：① 补 import+构造注入+registerAll 条目；② guard spec（`definitions/*.tool.ts` 实例化集合 == registerAll 条目 + 具名豁免表，mutation=摘一条 ⇒ 红）；③ `/api/admin/tools` 改读 `ToolRegistry.list()` 收敛两套账。<br>⇒ **属 `src/tools/**`（阿洲代码面）**，阿澈不碰；修完推 gh-ip，下次部署即生效 | **全部新工具可调用**（生产真数据实测闭环） |
 | 10 | **demo/测试租户基础数据** | 已由 MS 交付（12 商品）；若需更多场景数据可再提 | 真数据实测闭环 |
 | 11 | **embedding 服务配置** | 生产未配置 ⇒ 向量检索无法真实验证 | 待办 4、5 |
 

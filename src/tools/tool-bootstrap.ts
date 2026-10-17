@@ -58,6 +58,51 @@ import { HandleApprovalTool } from './definitions/handle-approval.tool';
 // R70 完善度 P1: 总平台级 2 个精调写操作工具（第三批，scope=platform）
 import { CreatePlatformAnnouncementTool } from './definitions/create-platform-announcement.tool';
 import { HandleSubscriptionApplyTool } from './definitions/handle-subscription-apply.tool';
+// R101-AI-44: 办公批1 文档中心（读）
+import { AiDocListTool } from './definitions/ai-doc-list.tool';
+import { AiDocGetTool } from './definitions/ai-doc-get.tool';
+import { AiDocSearchTool } from './definitions/ai-doc-search.tool';
+// R101-AI-44: （写）
+import { AiDocCreateTool } from './definitions/ai-doc-create.tool';
+import { AiDocUpdateTool } from './definitions/ai-doc-update.tool';
+import { AiDocArchiveTool } from './definitions/ai-doc-archive.tool';
+// R101-AI-44: 办公批2 待办（读）
+import { AiTodoListTool } from './definitions/ai-todo-list.tool';
+// R101-AI-44: （写）
+import { AiTodoCreateTool } from './definitions/ai-todo-create.tool';
+import { AiTodoUpdateTool } from './definitions/ai-todo-update.tool';
+import { AiTodoCompleteTool } from './definitions/ai-todo-complete.tool';
+import { AiTodoCancelTool } from './definitions/ai-todo-cancel.tool';
+// R101-AI-44: 办公批3 审批（读）
+import { AiApprovalListTool } from './definitions/ai-approval-list.tool';
+// R101-AI-44: （写，risk=high 决策族）
+import { AiApprovalCreateTool } from './definitions/ai-approval-create.tool';
+import { AiApprovalApproveTool } from './definitions/ai-approval-approve.tool';
+import { AiApprovalRejectTool } from './definitions/ai-approval-reject.tool';
+import { AiApprovalCancelTool } from './definitions/ai-approval-cancel.tool';
+import { AiApprovalUpdateTool } from './definitions/ai-approval-update.tool';
+import { AiApprovalDraftDiscardTool } from './definitions/ai-approval-draft-discard.tool';
+// R101-AI-44: 办公批4 日程（读）
+import { AiScheduleListTool } from './definitions/ai-schedule-list.tool';
+// R101-AI-44: （写）
+import { AiScheduleCreateTool } from './definitions/ai-schedule-create.tool';
+import { AiScheduleUpdateTool } from './definitions/ai-schedule-update.tool';
+import { AiScheduleCompleteTool } from './definitions/ai-schedule-complete.tool';
+import { AiScheduleCancelTool } from './definitions/ai-schedule-cancel.tool';
+// R101-AI-44: 办公批5 通知（读）
+import { AiNoticeListTool } from './definitions/ai-notice-list.tool';
+// R101-AI-44: （写/原子标记）
+import { AiNoticeMarkReadTool } from './definitions/ai-notice-mark-read.tool';
+import { AiNoticeArchiveTool } from './definitions/ai-notice-archive.tool';
+import { AiNoticeUnreadCountTool } from './definitions/ai-notice-unread-count.tool';
+// R101-AI-44: 数据链路：销售预测（读，S3-204 真源）
+import { ForecastSalesTool } from './definitions/forecast-sales.tool';
+// R101-AI-44: 数据链路：价格走势（读，S3-204 真源）
+import { AnalyzePriceTrendTool } from './definitions/analyze-price-trend.tool';
+// R101-AI-44: 取消销售单（写，risk=high，source=ai）
+import { CancelSalesOrderTool } from './definitions/cancel-sales-order.tool';
+// R101-AI-44: 系统状态自检（读，四层出参）
+import { GetSystemStatusTool } from './definitions/get-system-status.tool';
 import { ToolGeneratorService } from './catalog/tool-generator.service';
 
 /**
@@ -153,6 +198,51 @@ export class ToolBootstrap implements OnModuleInit {
     private readonly handleApprovalTool: HandleApprovalTool,
     private readonly createPlatformAnnouncementTool: CreatePlatformAnnouncementTool,
     private readonly handleSubscriptionApplyTool: HandleSubscriptionApplyTool,
+    // 办公批1 文档中心（读）
+    private readonly aiDocListTool: AiDocListTool,
+    private readonly aiDocGetTool: AiDocGetTool,
+    private readonly aiDocSearchTool: AiDocSearchTool,
+    // （写）
+    private readonly aiDocCreateTool: AiDocCreateTool,
+    private readonly aiDocUpdateTool: AiDocUpdateTool,
+    private readonly aiDocArchiveTool: AiDocArchiveTool,
+    // 办公批2 待办（读）
+    private readonly aiTodoListTool: AiTodoListTool,
+    // （写）
+    private readonly aiTodoCreateTool: AiTodoCreateTool,
+    private readonly aiTodoUpdateTool: AiTodoUpdateTool,
+    private readonly aiTodoCompleteTool: AiTodoCompleteTool,
+    private readonly aiTodoCancelTool: AiTodoCancelTool,
+    // 办公批3 审批（读）
+    private readonly aiApprovalListTool: AiApprovalListTool,
+    // （写，risk=high 决策族）
+    private readonly aiApprovalCreateTool: AiApprovalCreateTool,
+    private readonly aiApprovalApproveTool: AiApprovalApproveTool,
+    private readonly aiApprovalRejectTool: AiApprovalRejectTool,
+    private readonly aiApprovalCancelTool: AiApprovalCancelTool,
+    private readonly aiApprovalUpdateTool: AiApprovalUpdateTool,
+    private readonly aiApprovalDraftDiscardTool: AiApprovalDraftDiscardTool,
+    // 办公批4 日程（读）
+    private readonly aiScheduleListTool: AiScheduleListTool,
+    // （写）
+    private readonly aiScheduleCreateTool: AiScheduleCreateTool,
+    private readonly aiScheduleUpdateTool: AiScheduleUpdateTool,
+    private readonly aiScheduleCompleteTool: AiScheduleCompleteTool,
+    private readonly aiScheduleCancelTool: AiScheduleCancelTool,
+    // 办公批5 通知（读）
+    private readonly aiNoticeListTool: AiNoticeListTool,
+    // （写/原子标记）
+    private readonly aiNoticeMarkReadTool: AiNoticeMarkReadTool,
+    private readonly aiNoticeArchiveTool: AiNoticeArchiveTool,
+    private readonly aiNoticeUnreadCountTool: AiNoticeUnreadCountTool,
+    // 数据链路：销售预测（读，S3-204 真源）
+    private readonly forecastSalesTool: ForecastSalesTool,
+    // 数据链路：价格走势（读，S3-204 真源）
+    private readonly analyzePriceTrendTool: AnalyzePriceTrendTool,
+    // 取消销售单（写，risk=high，source=ai）
+    private readonly cancelSalesOrderTool: CancelSalesOrderTool,
+    // 系统状态自检（读，四层出参）
+    private readonly getSystemStatusTool: GetSystemStatusTool,
     private readonly toolGenerator: ToolGeneratorService,
   ) {}
 
@@ -222,6 +312,52 @@ export class ToolBootstrap implements OnModuleInit {
       this.handleApprovalTool,
       // R70 完善度 P1: 总平台级写操作（scope=platform）
       this.createPlatformAnnouncementTool,
+      // R101-AI-44: 办公批1 文档中心（读）
+      this.aiDocListTool,
+      this.aiDocGetTool,
+      this.aiDocSearchTool,
+      // R101-AI-44: （写）
+      this.aiDocCreateTool,
+      this.aiDocUpdateTool,
+      this.aiDocArchiveTool,
+      // R101-AI-44: 办公批2 待办（读）
+
+      // R101-AI-44: （写）
+      this.aiTodoCreateTool,
+      this.aiTodoListTool,
+      this.aiTodoUpdateTool,
+      this.aiTodoCompleteTool,
+      this.aiTodoCancelTool,
+      // R101-AI-44: 办公批3 审批（读）
+      this.aiApprovalListTool,
+      // R101-AI-44: （写，risk=high 决策族）
+      this.aiApprovalCreateTool,
+      this.aiApprovalApproveTool,
+      this.aiApprovalRejectTool,
+      this.aiApprovalCancelTool,
+      this.aiApprovalUpdateTool,
+      this.aiApprovalDraftDiscardTool,
+      // R101-AI-44: 办公批4 日程（读）
+      this.aiScheduleListTool,
+      // R101-AI-44: （写）
+      this.aiScheduleCreateTool,
+      this.aiScheduleUpdateTool,
+      this.aiScheduleCompleteTool,
+      this.aiScheduleCancelTool,
+      // R101-AI-44: 办公批5 通知（读）
+      this.aiNoticeListTool,
+      // R101-AI-44: （写/原子标记）
+      this.aiNoticeMarkReadTool,
+      this.aiNoticeArchiveTool,
+      this.aiNoticeUnreadCountTool,
+      // R101-AI-44: 数据链路：销售预测（读，S3-204 真源）
+      this.forecastSalesTool,
+      // R101-AI-44: 数据链路：价格走势（读，S3-204 真源）
+      this.analyzePriceTrendTool,
+      // R101-AI-44: 取消销售单（写，risk=high，source=ai）
+      this.cancelSalesOrderTool,
+      // R101-AI-44: 系统状态自检（读，四层出参）
+      this.getSystemStatusTool,
       this.handleSubscriptionApplyTool,
     ]);
 

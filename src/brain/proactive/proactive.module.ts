@@ -23,6 +23,9 @@ import { DatabaseModule } from '../../database/database.module';
 import { GatewayModule } from '../../gateway/gateway.module';
 import { BrainModule } from '../brain.module';
 import { TenantModule } from '../../tenant/tenant.module';
+// R101-AI-43 S4：站内通知落库（巡检"先落通知再推送"）—— NoticeService 无环，
+//   故可安全 import；providers/exports 数量不变（spec 精确断言不破）
+import { NoticeModule } from './notice.module';
 import { ProactiveController } from './proactive.controller';
 import { ProactivePushService } from './proactive-push.service';
 import { WeeklyPlanService } from './weekly-plan.service';
@@ -39,12 +42,14 @@ import { GrossMarginAnomalyService } from './gross-margin-anomaly.service';
 
 @Module({
   // BrainModule（ProviderRouterService 供周计划 LLM 路由）+ TenantModule（AiConfigService 解析配置）
+  // + NoticeModule（R101-AI-43 S4：巡检落站内通知；只加 import，providers/exports 数量不变）
   imports: [
     BridgeModule,
     DatabaseModule,
     GatewayModule,
     BrainModule,
     TenantModule,
+    NoticeModule,
   ],
   providers: [
     ProactivePushService,
