@@ -43,6 +43,16 @@ export interface ProactivePush {
   priority: ProactivePriority;
   /** 附加数据（任务名、数量等） */
   extras?: Record<string, unknown>;
+  /**
+   * R101-AI-45 定向推送目标用户（JWT payload.id）
+   *
+   * - 不传（现有全部巡检）⇒ 维持**租户级广播**，行为零变化
+   * - 传了 ⇒ WebSocket 走 `sendToUser` 只投该用户；`t_push_log.user_id` 落该用户
+   *   （替代硬编码 0，让"这是给某人的提醒"在流水里可追溯）
+   * - 用户不在线 ⇒ 不回落广播（避免私人提醒被同租户他人看到 ⇒ 信息泄漏）；
+   *   兜底靠站内通知（NoticeService，错过不丢）
+   */
+  targetUserId?: number;
 }
 
 /**

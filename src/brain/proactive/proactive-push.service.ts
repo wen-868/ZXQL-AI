@@ -41,7 +41,7 @@ export class ProactivePushService {
    *
    * @param tenantId 租户 ID
    * @param taskName 巡检任务名（用于审计 intent 与日志）
-   * @param push     推送内容
+   * @param push     推送内容（R101-AI-45：可带 `targetUserId` 走定向投递）
    * @returns 是否成功落库
    */
   async push(
@@ -49,15 +49,21 @@ export class ProactivePushService {
     taskName: string,
     push: ProactivePush,
   ): Promise<boolean> {
-    // ── 1. 写入 t_push_log（系统级推送流水） ──
+    // R101-AI-45：定向目标用户（缺省 0 = 系统触发，与历史行为一致）
+    const targetUserId = push.targetUserId ?? 0;
+
+    // ── 1. 写入 t_push_log（推送流水） ──
     try {
       await this.dataSource.query(
         // 阶段0 B-1（2026-10-07）：写入租户归属——迁移 012 加列后，
         // weekly-plan 等消费方按 tenant_id 过滤才有可能命中本租户数据
+        // R101-AI-45（2026-10-18）：user_id 从硬编码 0 改为 targetUserId ——
+        //   定向推送（如日程提醒给 owner）落真实用户，"这是给谁的"在流水里可追溯；
+        //   不传 targetUserId 时为 0，与历史完全一致（巡检类广播不受影响）。
         `INSERT INTO t_push_log
           (user_id, tenant_id, template_id, push_type, channel, title, content, status, error_msg, created_at)
-         VALUES (0, ?, NULL, ?, 'ai_proactive', ?, ?, 'SUCCESS', NULL, NOW())`,
-        [tenantId, push.type, push.title, push.content],
+         VALUES (?, ?, NULL, ?, 'ai_proactive', ?, ?, 'SUCCESS', NULL, NOW())`,
+        [targetUserId, tenantId, push.type, push.title, push.content],
       );
     } catch (err) {
       // 推送流水写入失败不影响巡检主流程，仅记日志并返回失败
@@ -90,19 +96,33 @@ export class ProactivePushService {
       success: true,
     });
 
-    // ── 3. WebSocket 实时推送（R70 完善度 P1）：推送给该租户在线前端，失败不影响落库 ──
+    // ── 3. 实时推送（R70 完善度 P1 + R101-AI-45 定向） ──
+    //   - 带 targetUserId ⇒ sendToUser 只投该用户（不在线不回落广播，防信息泄漏）
+    //   - 不带 ⇒ broadcast 维持租户级广播（历史行为）
+    //   两条路径失败都不影响落库（上面已成功）
     try {
-      this.pushGateway.broadcast(tenantId, {
-        title: push.title,
-        content: push.content,
-        type: push.type,
-        priority: push.priority,
-        extras: push.extras,
-        pushedAt: new Date().toISOString(),
-      });
+      if (push.targetUserId) {
+        this.pushGateway.sendToUser(tenantId, push.targetUserId, {
+          title: push.title,
+          content: push.content,
+          type: push.type,
+          priority: push.priority,
+          extras: push.extras,
+          pushedAt: new Date().toISOString(),
+        });
+      } else {
+        this.pushGateway.broadcast(tenantId, {
+          title: push.title,
+          content: push.content,
+          type: push.type,
+          priority: push.priority,
+          extras: push.extras,
+          pushedAt: new Date().toISOString(),
+        });
+      }
     } catch (err) {
       this.logger.warn(
-        `AI 主动推送实时广播失败（task=${taskName}, tenant=${tenantId}）：${
+        `AI 主动推送实时${push.targetUserId ? '定向投递' : '广播'}失败（task=${taskName}, tenant=${tenantId}）：${
           err instanceof Error ? err.message : String(err)
         }`,
       );

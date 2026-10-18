@@ -25,7 +25,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 
 /** 带存活标记的 WebSocket 连接（心跳保活） */
-type AliveWebSocket = WebSocket & { isAlive?: boolean };
+type AliveWebSocket = WebSocket & { isAlive?: boolean; userId?: number };
 
 /** 后端 JWT payload 结构（与 TenantMiddleware / backend auth.ts 对齐） */
 interface AuthUserPayload extends JwtPayload {
@@ -112,18 +112,21 @@ export class PushGatewayService implements OnModuleDestroy {
     socket: AliveWebSocket,
     request: import('http').IncomingMessage,
   ): void {
-    // 1. 从 URL 查询参数提取 token 并验证
-    const tenantId = this.authenticate(request.url ?? '');
-    if (!tenantId) {
+    // 1. 从 URL 查询参数提取 token 并验证（同时取回租户与用户身份）
+    const identity = this.authenticate(request.url ?? '');
+    if (!identity) {
       this.logger.debug(
         `WebSocket 认证失败，拒绝连接：${request.url ?? '(无URL)'}`,
       );
       socket.close(CLOSE_CODE_UNAUTHORIZED, 'unauthorized');
       return;
     }
+    const { tenantId, userId } = identity;
 
     // 2. 注册租户连接
     socket.isAlive = true;
+    // R101-AI-45 定向推送：把用户身份挂到连接上（sendToUser 用它过滤目标）
+    socket.userId = userId;
     socket.on('pong', () => {
       socket.isAlive = true;
     });
@@ -150,9 +153,13 @@ export class PushGatewayService implements OnModuleDestroy {
    * 从连接 URL 提取 JWT 并验证租户身份
    *
    * @param url 连接 URL（含 ?token=xxx 查询参数）
-   * @returns 租户 ID，认证失败返回 undefined
+   * @returns `{ tenantId, userId }`，认证失败返回 undefined
+   *          （R101-AI-45：userId 从 payload.id 取，供定向推送使用；
+   *           旧调用方只用 tenantId 的场景不受影响）
    */
-  private authenticate(url: string): string | undefined {
+  private authenticate(
+    url: string,
+  ): { tenantId: string; userId?: number } | undefined {
     if (!this.jwtSecret) return undefined;
 
     let token: string | null = null;
@@ -176,7 +183,7 @@ export class PushGatewayService implements OnModuleDestroy {
         );
         return undefined;
       }
-      return payload.tenantId;
+      return { tenantId: payload.tenantId, userId: payload.id };
     } catch (err) {
       this.logger.debug(
         `WebSocket JWT 验证失败：${err instanceof Error ? err.message : String(err)}`,
@@ -231,6 +238,43 @@ export class PushGatewayService implements OnModuleDestroy {
    */
   onlineTenantCount(): number {
     return this.tenants.size;
+  }
+
+  /**
+   * R101-AI-45 定向推送：只投递给指定租户下指定用户的在线连接
+   *
+   * 用途：日程提醒的 owner/participants（`tenant:{id}` 广播之外的精确通道）、
+   *      审批待办等"只该某人看到"的推送。
+   * 语义：
+   * - 只投 `socket.userId === userId` 的连接；该用户不在线 ⇒ 0（不回落广播，
+   *   避免把私人提醒推给同租户其他人 —— 那是信息泄漏）
+   * - 用户侧仍可靠"站内通知"兜底（错过 WebSocket 不丢）
+   *
+   * @param tenantId 目标租户（与 userId 联合定位，防跨租户误投）
+   * @param userId   目标用户 ID（来自 JWT payload.id）
+   * @param payload  推送载荷（与 broadcast 对齐）
+   * @returns 送达连接数（仅统计发送成功的连接）
+   */
+  sendToUser(tenantId: string, userId: number, payload: PushPayload): number {
+    const group = this.tenants.get(tenantId);
+    if (!group || group.size === 0) return 0;
+
+    const data = JSON.stringify({
+      event: 'ai_proactive_push',
+      data: payload,
+    });
+    let delivered = 0;
+    group.forEach((socket) => {
+      if (socket.userId === userId && socket.readyState === WebSocket.OPEN) {
+        socket.send(data);
+        delivered += 1;
+      }
+    });
+
+    this.logger.debug(
+      `AI 主动推送定向投递：tenant=${tenantId} user=${userId} delivered=${delivered}/${group.size} title=${payload.title}`,
+    );
+    return delivered;
   }
 
   /**

@@ -173,6 +173,86 @@ describe('PushGatewayService', () => {
     socketB.close();
   });
 
+  // ── R101-AI-45：定向推送（sendToUser） ──
+  describe('定向推送 sendToUser', () => {
+    /** 生成本用例用 token（id 即用户 ID，定向投递的目标） */
+    function tokenFor(tenantId: string, id: number): string {
+      return jwt.sign(
+        { id, username: `u${id}`, roles: ['STORE_MANAGER'], tenantId },
+        JWT_SECRET,
+        {
+          issuer: 'zhixiang-system',
+          audience: 'zhixiang-client',
+          expiresIn: '1h',
+        },
+      );
+    }
+
+    const PAYLOAD = {
+      title: '📅 日程提醒',
+      content: '与供应商洽谈价格',
+      type: 'system',
+      priority: 'reminder' as const,
+      pushedAt: '2026-10-18T00:00:00.000Z',
+    };
+
+    it('① 同租户同用户在线 ⇒ 定向送达（delivered=1 且收到消息）', async () => {
+      const socket = await connect(port, tokenFor('tenant-1', 42));
+
+      const delivered = service.sendToUser('tenant-1', 42, PAYLOAD);
+      const raw = await new Promise<string>((resolve) => {
+        socket.once('message', (data) =>
+          resolve(
+            typeof data === 'string'
+              ? data
+              : Buffer.from(data as ArrayBuffer).toString('utf8'),
+          ),
+        );
+      });
+
+      expect(delivered).toBe(1);
+      const message = JSON.parse(raw) as { data: { title: string } };
+      expect(message.data.title).toBe('📅 日程提醒');
+      socket.close();
+    });
+
+    it('② 同租户【不同】用户在线 ⇒ 不投递（delivered=0，私人提醒不串人）', async () => {
+      const socket = await connect(port, tokenFor('tenant-1', 7));
+      let received = false;
+      socket.on('message', () => {
+        received = true;
+      });
+
+      // 目标是 user 42，但线上只有 user 7
+      const delivered = service.sendToUser('tenant-1', 42, PAYLOAD);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(delivered).toBe(0);
+      expect(received).toBe(false);
+      socket.close();
+    });
+
+    it('③ 跨租户同 userId ⇒ 不投递（userId 与 tenantId 联合定位）', async () => {
+      const socket = await connect(port, tokenFor('tenant-b', 42));
+      let received = false;
+      socket.on('message', () => {
+        received = true;
+      });
+
+      const delivered = service.sendToUser('tenant-a', 42, PAYLOAD);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(delivered).toBe(0);
+      expect(received).toBe(false);
+      socket.close();
+    });
+
+    it('④ 未初始化 ⇒ sendToUser 返回 0（不抛）', () => {
+      const bare = makeService();
+      expect(bare.sendToUser('tenant-1', 42, PAYLOAD)).toBe(0);
+    });
+  });
+
   it('连接断开后租户分组清理', async () => {
     const socket = await connect(port, makeToken('tenant-1'));
     expect(service.onlineTenantCount()).toBe(1);
