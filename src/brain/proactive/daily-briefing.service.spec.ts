@@ -8,7 +8,11 @@
 import type { DataSource } from 'typeorm';
 import { ProactivePushService } from './proactive-push.service';
 import { DailyBriefingService } from './daily-briefing.service';
+import { NoticeService } from './notice.service';
 import { ProactivePush } from './proactive.types';
+
+/** 供 S4 反测：捕获 record() 入参 */
+type RecordedNotice = Parameters<NoticeService['record']>[0];
 
 describe('DailyBriefingService', () => {
   let service: DailyBriefingService;
@@ -182,6 +186,79 @@ describe('DailyBriefingService', () => {
       expect(result.found).toBe(0);
       expect(result.error).toContain('销售表不可用');
       expect(pushService.push).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── R101-AI-43 S4：巡检"先落站内通知，再推送" ──
+  describe('S4 站内通知（先落通知再推送）', () => {
+    function makeService(recordImpl?: (n: RecordedNotice) => Promise<unknown>) {
+      const recorded: RecordedNotice[] = [];
+      const notice = {
+        record: jest.fn((n: RecordedNotice) => {
+          recorded.push(n);
+          return recordImpl
+            ? recordImpl(n)
+            : Promise.resolve({ inserted: true });
+        }),
+      };
+      const svc = new DailyBriefingService(
+        dataSource as unknown as DataSource,
+        pushService as unknown as ProactivePushService,
+        notice as unknown as NoticeService,
+      );
+      return { svc, notice, recorded };
+    }
+
+    const BRIEFING = {
+      yesterday: { salesAmount: 23500, orderCount: 18 },
+      today: { salesAmount: 0, orderCount: 0 },
+      pending: 3,
+      warning: 2,
+      overdue: 1,
+      delivery: 1,
+    };
+
+    it('⑧ 有待办时先落站内通知（receiver=tenant 令牌 / source=biz / dedupeKey 按日桶）', async () => {
+      mockQueries(BRIEFING);
+      const { svc, notice, recorded } = makeService();
+
+      const result = await svc.execute('tenant-1');
+
+      expect(notice.record).toHaveBeenCalledTimes(1);
+      const n = recorded[0];
+      expect(n.receiver).toBe('tenant:tenant-1');
+      expect(n.source).toBe('biz');
+      expect(n.title).toContain('简报');
+      expect(n.refId).toBeNull();
+      expect(n.dedupeKey).toBe(
+        `briefing:tenant-1:${new Date().toISOString().slice(0, 10)}`,
+      );
+      expect(result.found).toBe(7);
+      expect(result.pushed).toBe(1);
+    });
+
+    it('⑨ 通知落库失败不得把巡检误报成失败（主次不倒置）', async () => {
+      mockQueries(BRIEFING);
+      const { svc, notice } = makeService(() =>
+        Promise.reject(new Error('通知表不可用')),
+      );
+
+      const result = await svc.execute('tenant-1');
+
+      expect(notice.record).toHaveBeenCalledTimes(1);
+      expect(result.found).toBe(7);
+      expect(result.pushed).toBe(1);
+      expect(result.error).toBeUndefined();
+      expect(pushService.push).toHaveBeenCalledTimes(1);
+    });
+
+    it('⑩ 未注入 NoticeService（@Optional）时巡检照常', async () => {
+      mockQueries(BRIEFING);
+
+      const result = await service.execute('tenant-1');
+
+      expect(result.found).toBe(7);
+      expect(result.pushed).toBe(1);
     });
   });
 });

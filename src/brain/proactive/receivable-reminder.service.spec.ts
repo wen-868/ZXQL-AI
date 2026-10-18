@@ -8,7 +8,11 @@
 import type { DataSource } from 'typeorm';
 import { ProactivePushService } from './proactive-push.service';
 import { ReceivableReminderService } from './receivable-reminder.service';
+import { NoticeService } from './notice.service';
 import { ProactivePush } from './proactive.types';
+
+/** 供 S4 反测：捕获 record() 入参 */
+type RecordedNotice = Parameters<NoticeService['record']>[0];
 
 describe('ReceivableReminderService', () => {
   let service: ReceivableReminderService;
@@ -146,6 +150,83 @@ describe('ReceivableReminderService', () => {
       expect(result.found).toBe(0);
       expect(result.error).toContain('应收表不可用');
       expect(pushService.push).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── R101-AI-43 S4：巡检"先落站内通知，再推送" ──
+  describe('S4 站内通知（先落通知再推送）', () => {
+    const ROW = [
+      {
+        billNo: 'SB001',
+        customerName: '顺达批发',
+        receivableAmount: 18500,
+        unreceivedAmount: 18500,
+        dueDate: '2026-07-15',
+        remindStatus: 'OVERDUE',
+        overdueDays: 15,
+      },
+    ];
+
+    function makeService(recordImpl?: (n: RecordedNotice) => Promise<unknown>) {
+      const recorded: RecordedNotice[] = [];
+      const notice = {
+        record: jest.fn((n: RecordedNotice) => {
+          recorded.push(n);
+          return recordImpl
+            ? recordImpl(n)
+            : Promise.resolve({ inserted: true });
+        }),
+      };
+      const svc = new ReceivableReminderService(
+        dataSource as unknown as DataSource,
+        pushService as unknown as ProactivePushService,
+        notice as unknown as NoticeService,
+      );
+      return { svc, notice, recorded };
+    }
+
+    it('⑧ 有逾期时先落站内通知（receiver=tenant 令牌 / source=biz / dedupeKey 按日桶）', async () => {
+      dataSource.query.mockResolvedValueOnce(ROW);
+      const { svc, notice, recorded } = makeService();
+
+      const result = await svc.execute('tenant-1');
+
+      expect(notice.record).toHaveBeenCalledTimes(1);
+      const n = recorded[0];
+      expect(n.receiver).toBe('tenant:tenant-1');
+      expect(n.source).toBe('biz');
+      expect(n.title).toContain('应收账款提醒');
+      expect(n.refId).toBeNull();
+      expect(n.dedupeKey).toBe(
+        `receivable:tenant-1:${new Date().toISOString().slice(0, 10)}`,
+      );
+      // 巡检本身仍然成功
+      expect(result.found).toBe(1);
+      expect(result.pushed).toBe(1);
+    });
+
+    it('⑨ 通知落库失败不得把巡检误报成失败（主次不倒置）', async () => {
+      dataSource.query.mockResolvedValueOnce(ROW);
+      const { svc, notice } = makeService(() =>
+        Promise.reject(new Error('通知表不可用')),
+      );
+
+      const result = await svc.execute('tenant-1');
+
+      expect(notice.record).toHaveBeenCalledTimes(1);
+      expect(result.found).toBe(1);
+      expect(result.pushed).toBe(1);
+      expect(result.error).toBeUndefined();
+      expect(pushService.push).toHaveBeenCalledTimes(1);
+    });
+
+    it('⑩ 未注入 NoticeService（@Optional）时巡检照常', async () => {
+      dataSource.query.mockResolvedValueOnce(ROW);
+
+      const result = await service.execute('tenant-1');
+
+      expect(result.found).toBe(1);
+      expect(result.pushed).toBe(1);
     });
   });
 });

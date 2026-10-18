@@ -14,9 +14,11 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-08-02
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { ProactivePushService } from './proactive-push.service';
+// R101-AI-43 S4：站内通知落库（"先落通知，再推送"）
+import { NoticeService } from './notice.service';
 import {
   IProactiveTask,
   ProactivePriority,
@@ -41,6 +43,8 @@ export class ReceivableReminderService implements IProactiveTask {
   constructor(
     private readonly dataSource: DataSource,
     private readonly pushService: ProactivePushService,
+    // R101-AI-43 S4：@Optional ⇒ 既有 spec 零改动
+    @Optional() private readonly noticeService?: NoticeService,
   ) {}
 
   async execute(tenantId: string): Promise<ProactiveTaskResult> {
@@ -109,6 +113,26 @@ export class ReceivableReminderService implements IProactiveTask {
         content: `以下客户账款已逾期或即将到期：\n\n| 客户 | 未收金额 | 到期日 | 状态 |\n|------|----------|--------|------|\n${lines}\n\n合计待收：¥${toMoneyText(totalUnreceived)} | 逾期：¥${toMoneyText(totalOverdue)}`,
         extras: { taskName, count: rows.length, totalUnreceived },
       };
+
+      // ── R101-AI-43 S4：先落站内通知（无条件，不依赖 push 成败）──
+      // 巡检是租户级广播 ⇒ receiver = tenant:{id}；主次不倒置：record 已吞 + 这里再包 try
+      if (this.noticeService) {
+        try {
+          await this.noticeService.record({
+            tenantId,
+            receiver: `tenant:${tenantId}`,
+            title: push.title,
+            content: push.content,
+            type: push.type,
+            priority: push.priority,
+            source: 'biz',
+            refId: null,
+            dedupeKey: `receivable:${tenantId}:${new Date().toISOString().slice(0, 10)}`,
+          });
+        } catch {
+          this.logger.warn('应收催收：站内通知落库失败（已隔离，不影响巡检）');
+        }
+      }
 
       const pushed = await this.pushService.push(tenantId, taskName, push);
       this.logger.debug(

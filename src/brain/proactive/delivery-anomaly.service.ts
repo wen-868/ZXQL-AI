@@ -13,9 +13,11 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-08-02
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { ProactivePushService } from './proactive-push.service';
+// R101-AI-43 S4：站内通知落库（"先落通知，再推送"）
+import { NoticeService } from './notice.service';
 import {
   IProactiveTask,
   ProactivePriority,
@@ -40,6 +42,8 @@ export class DeliveryAnomalyService implements IProactiveTask {
   constructor(
     private readonly dataSource: DataSource,
     private readonly pushService: ProactivePushService,
+    // R101-AI-43 S4：@Optional ⇒ 既有 spec 零改动
+    @Optional() private readonly noticeService?: NoticeService,
   ) {}
 
   async execute(tenantId: string): Promise<ProactiveTaskResult> {
@@ -92,6 +96,26 @@ export class DeliveryAnomalyService implements IProactiveTask {
         content: `检测到 ${rows.length} 单配送异常：\n\n| 配送单 | 平台 | 骑手 | 状态 | 异常 |\n|--------|------|------|------|------|\n${lines}\n\n建议：联系骑手或更换配送平台`,
         extras: { taskName, count: rows.length },
       };
+
+      // ── R101-AI-43 S4：先落站内通知（无条件，不依赖 push 成败）──
+      // 巡检是租户级广播 ⇒ receiver = tenant:{id}；主次不倒置：record 已吞 + 这里再包 try
+      if (this.noticeService) {
+        try {
+          await this.noticeService.record({
+            tenantId,
+            receiver: `tenant:${tenantId}`,
+            title: push.title,
+            content: push.content,
+            type: push.type,
+            priority: push.priority,
+            source: 'biz',
+            refId: null,
+            dedupeKey: `delivery:${tenantId}:${new Date().toISOString().slice(0, 10)}`,
+          });
+        } catch {
+          this.logger.warn('配送异常：站内通知落库失败（已隔离，不影响巡检）');
+        }
+      }
 
       const pushed = await this.pushService.push(tenantId, taskName, push);
       this.logger.debug(

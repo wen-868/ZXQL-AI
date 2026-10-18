@@ -13,7 +13,7 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-09-05
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { InjectDataSource } from '@nestjs/typeorm';
@@ -21,7 +21,21 @@ import { DataSource } from 'typeorm';
 import { AiConfigService } from '../../tenant/ai-config.service';
 import { ProviderRouterService } from '../router/provider-router.service';
 import { ProactivePushService } from './proactive-push.service';
+// R101-AI-43 S4：站内通知落库（"先落通知，再推送"）
+import { NoticeService } from './notice.service';
 import { bestEffort, degrade } from '../../common/error-semantics';
+
+/** ISO 周标识（YYYY-Www，用于周计划去重键的时间桶） */
+function isoWeek(): string {
+  const d = new Date();
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  const week =
+    Math.ceil((t.getTime() - yearStart.getTime()) / 86400000 + 1) / 7;
+  return `${t.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
 
 /** 本周信号行（t_push_log ai_proactive 通道） */
 interface WeeklySignalRow {
@@ -49,6 +63,8 @@ export class WeeklyPlanService {
     private readonly router: ProviderRouterService,
     private readonly push: ProactivePushService,
     private readonly configService: ConfigService,
+    // R101-AI-43 S4：@Optional ⇒ 既有 spec 零改动
+    @Optional() private readonly noticeService?: NoticeService,
   ) {}
 
   /**
@@ -172,6 +188,27 @@ export class WeeklyPlanService {
     // 不阻断主流程，但失败必落 logger.error + 指标 + 死信，运维可据死信补推。
     await bestEffort(
       async () => {
+        // ── R101-AI-43 S4：先落站内通知（无条件，不依赖 push 成败）──
+        // 巡检是租户级广播 ⇒ receiver = tenant:{id}；主次不倒置：record 已吞 + 这里再包 try
+        if (this.noticeService) {
+          try {
+            await this.noticeService.record({
+              tenantId,
+              receiver: `tenant:${tenantId}`,
+              title: '本周经营计划（AI 规划）',
+              content: plan,
+              type: 'system',
+              priority: 'important',
+              source: 'biz',
+              refId: null,
+              dedupeKey: `weekly-plan:${tenantId}:${isoWeek()}`,
+            });
+          } catch {
+            this.logger.warn(
+              '周计划：站内通知落库失败（已隔离，不影响主流程）',
+            );
+          }
+        }
         // push 返回 boolean，bestEffort 要求 Promise<void>——显式丢弃返回值
         // （原代码也是只等完成、不看返回值，行为等价）
         await this.push.push(tenantId, 'weekly-plan', {
