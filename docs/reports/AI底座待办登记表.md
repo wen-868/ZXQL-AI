@@ -9,8 +9,9 @@
 
 | # | 待办 | 单号 | 执行 | 状态 |
 |---|---|---|---|---|
-| 5b | 🔴 **P0：31 个工具未进执行器注册表** | R101-AI-44 | **阿洲**（`src/tools/**`）| **待派**（根因与修法见 §三 5b 行；生产直调全"未注册"）|
-| 1d | **S4：10 巡检逐点切"先 record 后 push"** | R101-AI-43 | **阿澈**（`src/brain/proactive/**`）| ⏸ **待派**（方案已批准：`notice.module.ts` 只依赖 DatabaseModule ⇒ ProactiveModule 加 import ⇒ providers 仍 12/exports 仍 2；receiver=`tenant:{id}`、source 复用 `biz`；改一处验一处全绿再下一处）|
+| 5b | 🔴 P0：31 个工具注册表 | R101-AI-44 | 阿澈（代笔，阿洲通道失效）| ✅ **已交付并上线**：`88009bd`/部署源 `de1c1bd`；31 个注册 + guard 守卫 4 例双向断言；mutation 摘一条⇒红且点名；**生产探针确认 31 个抽样 0"未注册"** |
+| 1d | S4：10 巡检"先落通知再推送" | R101-AI-43 | 阿澈（`brain/proactive/**`）| ✅ **已收官（10/10）**：`43a0411`/部署源 `ec6dd98`；每处 3 例反测（⑧关键内容 ⑨主次不倒置 ⑩@Optional 兼容）；proactive 17 套件 152 用例；mutation 已验证 |
+| **AI-45** | **定向推送**（push 支持 targetUserId） | R101-AI-45 | 阿澈（`brain`+`gateway`）| ✅ **已收官**：`9e7b670`/部署源 `c9c541f`；user_id 落真实用户 + `sendToUser` 只投该用户（**不回落广播**，防私人提醒泄漏）；7 例反测 + mutation（去掉 userId 过滤⇒②红）|
 | 1 | 办公批次 3：审批流 | R101-AI-38 | 阿坚 | ✅ 已收口（6 工具；177/1864）|
 | 1b | 办公批次 4：日程/提醒 | R101-AI-39 | 阿坚 | ✅ 已收口（5 工具+提醒服务；179/1877）|
 | 1c | 办公批次 5：通知中心 | R101-AI-40 | 阿坚 | ✅ 已收口（8 mutation 全有效 + 回传/收官；181/1888）|
@@ -21,7 +22,7 @@
 |---|---|---|---|---|
 | ~~2~~ | ~~`aiTodoCancel`~~ | ✅ **已由 R101-AI-41 交付**（原子 `WHERE status IN('pending','in_progress')`；已 done ⇒ 明确失败） | — | — |
 | ~~2b~~ | ~~草稿删除~~ | ✅ **已由 R101-AI-41 交付**（`aiApprovalDraftDiscard`，软删 `deleted_at`，仅 draft 可弃） | — | — |
-| 3 | **数字员工回写**（员工完成任务 ⇒ 待办自动 done） | 需 `t_ai_employee_task` 加 `todo_id` 或 `run()` 返回 `linkedTodoId`；**属跨域联动**，改 `src/brain/employee/*` | 中 | 需独立设计（裁定③：不在批次 2 做）+ **凌舟明确授权**（该目录属阿澈代码面）|
+| 3 | **数字员工回写**（员工完成任务 ⇒ 待办自动 done） | 🔍 **2026-10-19 复核：需跨面才能落地** —— 回写要透传 `linkedTodoId`：①派单侧 `dispatchTask`/`DispatchEmployeeTaskTool` 加字段 ②或任务表加列（迁移）③消费侧 bridge 回写。**其中 ①属 `src/tools/**`（阿洲面）** ⇒ 阿澈不越界，待派给阿洲（或凌舟裁定授权）。<br>已定设计（供派单）：沿用 `originConversationId`/`customerId` 的"可选透传字段"风格，在 `EmployeeTaskRunInput` 加 `linkedTodoId`；回写**复用既有 `aiTodoComplete` 工具**（原子+权限+幂等全保留，**不复制 UPDATE 逻辑**）；**仅任务成功回写 done，失败不改状态**（失败自动改会掩盖问题）；回写失败不得影响任务结果（双层防护，主次不倒置） | 中 | **待派阿洲**（`src/tools/**` 改动）|
 | 4 | **向量检索分支**（`aiDocSearch` 加向量检索） | 需 **embedding 服务就绪**，否则"假绿" | 中 | embedding 配置 |
 | 5 | **`aiDocAsk` 对话式问答**（"这份文档的关键条款是什么"） | 需 LLM 路径 | 中 | 与 4 同批更好 |
 | 6 | **多轮/多级审批、会签** | 属产品复杂度 | 低 | 需业主确认产品形态 |
@@ -29,7 +30,7 @@
 | 8b | **定向提醒**（现租户级广播） | `t_push_log.user_id` 硬编码 0 + gateway 只按租户 broadcast ⇒ 需改 push 写真实 user_id + gateway 支持按用户定向 | 中 | 通知中心（AI-40）已打通，可开工 |
 | 8c | **日程共享/代管、重复日程（recurrence）** | 批次 4 明确不做（复杂度高） | 低 | 需产品确认 |
 | 8d | **超时未提醒补偿窗口** | @Cron 停机期间的到期提醒如何补发（reminded_at 未写会重试，但停机跨天场景需确认） | 低 | 无 |
-| 8 | **readiness 导出化** | `ReadinessService` 仅在 app.module 提供未导出；P1-4 时裁定"记入待办，不另开单" | 低 | 无（属 `src/**` 非 tools ⇒ 阿澈）|
+| 8 | **readiness 导出化** | 🔍 **2026-10-19 复核：同样需跨面** —— 现由根 AppModule providers 注册（app.module.ts:76），消费方含 `get-system-status.tool.ts`（`src/tools/**`）。收敛到 OpsModule（providers+exports 并从根移除，避免双实例分裂 cache/inFlight 状态）⇒ **ToolsModule 需 `imports:[OpsModule]`，属阿洲面** ⇒ 待派阿洲。<br>注：ReadinessService 依赖 `@Optional() @InjectDataSource()` 双数据源，与 OpsModule 的 DatabaseModule 兼容，无技术障碍 | 低 | **待派阿洲**（`src/tools/**` 改动）|
 
 ## 三、环境/运营类（非代码）
 
@@ -63,4 +64,4 @@
 
 ## 六、门禁总览
 
-135/1471 → **181 套件 / 1888 用例**（0 断言修改、0 `.skip`）
+135/1471 → **183 套件 / 1936 用例**（0 `.skip`；既有断言修改均已留痕：proactive-push INSERT 参数契约演进 +1 user_id）
