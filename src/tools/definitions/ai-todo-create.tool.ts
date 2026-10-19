@@ -201,7 +201,13 @@ export class AiTodoCreateTool implements ITool {
         } else {
           try {
             const r = await this.dispatchTool.execute(
-              { target, task, taskType: 'todo' },
+              {
+                target,
+                task,
+                taskType: 'todo',
+                // R101-AI-46：关联待办（数字员工成功完成后自动回写 done）
+                linkedTodoId: String(saved.id),
+              },
               context,
             );
             dispatch = r.success

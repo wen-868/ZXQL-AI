@@ -44,12 +44,23 @@ export class DispatchEmployeeTaskTool implements ITool {
         description:
           '任务业务域（可选，如 inventory/report/office_report），供任务归档与进化飞轮按域回流',
       },
+      linkedTodoId: {
+        type: 'string',
+        description:
+          '关联待办 ID（可选；R101-AI-46）：由 aiTodoCreate 派发待办任务时传入，' +
+          '数字员工**成功完成**后系统据此把该待办自动置为 done（失败不改状态）',
+      },
     },
     required: ['target', 'task'],
   };
 
   async execute(
-    args: { target: string; task: string; taskType?: string },
+    args: {
+      target: string;
+      task: string;
+      taskType?: string;
+      linkedTodoId?: string;
+    },
     context: ToolContext,
   ): Promise<ToolResult> {
     // P2 修复（2026-10-04）：工具声明"仅数字员工可调用"此前无运行时强制——
@@ -88,6 +99,11 @@ export class DispatchEmployeeTaskTool implements ITool {
       taskType:
         typeof args.taskType === 'string' && args.taskType.trim()
           ? args.taskType.trim()
+          : undefined,
+      // R101-AI-46：关联待办（成功后自动回写 done；未传则无待办联动，行为不变）
+      linkedTodoId:
+        typeof args.linkedTodoId === 'string' && args.linkedTodoId.trim()
+          ? args.linkedTodoId.trim()
           : undefined,
     });
 

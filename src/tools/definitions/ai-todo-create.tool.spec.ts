@@ -179,9 +179,15 @@ describe('AiTodoCreateTool（R101-AI-37 步骤 3 建单）', () => {
     expect(call[0].target).toBe('e-1');
     expect(String(call[0].task)).toContain('准备季度汇报');
     expect(call[0].taskType).toBe('todo');
+    // R101-AI-46：关联待办透传（数字员工完成后回写 done 的依据）
+    // 🔴 断言到关键内容：必须是刚落库的 saved.id（字符串形态），不能只是"存在"
+    expect(call[0].linkedTodoId).toBe(
+      (result.data as { todoId: string }).todoId,
+    );
     const data = result.data as { dispatch?: { status: string } };
     expect(data.dispatch?.status).toBe('dispatched');
-    // mutation 检验点：跳过派单（if(false)）⇒ 上一行与 toHaveBeenCalledTimes(1) 同红
+    // mutation 检验点：跳过派单（if(false)）⇒ 上一行与 toHaveBeenCalledTimes(1) 同红；
+    // 去掉 linkedTodoId 透传 ⇒ 上面 toBe 同红（R101-AI-46 已验证）
   });
 
   it('⑥ 🔴 主次不倒置：派单抛异常 ⇒ 待办仍创建成功、dispatch=failed', async () => {

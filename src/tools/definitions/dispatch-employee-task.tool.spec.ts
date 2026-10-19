@@ -122,4 +122,44 @@ describe('DispatchEmployeeTaskTool', () => {
     expect(res.success).toBe(false);
     expect(res.error).toContain('不在「库管家」的可调用员工列表中');
   });
+
+  // ── R101-AI-46：linkedTodoId 透传（数字员工完成后回写待办 done 的依据） ──
+  it('R101-AI-46：带 linkedTodoId ⇒ 透传到 dispatchTask（成功后回写待办的依据）', async () => {
+    const res = await tool.execute(
+      {
+        target: '采专员',
+        task: '整理台账',
+        linkedTodoId: '99',
+      },
+      makeCtx({ employeeUid: 'emp_caller' }),
+    );
+    expect(res.success).toBe(true);
+    expect(calls.length).toBe(1);
+    // 🔴 断言到关键内容：透传的必须是原值（trim 后），不能丢/不能变形
+    expect(
+      (calls[0] as DispatchCall & { linkedTodoId?: string }).linkedTodoId,
+    ).toBe('99');
+  });
+
+  it('R101-AI-46：不带 linkedTodoId ⇒ 服务层入参无该字段（行为与历史一致）', async () => {
+    await tool.execute(
+      { target: '采专员', task: '创建采购单' },
+      makeCtx({ employeeUid: 'emp_caller' }),
+    );
+    expect(calls.length).toBe(1);
+    expect(
+      (calls[0] as DispatchCall & { linkedTodoId?: string }).linkedTodoId,
+    ).toBeUndefined();
+  });
+
+  it('R101-AI-46：linkedTodoId 为空白串 ⇒ 视为未传（不透传脏值）', async () => {
+    await tool.execute(
+      { target: '采专员', task: 'x', linkedTodoId: '   ' },
+      makeCtx({ employeeUid: 'emp_caller' }),
+    );
+    expect(calls.length).toBe(1);
+    expect(
+      (calls[0] as DispatchCall & { linkedTodoId?: string }).linkedTodoId,
+    ).toBeUndefined();
+  });
 });
