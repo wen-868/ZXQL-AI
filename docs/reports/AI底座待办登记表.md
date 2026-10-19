@@ -12,6 +12,8 @@
 | 5b | 🔴 P0：31 个工具注册表 | R101-AI-44 | 阿澈（代笔，阿洲通道失效）| ✅ **已交付并上线**：`88009bd`/部署源 `de1c1bd`；31 个注册 + guard 守卫 4 例双向断言；mutation 摘一条⇒红且点名；**生产探针确认 31 个抽样 0"未注册"** |
 | 1d | S4：10 巡检"先落通知再推送" | R101-AI-43 | 阿澈（`brain/proactive/**`）| ✅ **已收官（10/10）**：`43a0411`/部署源 `ec6dd98`；每处 3 例反测（⑧关键内容 ⑨主次不倒置 ⑩@Optional 兼容）；proactive 17 套件 152 用例；mutation 已验证 |
 | **AI-45** | **定向推送**（push 支持 targetUserId） | R101-AI-45 | 阿澈（`brain`+`gateway`）| ✅ **已收官**：`9e7b670`/部署源 `c9c541f`；user_id 落真实用户 + `sendToUser` 只投该用户（**不回落广播**，防私人提醒泄漏）；7 例反测 + mutation（去掉 userId 过滤⇒②红）|
+| **AI-46** | **数字员工回写（brain 侧）** | R101-AI-46 | 阿澈（`brain/employee/**`）| ✅ **已完工**：`dedc4ea`/部署源 `32455cc`；`linkedTodoId` 透传 + `EmployeeTodoSyncService` 单一实现 + bridge 回写；10 例反测 + mutation。**待阿洲补 tools 侧派单传参**才能端到端闭环 |
+| **AI-44补** | 工具清单端点按身份区分口径 | R101-AI-44 | 阿澈（`gateway`）| ✅ **已完工**：平台身份⇒全量；商家管理员⇒mgmt（**不得看到 platform 工具**，防越权暴露）；无身份⇒403。4 例反测 + mutation（一律 platform⇒②红）。缺口由阿洲发现 |
 | 1 | 办公批次 3：审批流 | R101-AI-38 | 阿坚 | ✅ 已收口（6 工具；177/1864）|
 | 1b | 办公批次 4：日程/提醒 | R101-AI-39 | 阿坚 | ✅ 已收口（5 工具+提醒服务；179/1877）|
 | 1c | 办公批次 5：通知中心 | R101-AI-40 | 阿坚 | ✅ 已收口（8 mutation 全有效 + 回传/收官；181/1888）|
@@ -22,12 +24,12 @@
 |---|---|---|---|---|
 | ~~2~~ | ~~`aiTodoCancel`~~ | ✅ **已由 R101-AI-41 交付**（原子 `WHERE status IN('pending','in_progress')`；已 done ⇒ 明确失败） | — | — |
 | ~~2b~~ | ~~草稿删除~~ | ✅ **已由 R101-AI-41 交付**（`aiApprovalDraftDiscard`，软删 `deleted_at`，仅 draft 可弃） | — | — |
-| 3 | **数字员工回写**（员工完成任务 ⇒ 待办自动 done） | 🔍 **2026-10-19 复核：需跨面才能落地** —— 回写要透传 `linkedTodoId`：①派单侧 `dispatchTask`/`DispatchEmployeeTaskTool` 加字段 ②或任务表加列（迁移）③消费侧 bridge 回写。**其中 ①属 `src/tools/**`（阿洲面）** ⇒ 阿澈不越界，待派给阿洲（或凌舟裁定授权）。<br>已定设计（供派单）：沿用 `originConversationId`/`customerId` 的"可选透传字段"风格，在 `EmployeeTaskRunInput` 加 `linkedTodoId`；回写**复用既有 `aiTodoComplete` 工具**（原子+权限+幂等全保留，**不复制 UPDATE 逻辑**）；**仅任务成功回写 done，失败不改状态**（失败自动改会掩盖问题）；回写失败不得影响任务结果（双层防护，主次不倒置） | 中 | **待派阿洲**（`src/tools/**` 改动）|
+| 3 | **数字员工回写**（员工完成任务 ⇒ 待办自动 done） | 🟡 **brain 侧已完工（阿澈 `dedc4ea`）**，待阿洲补 tools 侧最后一环。<br>**已做**：`dispatchTask`+`EmployeeTaskRunInput` 加 `linkedTodoId` 并透传；新增 `EmployeeTodoSyncService`（**待办原子迁移单一实现**，已导出供 `aiTodoComplete` 复用 ⇒ 杜绝两份 UPDATE）；bridge 成功回写/失败不改/回写失败不影响结果；反测 10 例 + mutation（"仅成功回写"改无条件⇒②红）。<br>**待阿洲（AI-46）**：`dispatch-employee-task.tool.ts` 加可选 `linkedTodoId` 透传；`ai-todo-create.tool.ts` 派单处传 `linkedTodoId: saved.id`（**两个幂等回放分支 `existing.id`/`raced.id` 也要传**）。 | 中 | **已派阿洲**（`src/tools/**`）；若他停手未做 ⇒ 凌舟代笔并记账 |
 | 4 | **向量检索分支**（`aiDocSearch` 加向量检索） | 需 **embedding 服务就绪**，否则"假绿" | 中 | embedding 配置 |
 | 5 | **`aiDocAsk` 对话式问答**（"这份文档的关键条款是什么"） | 需 LLM 路径 | 中 | 与 4 同批更好 |
 | 6 | **多轮/多级审批、会签** | 属产品复杂度 | 低 | 需业主确认产品形态 |
 | 7 | **`ToolCategory` 加 `office`** | 现有办公工具归在 `report` 桶（注释已留"一行切换"） | 低 | 无（属 `src/tools/**` ⇒ 阿洲）|
-| 8b | **定向提醒**（现租户级广播） | `t_push_log.user_id` 硬编码 0 + gateway 只按租户 broadcast ⇒ 需改 push 写真实 user_id + gateway 支持按用户定向 | 中 | 通知中心（AI-40）已打通，可开工 |
+| 8b | **定向提醒**（现租户级广播） | ✅ **已由 R101-AI-45 交付**（push 支持 `targetUserId`：user_id 落真实用户 + `sendToUser` 只投该用户，不回落广播防泄漏） | — | — |
 | 8c | **日程共享/代管、重复日程（recurrence）** | 批次 4 明确不做（复杂度高） | 低 | 需产品确认 |
 | 8d | **超时未提醒补偿窗口** | @Cron 停机期间的到期提醒如何补发（reminded_at 未写会重试，但停机跨天场景需确认） | 低 | 无 |
 | 8 | **readiness 导出化** | 🔍 **2026-10-19 复核：同样需跨面** —— 现由根 AppModule providers 注册（app.module.ts:76），消费方含 `get-system-status.tool.ts`（`src/tools/**`）。收敛到 OpsModule（providers+exports 并从根移除，避免双实例分裂 cache/inFlight 状态）⇒ **ToolsModule 需 `imports:[OpsModule]`，属阿洲面** ⇒ 待派阿洲。<br>注：ReadinessService 依赖 `@Optional() @InjectDataSource()` 双数据源，与 OpsModule 的 DatabaseModule 兼容，无技术障碍 | 低 | **待派阿洲**（`src/tools/**` 改动）|
@@ -64,4 +66,4 @@
 
 ## 六、门禁总览
 
-135/1471 → **183 套件 / 1936 用例**（0 `.skip`；既有断言修改均已留痕：proactive-push INSERT 参数契约演进 +1 user_id）
+135/1471 → **185 套件 / 1950 用例**（0 `.skip`；既有断言修改均已留痕：proactive-push INSERT 参数契约演进 +1 user_id）
