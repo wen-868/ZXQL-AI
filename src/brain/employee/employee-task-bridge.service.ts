@@ -16,6 +16,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { MemoryManager } from '../memory-manager.service';
 import { Orchestrator } from '../orchestrator.service';
 import { EmployeeService, EmployeeTaskRunInput } from './employee.service';
+// R101-AI-46：待办回写（复用 EmployeeTodoSyncService 的单一实现，不复制 UPDATE）
+import { EmployeeTodoSyncService } from './employee-todo-sync.service';
 
 @Injectable()
 export class EmployeeTaskBridge implements OnModuleInit {
@@ -25,6 +27,7 @@ export class EmployeeTaskBridge implements OnModuleInit {
     private readonly employeeService: EmployeeService,
     private readonly orchestrator: Orchestrator,
     private readonly memoryManager: MemoryManager,
+    private readonly todoSync: EmployeeTodoSyncService,
   ) {}
 
   onModuleInit(): void {
@@ -80,6 +83,37 @@ export class EmployeeTaskBridge implements OnModuleInit {
       status,
       input.tenantId,
     );
+
+    // ── R101-AI-46：待办回写（仅成功；失败不改状态）──
+    // 语义定案：
+    //   ① **仅 completed 回写 done** —— 失败自动改会掩盖问题，待办应保持未完结
+    //   ② 主次倒置防护：回写失败不得影响任务结果（service 已吞 + 这里再包 try）
+    //   ③ 无 linkedTodoId（用户直接交办，非待办派生）⇒ 跳过，行为与历史一致
+    if (status === 'completed' && input.linkedTodoId) {
+      try {
+        const r = await this.todoSync.markDone(
+          input.tenantId,
+          input.linkedTodoId,
+          `数字员工 ${input.employee.name} 完成任务 #${input.taskId}`,
+        );
+        if (r.changed) {
+          this.logger.log(`待办 #${input.linkedTodoId} 已随任务完成置为 done`);
+        } else if (r.replayed) {
+          this.logger.debug(
+            `待办 #${input.linkedTodoId} 已是 done（回放，不重复改）`,
+          );
+        } else if (r.notFound) {
+          this.logger.warn(
+            `待办 #${input.linkedTodoId} 不存在（可能已删）——任务结果不受影响`,
+          );
+        }
+      } catch {
+        // 纵深防御：service 契约上不抛，但仍兜底（不信任自己的契约）
+        this.logger.warn(
+          `待办回写异常（已隔离，任务结果不受影响）：todo=${input.linkedTodoId}`,
+        );
+      }
+    }
 
     // 3. 结果回传：优先写发起会话（originConversationId——自动分派场景
     //    由 Orchestrator 传入，回传直接出现在用户当前对话）；

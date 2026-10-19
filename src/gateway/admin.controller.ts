@@ -120,11 +120,25 @@ export class AdminController {
    * 列出所有已注册工具
    *
    * GET /api/admin/tools
+   *
+   * R101-AI-44：口径按身份区分（**不向商家管理员暴露 platform 工具**）
+   * - 平台身份（identityType==='platform'）⇒ 全量（含总台平台级工具）
+   * - 商家管理员 ⇒ mgmt 口径（`list()` 的租户侧安全默认，排除 platform）
+   *   理由：`AdminGuard` 同时放行"商家管理员"与"平台管理员"两类身份，
+   *   若一律 `list('platform')`，商家管理员会看到总台平台级工具清单——
+   *   属越权信息暴露（"看得到"本身即泄漏，与"存在性即信息"同族）。
+   *   执行侧另有权限校验，但清单可见性必须在此收敛。
    */
   @Get('tools')
-  listTools(): { total: number; tools: ToolMeta[] } {
-    const tools = this.registry.list();
-    this.logger.log(`收到 tools 请求，返回 ${tools.length} 个工具`);
+  listTools(@Req() req: Request): { total: number; tools: ToolMeta[] } {
+    const identity = getAdminIdentity(req);
+    const tools =
+      identity?.identityType === 'platform'
+        ? this.registry.list('platform')
+        : this.registry.list();
+    this.logger.log(
+      `收到 tools 请求，返回 ${tools.length} 个工具（身份=${identity?.identityType ?? 'unknown'}）`,
+    );
     return { total: tools.length, tools };
   }
 

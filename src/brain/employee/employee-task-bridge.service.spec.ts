@@ -61,12 +61,25 @@ describe('EmployeeTaskBridge', () => {
       }),
     };
 
+    // R101-AI-46：待办回写桩（默认"已改变"；用例可覆盖）
+    const todoSync = {
+      markDone: jest.fn().mockResolvedValue({ changed: true }),
+    };
+
     const bridge = new EmployeeTaskBridge(
       employeeService as never,
       orchestrator as never,
       memoryManager as never,
+      todoSync as never,
     );
-    return { bridge, writes, employeeService, orchestrator, memoryManager };
+    return {
+      bridge,
+      writes,
+      employeeService,
+      orchestrator,
+      memoryManager,
+      todoSync,
+    };
   }
 
   const baseInput = {
@@ -141,5 +154,74 @@ describe('EmployeeTaskBridge', () => {
     const { bridge, employeeService } = setup();
     bridge.onModuleInit();
     expect(employeeService.setTaskRunner).toHaveBeenCalled();
+  });
+
+  // ── R101-AI-46：数字员工任务完成 ⇒ 待办回写 ──
+  describe('R101-AI-46 待办回写', () => {
+    it('① 任务成功且有 linkedTodoId ⇒ 回写 markDone（tenant+todoId 正确）', async () => {
+      const { bridge, todoSync } = setup();
+      await bridge['run']({ ...baseInput, linkedTodoId: '99' });
+
+      expect(todoSync.markDone).toHaveBeenCalledTimes(1);
+      expect(todoSync.markDone).toHaveBeenCalledWith(
+        't1',
+        '99',
+        expect.stringContaining('小张'),
+      );
+    });
+
+    it('② 任务失败 ⇒ 不回写（失败自动改 done 会掩盖问题）', async () => {
+      const { todoSync } = setup();
+      const orchestrator = {
+        run: jest.fn().mockImplementation(function* () {
+          yield { type: 'error', message: 'LLM 超时' };
+        }),
+      };
+      // 用失败编排器重建 bridge
+      const employeeService = {
+        setTaskRunner: jest.fn(),
+        completeTask: jest.fn().mockResolvedValue(undefined),
+      };
+      const memoryManager = { saveHistory: jest.fn() };
+      const b = new EmployeeTaskBridge(
+        employeeService as never,
+        orchestrator as never,
+        memoryManager as never,
+        todoSync as never,
+      );
+      await b['run']({ ...baseInput, linkedTodoId: '99' });
+
+      expect(todoSync.markDone).not.toHaveBeenCalled();
+    });
+
+    it('③ 无 linkedTodoId（用户直接交办）⇒ 不调回写（行为与历史一致）', async () => {
+      const { bridge, todoSync } = setup();
+      await bridge['run'](baseInput);
+
+      expect(todoSync.markDone).not.toHaveBeenCalled();
+    });
+
+    it('④ 回写失败（markDone 抛）不得影响任务结果（主次不倒置）', async () => {
+      const { bridge, todoSync } = setup();
+      todoSync.markDone.mockRejectedValueOnce(new Error('DB 抖动'));
+
+      // 不抛即通过（bridge 内部已兜底）；回传照常写
+      const result = await bridge['run']({ ...baseInput, linkedTodoId: '99' });
+
+      expect(result.status).toBe('completed');
+      expect(todoSync.markDone).toHaveBeenCalledTimes(1);
+    });
+
+    it('⑤ 回写结果 changed=false（已是 done / 不存在）时不抛、任务照常', async () => {
+      const { bridge, todoSync } = setup();
+      todoSync.markDone.mockResolvedValueOnce({
+        changed: false,
+        replayed: true,
+      });
+
+      const result = await bridge['run']({ ...baseInput, linkedTodoId: '99' });
+
+      expect(result.status).toBe('completed');
+    });
   });
 });

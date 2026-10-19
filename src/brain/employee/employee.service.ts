@@ -64,6 +64,15 @@ export interface EmployeeTaskRunInput {
    * 另一个 key —— 用户在自己会话里永远看不到回传，任务事实失联。
    */
   customerId?: string;
+  /**
+   * R101-AI-46：关联的待办 ID（数字员工回写用）
+   *
+   * 由 `aiTodoCreate` 派单时透传（`DispatchEmployeeTaskTool` → `dispatchTask`）。
+   * 有值时，`EmployeeTaskBridge` 在任务**成功完成**后据此把待办置为 done
+   * （失败不改状态——失败自动改会掩盖问题；回写失败不影响任务结果）。
+   * 缺省 undefined ⇒ 无关联待办，行为与历史完全一致。
+   */
+  linkedTodoId?: string;
 }
 
 /** 任务执行回调签名（Brain 侧 bridge 注册，避免 EmployeeModule↔BrainModule 循环依赖） */
@@ -203,6 +212,8 @@ export class EmployeeService implements OnModuleInit, OnModuleDestroy {
     taskType?: string;
     /** 发起会话所属客户（运营客户端记忆分区键，随任务一路透传到回传） */
     customerId?: string;
+    /** R101-AI-46：关联待办 ID（成功后回写待办 done；随任务透传到 bridge） */
+    linkedTodoId?: string;
   }): Promise<{
     accepted: boolean;
     taskId?: number;
@@ -282,6 +293,8 @@ export class EmployeeService implements OnModuleInit, OnModuleDestroy {
       dispatchedBy,
       originConversationId: input.originConversationId,
       customerId: input.customerId,
+      // R101-AI-46：关联待办一路透传到 bridge（成功后回写 done）
+      linkedTodoId: input.linkedTodoId,
     }).catch((err: unknown) => {
       // P2 修复（2026-10-04）：落账本身再套一层保护——DB 抖动时
       // completeTask 二次抛出会变成 unhandled rejection 直接崩进程
