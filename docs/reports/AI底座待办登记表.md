@@ -32,7 +32,7 @@
 | 8b | **定向提醒**（现租户级广播） | ✅ **已由 R101-AI-45 交付**（push 支持 `targetUserId`：user_id 落真实用户 + `sendToUser` 只投该用户，不回落广播防泄漏） | — | — |
 | 8c | **日程共享/代管、重复日程（recurrence）** | 批次 4 明确不做（复杂度高） | 低 | 需产品确认 |
 | 8d | **超时未提醒补偿窗口** | @Cron 停机期间的到期提醒如何补发（reminded_at 未写会重试，但停机跨天场景需确认） | 低 | 无 |
-| 8 | **readiness 导出化** | 🔍 **2026-10-19 复核：同样需跨面** —— 现由根 AppModule providers 注册（app.module.ts:76），消费方含 `get-system-status.tool.ts`（`src/tools/**`）。收敛到 OpsModule（providers+exports 并从根移除，避免双实例分裂 cache/inFlight 状态）⇒ **ToolsModule 需 `imports:[OpsModule]`，属阿洲面** ⇒ 待派阿洲。<br>注：ReadinessService 依赖 `@Optional() @InjectDataSource()` 双数据源，与 OpsModule 的 DatabaseModule 兼容，无技术障碍 | 低 | **待派阿洲**（`src/tools/**` 改动）|
+| 8 | **readiness 导出化** | ✅ **已由 R101-AI-47 交付**（`080771f`）：独立 `ReadinessModule`（只 import DatabaseModule+AiDbModule 叶子 ⇒ 无环）；AppModule 移除根注册（单实例，cache/inFlight 不分裂）；ToolsModule import 它打通工具注入；`get-system-status` 切换 `readiness.check()` 属后续单。<br>⚠️ 两次失败尝试已留痕：①挪 OpsModule ⇒ Tools→Ops→Proactive→Brain→Tools **成环**（DI spec 实测）②v1 mutation 不加 import ⇒ Tests:0 total（无效） | — | — |
 
 ## 三、环境/运营类（非代码）
 
@@ -66,4 +66,4 @@
 
 ## 六、门禁总览
 
-135/1471 → **185 套件 / 1950 用例**（0 `.skip`；既有断言修改均已留痕：proactive-push INSERT 参数契约演进 +1 user_id）
+135/1471 → **186 套件 / 1959 用例**（0 `.skip`；既有断言修改均已留痕：proactive-push INSERT 参数契约演进 +1 user_id）
