@@ -54,6 +54,13 @@ jobs:
       - name: 类型检查（tsc --noEmit）
         run: pnpm exec tsc -p tsconfig.build.json --noEmit
 
+      # 全量类型检查（含 *.spec.ts）：tsconfig.build.json 的 exclude 含 `**/*spec.ts`，
+      #   ⇒ spec 里的类型错误在 CI 里**不可见**（2026-10-22 审查 F-1：
+      #   readiness.module.spec.ts 的 TS2345 长期漏网，本地 `tsc -p tsconfig.json` 才红）。
+      #   与上面一步**并存**：build 口径继续管产物，本步补齐 spec 可见性。
+      - name: 类型检查（全量，含 spec）
+        run: pnpm exec tsc -p tsconfig.json --noEmit
+
       - name: 构建（nest build）
         run: pnpm run build
 

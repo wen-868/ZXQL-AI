@@ -7,6 +7,7 @@
  * 负责人: AI底座 | 创建日期: 2026-09-05
  */
 /* eslint-disable @typescript-eslint/unbound-method -- 测试断言直接引用 jest mock 方法；JSON.parse 结果已显式定型，无需再豁免 unsafe-member-access */
+import axios from 'axios';
 import { Repository } from 'typeorm';
 import { AiSampleEntity } from '../database/entities/ai-sample.entity';
 import {
@@ -182,7 +183,7 @@ describe('E4DistillationService', () => {
       const { service, sampleRepo } = createService(
         jest.fn((_key: string, dflt?: unknown) => dflt),
       );
-      const fetchSpy = jest.spyOn(global, 'fetch');
+      const postSpy = jest.spyOn(axios, 'post');
       sampleRepo.find = jest.fn().mockResolvedValue(
         Array.from({ length: 12 }, (_, i) => ({
           prompt: `样本编号${i}`,
@@ -198,15 +199,15 @@ describe('E4DistillationService', () => {
       expect(out.ok).toBe(false);
       expect(out.message).toContain('baseModel 非法');
       // 关键反测：必须一个请求都不发，否则等于已经落库恶意模型
-      expect(fetchSpy).not.toHaveBeenCalled();
-      fetchSpy.mockRestore();
+      expect(postSpy).not.toHaveBeenCalled();
+      postSpy.mockRestore();
     });
 
     it('taskType 含换行与引号（可闭合 SYSTEM 块）→ 拒绝', async () => {
       const { service } = createService(
         jest.fn((_key: string, dflt?: unknown) => dflt),
       );
-      const fetchSpy = jest.spyOn(global, 'fetch');
+      const postSpy = jest.spyOn(axios, 'post');
 
       const out = await service.train('x"""\nADAPTER /etc/shadow', {
         force: true,
@@ -214,23 +215,23 @@ describe('E4DistillationService', () => {
 
       expect(out.ok).toBe(false);
       expect(out.message).toContain('taskType 含非法字符');
-      expect(fetchSpy).not.toHaveBeenCalled();
-      fetchSpy.mockRestore();
+      expect(postSpy).not.toHaveBeenCalled();
+      postSpy.mockRestore();
     });
 
     it('taskType 为空或纯空白 → 拒绝（此前 force 可产出 zhixiang-- 空名脏模型）', async () => {
       const { service } = createService(
         jest.fn((_key: string, dflt?: unknown) => dflt),
       );
-      const fetchSpy = jest.spyOn(global, 'fetch');
+      const postSpy = jest.spyOn(axios, 'post');
 
       for (const bad of ['', '   ']) {
         const out = await service.train(bad, { force: true });
         expect(out.ok).toBe(false);
         expect(out.message).toContain('taskType 不能为空');
       }
-      expect(fetchSpy).not.toHaveBeenCalled();
-      fetchSpy.mockRestore();
+      expect(postSpy).not.toHaveBeenCalled();
+      postSpy.mockRestore();
     });
 
     it('合法 baseModel（qwen2.5:7b）不被误拒——反测门控不过严', async () => {
@@ -332,20 +333,28 @@ describe('E4DistillationService', () => {
         completion: `{"n":${i}}`,
       })),
     );
-    // 拦下 Ollama create 请求，从 body 里取模型名（失败分支不返回 modelName）
-    const fetchSpy = jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValue({ ok: true, status: 200 } as Response);
+    // 拦下 Ollama create 请求，从请求体里取模型名（失败分支不返回 modelName）
+    const postSpy = jest
+      .spyOn(axios, 'post')
+      .mockResolvedValue({ status: 200, data: '' });
 
     const out = await service.train('customer_create', { force: true });
 
     expect(out.ok).toBe(true);
-    const body = JSON.parse(
-      (fetchSpy.mock.calls[0]?.[1] as { body: string }).body,
-    ) as { model: string; modelfile: string };
+    const body = postSpy.mock.calls[0]?.[1] as {
+      model: string;
+      modelfile: string;
+    };
     // 模型名形如 zhixiang-customer_create-20261003hhmmss（时分秒防同日覆盖）
     expect(body.model).toMatch(/^zhixiang-customer_create-\d{14}$/);
     expect(body.modelfile.startsWith('FROM qwen2.5:7b\n')).toBe(true);
-    fetchSpy.mockRestore();
+    // 🔴 反测（2026-10-22 审查 F-2）：Ollama 是本地/内网自建服务，
+    //    默认不得挂 strict 出站守卫——挂了 lookup 就会拒掉 127.0.0.1，
+    //    蒸馏功能全挂。若将来 OLLAMA_BASE_URL 变为商家可写端点，
+    //    需连同本断言一起显式评审后改为 true。
+    const postCfg = postSpy.mock.calls[0]?.[2] as Record<string, unknown>;
+    expect(postCfg.lookup).toBeUndefined();
+    expect(postCfg.proxy).toBeUndefined();
+    postSpy.mockRestore();
   });
 });

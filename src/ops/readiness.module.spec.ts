@@ -28,7 +28,10 @@ import { AppModule } from '../app.module';
 import { ToolsModule } from '../tools/tools.module';
 
 /** Nest 模块元数据（挂在全局 Reflect 上；@Module 装饰器执行时写入） */
-function meta(mod: unknown, key: string): unknown[] {
+// 注：`mod` 必须是 `object`（而非 `unknown`）——Reflect.getMetadata 的 target
+// 形参类型是 `Object`，传 unknown 会报 TS2345。此处不用 `as any` 硬压，
+// 因为 eslint 开了 no-unnecessary-type-assertion。
+function meta(mod: object, key: string): unknown[] {
   return (Reflect.getMetadata(key, mod) ?? []) as unknown[];
 }
 

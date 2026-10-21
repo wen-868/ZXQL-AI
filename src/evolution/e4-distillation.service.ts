@@ -17,8 +17,25 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThanOrEqual, Repository } from 'typeorm';
+import axios from 'axios';
+import { axiosEgressOptions } from '../common/outbound-target.guard';
 import { AiSampleEntity } from '../database/entities/ai-sample.entity';
 import { AI_DB_CONNECTION } from '../database/ai-db.module';
+
+/**
+ * Ollama 出站守卫口径（2026-10-22 审查 F-2）
+ *
+ * 🔴 必须与 `src/providers/ollama.provider.ts` 的 `strictEgress: false` 保持一致：
+ *    OLLAMA_BASE_URL 默认 `http://127.0.0.1:11434`，是**本地/内网自建服务**。
+ *    strict 口径只放行公网 HTTPS ⇒ 挂上去会直接拒掉 127.0.0.1，蒸馏功能全挂。
+ *    由于信任边界只有「商家可写 api_endpoint / 外部模型库」才置 strict（见
+ *    outbound-target.guard.ts 的 axiosEgressOptions 说明），故此处为 false
+ *    ⇒ axiosEgressOptions 返回空对象，请求行为与改动前**完全一致**（不挂
+ *    lookup 守卫、不禁用环境代理）。
+ *
+ * 将来若 OLLAMA_BASE_URL 变为商家可写端点 ⇒ 只需把本常量改为 true 即自动获得守卫。
+ */
+const OLLAMA_STRICT_EGRESS = false;
 
 /**
  * 缺省租户：与AiDbController 其他端点（this.tenantContext.getData()?.tenantId ?? 'default'）
@@ -197,17 +214,26 @@ export class E4DistillationService {
     // 需拉取时 create 可能挂起数分钟，无超时会占死管理端请求并可能被
     // 并发重试放大成多次 create）
     try {
-      const res = await fetch(`${ollamaBase}/api/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: modelName, modelfile, stream: false }),
-        signal: AbortSignal.timeout(E4_TRAIN_TIMEOUT_MS),
-      });
-      if (!res.ok) {
-        const body = await res.text().catch(() => '');
+      const res = await axios.post<string>(
+        `${ollamaBase}/api/create`,
+        { model: modelName, modelfile, stream: false },
+        {
+          headers: { 'Content-Type': 'application/json' },
+          // 与改动前 fetch 语义对齐：fetch 对 4xx/5xx 不抛错，交下方 status 分支
+          // ⇒ 这里同样不让 axios 因非 2xx 抛错，以保留原「HTTP xxx」文案结构
+          validateStatus: () => true,
+          // 原实现用 res.text() 取原始响应体，等价口径
+          responseType: 'text',
+          // 取代 AbortSignal.timeout(E4_TRAIN_TIMEOUT_MS)：同为「总耗时上限」
+          timeout: E4_TRAIN_TIMEOUT_MS,
+          // 口径见 OLLAMA_STRICT_EGRESS 注释（false ⇒ 空对象，行为不变）
+          ...axiosEgressOptions(OLLAMA_STRICT_EGRESS),
+        },
+      );
+      if (res.status < 200 || res.status >= 300) {
         return {
           ok: false,
-          message: `Ollama create 失败（HTTP ${res.status}）：${body.slice(0, 200)}`,
+          message: `Ollama create 失败（HTTP ${res.status}）：${String(res.data ?? '').slice(0, 200)}`,
         };
       }
     } catch (err) {
