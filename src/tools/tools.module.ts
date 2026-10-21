@@ -3,6 +3,9 @@ import { ToolRegistry } from './tool-registry';
 import { ToolExecutor } from './tool-executor';
 import { ToolBootstrap } from './tool-bootstrap';
 import { EmployeeModule } from '../brain/employee/employee.module';
+// R101-AI-47：ReadinessService 归位独立 ReadinessModule（只依赖 database 叶子 ⇒ 无环；
+//   放 OpsModule 会 ToolsModule→OpsModule→ProactiveModule→BrainModule→ToolsModule 成环）
+import { ReadinessModule } from '../ops/readiness.module';
 import { DispatchEmployeeTaskTool } from './definitions/dispatch-employee-task.tool';
 // R70-14: 智能价格填充引擎（可复用服务）
 import { PriceEngineService } from './price-engine.service';
@@ -160,6 +163,9 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     DatabaseModule,
     TenantModule,
     RagModule,
+    // R101-AI-47：ReadinessModule（ReadinessService 归位后可被本模块工具注入；
+    //   get-system-status 切换到 readiness.check() 属后续单，先打通依赖且无环）
+    ReadinessModule,
   ],
   providers: [
     ToolRegistry,

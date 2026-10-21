@@ -29,6 +29,11 @@ import { UsageController } from './usage.controller';
 
 @Module({
   // CommonModule：R101-AI-23 起 DeadLetterReplayService 注入 RedisProvider（共享 provider）
+  //
+  // R101-AI-47 说明：ReadinessService **不在此注册**——若放这里并让 ToolsModule import
+  // OpsModule 以注入它 ⇒ ToolsModule → OpsModule → ProactiveModule → BrainModule → ToolsModule
+  // 成环（DI spec 实测报 circular dependency）。已改为独立 `ReadinessModule`
+  // （只依赖 DatabaseModule/AiDbModule，无环）。
   imports: [ProactiveModule, DatabaseModule, BridgeModule, CommonModule],
   providers: [
     UsageStatsService,

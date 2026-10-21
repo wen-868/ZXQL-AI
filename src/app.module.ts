@@ -16,7 +16,9 @@ import { ProactiveModule } from './brain/proactive/proactive.module';
 import { RagModule } from './rag/rag.module';
 import { OpsModule } from './ops/ops.module';
 import { EvolutionModule } from './evolution/evolution.module';
-import { ReadinessService } from './ops/readiness.service';
+// R101-AI-47：ReadinessService 归位独立 ReadinessModule（只依赖 database 叶子 ⇒ 无环）；
+//   本模块 import 它即可让 AppController 解析，不再直接注册（单一实例）。
+import { ReadinessModule } from './ops/readiness.module';
 // R101-AI-39：日程提醒（独立模块，避免循环依赖与既有精确断言冲突）
 import { ScheduleReminderModule } from './brain/proactive/schedule-reminder.module';
 
@@ -65,15 +67,16 @@ import { ScheduleReminderModule } from './brain/proactive/schedule-reminder.modu
     OpsModule,
     // ai_db 认知闭环（采集→萃取→聚合→反哺）✅ P1-1 已接入
     EvolutionModule,
+    // R101-AI-47：就绪探针（独立模块，只依赖 database 叶子 ⇒ 任何模块 import 无环）
+    ReadinessModule,
     ScheduleReminderModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
-    // 就绪探针（2026-10-03）：/api/health/ready 校验数据库表结构与实体期望是否一致，
-    // 发现"部署完成但迁移没跑"的静默故障。依赖两个 @Global 的 TypeORM DataSource
-    // （业务主库 + ai_db），故在根模块注册而非 OpsModule。
-    ReadinessService,
+    // R101-AI-47：就绪探针已归位 ReadinessModule（providers + exports），
+    //  此处移除根注册 ⇒ 单一实例（其 cache/inFlight 探测状态不分裂）。
+    //  app.controller 仍可解析（AppModule imports ReadinessModule）。
     // 全局异常过滤器：AI_001~013 错误码体系接线（2026-09-05 审查 P2）
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],
