@@ -1,21 +1,23 @@
 /**
- * aiDocSearch — 文档中心 · 结构化检索（**读工具**；R101-AI-35 S2 收官）
+ * aiDocSearch — 文档中心 · 结构化 + 向量检索（**读工具**；R101-AI-35 S2 + AI-P1-2）
  *
  * 治理链：`isWriteOperation=false` ⇒ 读全自动（不进写审核门、不耗幂等键、限流走读宽桶）。
  *
- * 范围（**只做结构化**，向量检索归 S3）：
- * - 在 **ACL 可见集合**内按 `keyword` 匹配**标题 / 目录**（大小写不敏感）
- * - ⚠️ **标签（tags）暂不参与检索**：`t_ai_doc` 目前**没有 tags 列**（S1 迁移未含）⇒
- *   标签检索需先加列（增量脚本），**不在本步假装支持**
+ * 检索策略（两路合并，对用户透明）：
+ * - 结构化：在 ACL 可见集合内按 keyword 匹配标题/目录/标签（大小写不敏感）
+ * - 向量：RetrieverService 旁路检索语义相关分块，**必须先经 ACL 可见集合过滤**
+ *   （docName === visibleDoc.id），未授权文档的标题/片段/docId 均不得进入结果
  *
- * ⚠️ 红线：**必经 `OfficeAclService.listVisible`** —— 工具只依赖 ACL 服务（结构上拿不到仓储），
- *    从根上无法绕过 ACL（反测："绕过 ACL 直查" ⇒ 红）。
+ * 权限永远优先于相关性：ACL 过滤在向量过滤之前执行。
+ * embedding/retriever 故障只降级增强能力，不阻断原结构化检索。
  *
- * 负责人: 阿坚 | 创建日期: 2026-10-15
+ * 负责人: 阿坚 | 创建日期: 2026-10-15（AI-P1-2 向量分支 2026-10-23）
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { AiDocEntity } from '../../database/entities/ai-doc.entity';
 import { OfficeAclService } from '../../rag/office-acl.service';
+import { RetrieverService } from '../../rag/retriever.service';
+import { RetrievalResult } from '../../rag/vector-store.service';
 import { ITool, ToolContext, ToolResult } from '../tool.interface';
 import { principalOf } from './ai-doc-list.tool';
 
@@ -26,7 +28,9 @@ interface DocHit {
   category: string;
   status: string;
   version: number;
-  matchedIn: Array<'title' | 'category' | 'tags'>;
+  matchedIn: Array<'title' | 'category' | 'tags' | 'vector'>;
+  snippet?: string;
+  score?: number;
 }
 
 @Injectable()
@@ -35,9 +39,9 @@ export class AiDocSearchTool implements ITool {
 
   readonly name = 'aiDocSearch';
   readonly description =
-    '文档中心-检索文档（只读，**结构化检索**）：在你有权查看的文档中，按关键词匹配**标题/目录/标签**' +
-    '（大小写不敏感；标签按单个标签匹配）。注意：本工具不做语义/向量检索（归知识库检索）。' +
-    '适合"有没有关于采购的文档""合同目录里有哪些""带【酒】标签的文档"等场景。' +
+    '文档中心-检索文档（只读）：在你有权查看的文档中，按关键词匹配**标题/目录/标签**' +
+    '（大小写不敏感），并自动进行语义向量检索增强。' +
+    '适合"有没有关于采购的文档""合同目录里有哪些""采购合同关键条款""带【酒】标签的文档"等场景。' +
     '示例参数：{"keyword":"采购","category":"contract"}';
   readonly category = 'report' as const;
   readonly isWriteOperation = false;
@@ -55,7 +59,10 @@ export class AiDocSearchTool implements ITool {
     },
   };
 
-  constructor(private readonly docAcl: OfficeAclService) {}
+  constructor(
+    private readonly docAcl: OfficeAclService,
+    @Optional() private readonly retriever?: RetrieverService,
+  ) {}
 
   async execute(
     args: Record<string, unknown>,
@@ -85,13 +92,18 @@ export class AiDocSearchTool implements ITool {
         { category, status },
       );
 
+      // ACL 可见文档 id 集合（权限永远优先于相关性）
+      const visibleIds = new Set(docs.map((d) => d.id));
+      const docById = new Map(docs.map((d) => [d.id, d]));
+
+      // ── 结构化检索 ──
       const kw = keyword.toLowerCase();
-      const hits: DocHit[] = [];
+      const hitMap = new Map<string, DocHit>();
+
       for (const doc of docs) {
         const matchedIn: Array<'title' | 'category' | 'tags'> = [];
         if (doc.title.toLowerCase().includes(kw)) matchedIn.push('title');
         if (doc.category.toLowerCase().includes(kw)) matchedIn.push('category');
-        // R101-AI-35 tags 补齐：**按单个标签**匹配（逗号拆开，非整串模糊）
         const tagList = (doc.tags ?? '')
           .split(',')
           .map((t) => t.trim())
@@ -100,7 +112,7 @@ export class AiDocSearchTool implements ITool {
           matchedIn.push('tags');
         }
         if (matchedIn.length > 0) {
-          hits.push({
+          hitMap.set(doc.id, {
             docId: doc.id,
             title: doc.title,
             category: doc.category,
@@ -111,6 +123,62 @@ export class AiDocSearchTool implements ITool {
         }
       }
 
+      // ── 向量检索（旁路增强，失败不阻断） ──
+      if (this.retriever) {
+        try {
+          const vectorResults: RetrievalResult[] = await this.retriever.search(
+            keyword,
+            context.tenantId,
+            10,
+          );
+          for (const vr of vectorResults) {
+            // ACL 过滤：docName === visibleDoc.id（权限永远优先于相关性）
+            if (!visibleIds.has(vr.docName)) continue;
+            const doc = docById.get(vr.docName);
+            if (!doc) continue;
+
+            const existing = hitMap.get(vr.docName);
+            if (existing) {
+              if (!existing.matchedIn.includes('vector')) {
+                existing.matchedIn.push('vector');
+              }
+              if (vr.score > (existing.score ?? 0)) {
+                existing.score = vr.score;
+              }
+              if (!existing.snippet) {
+                existing.snippet = vr.text.slice(0, 200);
+              }
+            } else {
+              hitMap.set(vr.docName, {
+                docId: doc.id,
+                title: doc.title,
+                category: doc.category,
+                status: doc.status,
+                version: doc.version,
+                matchedIn: ['vector'],
+                snippet: vr.text.slice(0, 200),
+                score: vr.score,
+              });
+            }
+          }
+        } catch (err) {
+          // 向量旁路失败不阻断结构化检索
+          this.logger.warn(
+            `向量检索降级：${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+
+      // ── 合并 + 排序 ──
+      const hits = Array.from(hitMap.values()).sort((a, b) => {
+        const sa = a.score ?? 0;
+        const sb = b.score ?? 0;
+        if (sb !== sa) return sb - sa;
+        return a.title.localeCompare(b.title);
+      });
+
+      const hasVector = hits.some((h) => h.matchedIn.includes('vector'));
+
       return {
         success: true,
         data: {
@@ -119,9 +187,10 @@ export class AiDocSearchTool implements ITool {
           hits,
           ...(hits.length === 0
             ? {
-                note: '未命中：本工具按标题/目录/标签做结构化匹配；若需语义检索请使用知识库检索（S3 贯通后可用）',
+                note: '未命中：可尝试更换关键词、调整目录/状态筛选，或浏览文档列表',
               }
             : {}),
+          ...(hasVector ? { enhanced: 'vector' } : {}),
         },
       };
     } catch (err) {

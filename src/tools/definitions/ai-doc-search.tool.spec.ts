@@ -17,8 +17,143 @@ import {
   OfficeAclContext,
   OfficeAclService,
 } from '../../rag/office-acl.service';
+import { RetrieverService } from '../../rag/retriever.service';
+import { RetrievalResult } from '../../rag/vector-store.service';
 import { ToolContext } from '../tool.interface';
 import { AiDocSearchTool } from './ai-doc-search.tool';
+
+// ── AI-P1-2 向量检索分支测试 ──
+
+function createVectorHarness(
+  visible: AiDocEntity[],
+  vectorResults: RetrievalResult[] = [],
+  retrieverThrows = false,
+) {
+  const listVisible = jest.fn((_c: unknown, _f: unknown) =>
+    Promise.resolve(visible),
+  );
+  const search = retrieverThrows
+    ? jest.fn(() => Promise.reject(new Error('retriever down')))
+    : jest.fn(() => Promise.resolve(vectorResults));
+  const tool = new AiDocSearchTool(
+    { listVisible } as unknown as OfficeAclService,
+    { search, isEnabled: () => true } as unknown as RetrieverService,
+  );
+  return { tool, listVisible, search };
+}
+
+describe('AiDocSearchTool（AI-P1-2 · 向量检索分支）', () => {
+  it('V1 向量命中合法可见文档 ⇒ 合并成功，matchedIn 含 vector', async () => {
+    const visible = [
+      docOf({ id: '1', title: '采购合同模板', category: 'contract' }),
+    ];
+    const vr: RetrievalResult[] = [
+      {
+        text: '采购合同关键条款内容',
+        score: 0.92,
+        docName: '1',
+        chunkIndex: 0,
+      },
+    ];
+    const h = createVectorHarness(visible, vr);
+    const result = await h.tool.execute({ keyword: '关键条款' }, CTX);
+    const data = result.data as {
+      total: number;
+      hits: Array<{
+        docId: string;
+        matchedIn: string[];
+        snippet?: string;
+        score?: number;
+      }>;
+    };
+    expect(data.total).toBe(1);
+    expect(data.hits[0].docId).toBe('1');
+    expect(data.hits[0].matchedIn).toContain('vector');
+    expect(data.hits[0].snippet).toBeTruthy();
+    expect(data.hits[0].score).toBe(0.92);
+  });
+
+  it('V2 向量命中未授权文档 ⇒ 被过滤（权限优先于相关性）', async () => {
+    const visible = [docOf({ id: '1', title: '采购合同模板' })];
+    const vr: RetrievalResult[] = [
+      { text: '秘密内容', score: 0.99, docName: 'secret-doc', chunkIndex: 0 },
+    ];
+    const h = createVectorHarness(visible, vr);
+    const result = await h.tool.execute({ keyword: '秘密' }, CTX);
+    const data = result.data as {
+      total: number;
+      hits: Array<{ docId: string }>;
+    };
+    expect(data.total).toBe(0);
+    // 未授权 docId 不得出现
+    const json = JSON.stringify(result);
+    expect(json).not.toContain('secret-doc');
+    expect(json).not.toContain('秘密内容');
+  });
+
+  it('V3 category/status 筛选约束向量命中', async () => {
+    const vr: RetrievalResult[] = [
+      { text: '内容', score: 0.9, docName: '1', chunkIndex: 0 },
+    ];
+    const emptyVisible = createVectorHarness([], vr);
+    const result = await emptyVisible.tool.execute(
+      { keyword: '内容', category: 'other' },
+      CTX,
+    );
+    const data = result.data as { total: number };
+    expect(data.total).toBe(0);
+  });
+
+  it('V4 向量与结构化命中同一文档 ⇒ 去重', async () => {
+    const visible = [
+      docOf({ id: '1', title: '采购合同模板', category: 'contract' }),
+    ];
+    const vr: RetrievalResult[] = [
+      { text: '采购合同内容', score: 0.85, docName: '1', chunkIndex: 0 },
+    ];
+    const h = createVectorHarness(visible, vr);
+    const result = await h.tool.execute({ keyword: '采购' }, CTX);
+    const data = result.data as {
+      total: number;
+      hits: Array<{ docId: string; matchedIn: string[] }>;
+    };
+    expect(data.total).toBe(1);
+    expect(data.hits[0].matchedIn).toContain('title');
+    expect(data.hits[0].matchedIn).toContain('vector');
+  });
+
+  it('V5 embedding 未启用 ⇒ 原结构化路径不变', async () => {
+    const visible = [docOf({ id: '1', title: '采购合同模板' })];
+    const listVisible = jest.fn(() => Promise.resolve(visible));
+    const tool = new AiDocSearchTool(
+      { listVisible } as unknown as OfficeAclService,
+      undefined, // no retriever
+    );
+    const result = await tool.execute({ keyword: '采购' }, CTX);
+    const data = result.data as { total: number };
+    expect(data.total).toBe(1);
+  });
+
+  it('V6 retriever 异常 ⇒ 工具仍成功（降级）', async () => {
+    const visible = [docOf({ id: '1', title: '采购合同模板' })];
+    const h = createVectorHarness(visible, [], true);
+    const result = await h.tool.execute({ keyword: '采购' }, CTX);
+    expect(result.success).toBe(true);
+    const data = result.data as { total: number };
+    expect(data.total).toBe(1);
+  });
+
+  it('V7 空结果 ⇒ 可执行建议 note', async () => {
+    const h = createVectorHarness([docOf({ id: '1', title: '无关' })], []);
+    const result = await h.tool.execute({ keyword: '不存在词' }, CTX);
+    expect(result.success).toBe(true);
+    const data = result.data as { total: number; note?: string };
+    expect(data.total).toBe(0);
+    expect(data.note).toBeTruthy();
+    expect(data.note).not.toContain('retriever');
+    expect(data.note).not.toContain('embedding');
+  });
+});
 
 const CTX: ToolContext = { tenantId: 't1', userId: 'u-1' };
 

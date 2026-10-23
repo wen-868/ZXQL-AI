@@ -1,6 +1,6 @@
 # AI 底座待办登记表
 
-> 维护：凌舟｜更新：2026-10-16
+> 维护：凌舟｜更新：2026-10-23
 > 用途：一张表掌握全部未完成项（已完成的各单均有收官报告，不在此重复）
 
 ---
@@ -12,7 +12,7 @@
 | 5b | 🔴 P0：31 个工具注册表 | R101-AI-44 | 阿澈（代笔，阿洲通道失效）| ✅ **已交付并上线**：`88009bd`/部署源 `de1c1bd`；31 个注册 + guard 守卫 4 例双向断言；mutation 摘一条⇒红且点名；**生产探针确认 31 个抽样 0"未注册"** |
 | 1d | S4：10 巡检"先落通知再推送" | R101-AI-43 | 阿澈（`brain/proactive/**`）| ✅ **已收官（10/10）**：`43a0411`/部署源 `ec6dd98`；每处 3 例反测（⑧关键内容 ⑨主次不倒置 ⑩@Optional 兼容）；proactive 17 套件 152 用例；mutation 已验证 |
 | **AI-45** | **定向推送**（push 支持 targetUserId） | R101-AI-45 | 阿澈（`brain`+`gateway`）| ✅ **已收官**：`9e7b670`/部署源 `c9c541f`；user_id 落真实用户 + `sendToUser` 只投该用户（**不回落广播**，防私人提醒泄漏）；7 例反测 + mutation（去掉 userId 过滤⇒②红）|
-| **AI-46** | **数字员工回写（brain 侧）** | R101-AI-46 | 阿澈（`brain/employee/**`）| ✅ **已完工**：`dedc4ea`/部署源 `32455cc`；`linkedTodoId` 透传 + `EmployeeTodoSyncService` 单一实现 + bridge 回写；10 例反测 + mutation。**待阿洲补 tools 侧派单传参**才能端到端闭环 |
+| **AI-46** | **数字员工回写（端到端）** | R101-AI-46 | 阿澈（brain）+ 阿洲（tools）| ✅ **已完成**：brain `dedc4ea`/`32455cc`；tools `41298b1`；`linkedTodoId` 全链路透传，三处幂等分支均传；10 例反测 + mutation；部署源 `52bcf78` |
 | **AI-44补** | 工具清单端点按身份区分口径 | R101-AI-44 | 阿澈（`gateway`）| ✅ **已完工**：平台身份⇒全量；商家管理员⇒mgmt（**不得看到 platform 工具**，防越权暴露）；无身份⇒403。4 例反测 + mutation（一律 platform⇒②红）。缺口由阿洲发现 |
 | 1 | 办公批次 3：审批流 | R101-AI-38 | 阿坚 | ✅ 已收口（6 工具；177/1864）|
 | 1b | 办公批次 4：日程/提醒 | R101-AI-39 | 阿坚 | ✅ 已收口（5 工具+提醒服务；179/1877）|
@@ -24,24 +24,25 @@
 |---|---|---|---|---|
 | ~~2~~ | ~~`aiTodoCancel`~~ | ✅ **已由 R101-AI-41 交付**（原子 `WHERE status IN('pending','in_progress')`；已 done ⇒ 明确失败） | — | — |
 | ~~2b~~ | ~~草稿删除~~ | ✅ **已由 R101-AI-41 交付**（`aiApprovalDraftDiscard`，软删 `deleted_at`，仅 draft 可弃） | — | — |
-| 3 | **数字员工回写**（员工完成任务 ⇒ 待办自动 done） | 🟡 **brain 侧已完工（阿澈 `dedc4ea`）**，待阿洲补 tools 侧最后一环。<br>**已做**：`dispatchTask`+`EmployeeTaskRunInput` 加 `linkedTodoId` 并透传；新增 `EmployeeTodoSyncService`（**待办原子迁移单一实现**，已导出供 `aiTodoComplete` 复用 ⇒ 杜绝两份 UPDATE）；bridge 成功回写/失败不改/回写失败不影响结果；反测 10 例 + mutation（"仅成功回写"改无条件⇒②红）。<br>**待阿洲（AI-46）**：`dispatch-employee-task.tool.ts` 加可选 `linkedTodoId` 透传；`ai-todo-create.tool.ts` 派单处传 `linkedTodoId: saved.id`（**两个幂等回放分支 `existing.id`/`raced.id` 也要传**）。 | 中 | **已派阿洲**（`src/tools/**`）；若他停手未做 ⇒ 凌舟代笔并记账 |
-| 4 | **向量检索分支**（`aiDocSearch` 加向量检索） | 需 **embedding 服务就绪**，否则"假绿" | 中 | embedding 配置 |
-| 5 | **`aiDocAsk` 对话式问答**（"这份文档的关键条款是什么"） | 需 LLM 路径 | 中 | 与 4 同批更好 |
+| ~~3~~ | ~~**数字员工回写**~~ | ✅ **端到端完成**：brain `dedc4ea`/`32455cc` + tools `41298b1`；部署源 `52bcf78` | — | — |
+| 4 | **向量检索分支**（`aiDocSearch` 加向量检索） | ✅ **已交付（待裁决入库）**：ACL 先行过滤 → 向量旁路增强 → 按 docId 合并去重；retriever/embedding 故障静默降级；新增 7 例（V1~V7），原 7 例断言未改。门禁 tsc×2/eslint/build 0；排除他人未跟踪文件的**全量 186 套件 / 1966 用例全绿**；2 条 mutation 各点名对应用例。证据 `docs/reports/AI-P1-2-证据-2026-10-23/`，回传 `docs/reports/AI-P1-2-阿澈-回传-2026-10-23.md`。⚠️ 真实生产向量命中**未验**（无生产凭据 + 需库内已有文档分块）；未提交未 push（红线） | — | — |
+| 5 | **`aiDocAsk` 对话式问答**（"这份文档的关键条款是什么"） | 需 LLM 路径；P1-2 已打通文档语义召回，可在其上加问答层 | 中 | 依赖 #4 已就绪 |
 | 6 | **多轮/多级审批、会签** | 属产品复杂度 | 低 | 需业主确认产品形态 |
-| 7 | **`ToolCategory` 加 `office`** | 现有办公工具归在 `report` 桶（注释已留"一行切换"） | 低 | 无（属 `src/tools/**` ⇒ 阿洲）|
+| 7 | **`ToolCategory` 加 `office`** | 排队：待 P1-2 释放同文件后由阿洲执行；只迁移 office 工具，不碰 salesReport 等真报表工具 | 低 | 阿澈 P1-2 完成 |
 | 8b | **定向提醒**（现租户级广播） | ✅ **已由 R101-AI-45 交付**（push 支持 `targetUserId`：user_id 落真实用户 + `sendToUser` 只投该用户，不回落广播防泄漏） | — | — |
-| 8c | **日程共享/代管、重复日程（recurrence）** | 批次 4 明确不做（复杂度高） | 低 | 需产品确认 |
-| 8d | **超时未提醒补偿窗口** | @Cron 停机期间的到期提醒如何补发（reminded_at 未写会重试，但停机跨天场景需确认） | 低 | 无 |
+| 8c | **日程共享/代管、重复日程（recurrence）** | ✅ 业主批准，排队（阿洲）。共享同时支持按角色和指定人员；查看与代管分层；DAILY/WEEKLY/MONTHLY/YEARLY + 单次/后续/整系列。卡：`docs/reports/AI-P2-2-schedule-sharing-recurrence-派单卡-2026-10-23.md` | 低 | P2-1 后开工 |
+| 8d | **超时未提醒补偿窗口** | ✅ 业主批准，排队（阿澈）。所有漏提醒必须补回：≤3 逐条推送，>3 聚合摘要但仍全量入通知中心；22:00–08:00 静默；幂等发送。卡：`docs/reports/AI-P2-3-reminder-catchup-派单卡-2026-10-23.md` | 低 | P1-3 后开工 |
 | 8 | **readiness 导出化** | ✅ **已由 R101-AI-47 交付**（`080771f`）：独立 `ReadinessModule`（只 import DatabaseModule+AiDbModule 叶子 ⇒ 无环）；AppModule 移除根注册（单实例，cache/inFlight 不分裂）；ToolsModule import 它打通工具注入；`get-system-status` 切换 `readiness.check()` 属后续单。<br>⚠️ 两次失败尝试已留痕：①挪 OpsModule ⇒ Tools→Ops→Proactive→Brain→Tools **成环**（DI spec 实测）②v1 mutation 不加 import ⇒ Tests:0 total（无效） | — | — |
+| 16 | **人工 / AI 能力对等机器台账** | 🟢 已派苏然：以 MS 人工动作/权限和 AI tool registry 做双向差集，缺失项必须 `LIVE/PARTIAL/PLANNED/BLOCKED`、责任人和人工回退；卡 `docs/reports/AI-P0-3-human-ai-parity-gate-派单卡-2026-10-23.md` | 高 | 跨仓只读扫描；不阻塞 P1-2 |
 
 ## 三、环境/运营类（非代码）
 
 | # | 待办 | 说明 | 阻塞什么 |
 |---|---|---|---|
-| 9 | **触发一次生产部署（须 MS 线跑 deploy.yml）** | ✅ **2026-10-17 MS 线实证：部署已成功，本项结清**（run 38932199875：服务器 `/opt/zhixiang/ai-base` HEAD=`6ac1de6`=gh-ip/main；源码与 dist 27 工具 mtime 00:31:56；**迁移尝试 23 / 成功 13 / 跳过 10 / 失败 0**，022+023 均成功；pm2 重启、健康+就绪通过、部署完成 00:32:03）。<br>⚠️ 此前"首轮跑旧脚本只到 3 迁移"（MS 仓第 75 项机制坑）**已被该 run 推翻**；我也曾据 `total=96` 给过三个错误假设（旧脚本坑/fetch 不到/容错跳过）——**根因是代码注册表缺条目**（见 §5b），与部署无关。<br>机制备忘（仍有效）：AI 仓 push **不触发**部署；触发器是 MS 仓 `deploy.yml`（push:main + workflow_dispatch）→ `auto-deploy.sh` → `ai-base-deploy.sh`（`git fetch origin main + reset --hard FETCH_HEAD`）；gh-ip 与 github 同一仓库（单推即可）。 | 已结清 |
+| 9 | **触发一次生产部署（须 MS 线跑 deploy.yml）** | ✅ **2026-10-23 再次部署并确认当前 52bcf78 已上生产**：run `39845795640` SUCCESS 5m14s；服务器 `HEAD=52bcf78`；`/api/health/ready=ready`；embedding 配置为智谱 `embedding-3`。历史 run `38932199875` 亦成功。<br>机制不变：AI 仓 push **不触发**部署；触发器是 MS 仓 `deploy.yml` → `auto-deploy.sh` → `ai-base-deploy.sh`。 | 已结清（授权态工具/回写探针待账号） |
 | **5b** | 🔴 **P0：31 个工具未进执行器注册表（R101-AI-44，归阿洲）** | 根因：`tools.module.ts` 的 `providers` 只是 **Nest DI 容器**；执行器注册表是 `src/tools/tool-bootstrap.ts` 的 `onModuleInit() → registry.registerAll([…手工数组…])` ⇒ 办公 27 + ForecastSales/AnalyzePriceTrend/CancelSalesOrder/GetSystemStatus 共 **31 个零 import/零注入/零条目**（EchoTool 属刻意豁免）。生产同进程日志自证：`[AdminController] 96 个工具` vs `[ToolExecutor] "getSystemStatus" 未注册（已注册 107 个）`。<br>**修法三件套（缺一必复发）**：① 补 import+构造注入+registerAll 条目；② guard spec（`definitions/*.tool.ts` 实例化集合 == registerAll 条目 + 具名豁免表，mutation=摘一条 ⇒ 红）；③ `/api/admin/tools` 改读 `ToolRegistry.list()` 收敛两套账。<br>⇒ **属 `src/tools/**`（阿洲代码面）**，阿澈不碰；修完推 gh-ip，下次部署即生效 | **全部新工具可调用**（生产真数据实测闭环） |
 | 10 | **demo/测试租户基础数据** | 已由 MS 交付（12 商品）；若需更多场景数据可再提 | 真数据实测闭环 |
-| 11 | **embedding 服务配置** | 生产未配置 ⇒ 向量检索无法真实验证 | 待办 4、5 |
+| 11 | **embedding 服务配置** | ✅ 生产已配置：`EMBEDDING_BASE_URL=https://open.bigmodel.cn/api/paas/v4`、`EMBEDDING_MODEL=embedding-3`；真实 embedding 调用质量待生产鉴权后补证 | 已解除待办 4 的代码开工阻塞 |
 
 ## 四、跨线（MS / OPS）
 

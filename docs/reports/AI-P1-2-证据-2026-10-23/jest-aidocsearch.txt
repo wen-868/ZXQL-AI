@@ -1,0 +1,25 @@
+[Nest] 21848  - 2026/10/24 05:49:42    WARN [AiDocSearchTool] 向量检索降级：retriever down
+[Nest] 21848  - 2026/10/24 05:49:42   ERROR [AiDocSearchTool] 检索文档失败：DB down
+PASS src/tools/definitions/ai-doc-search.tool.spec.ts
+  AiDocSearchTool（AI-P1-2 · 向量检索分支）
+    √ V1 向量命中合法可见文档 ⇒ 合并成功，matchedIn 含 vector (13 ms)
+    √ V2 向量命中未授权文档 ⇒ 被过滤（权限优先于相关性） (3 ms)
+    √ V3 category/status 筛选约束向量命中 (2 ms)
+    √ V4 向量与结构化命中同一文档 ⇒ 去重 (1 ms)
+    √ V5 embedding 未启用 ⇒ 原结构化路径不变 (2 ms)
+    √ V6 retriever 异常 ⇒ 工具仍成功（降级） (6 ms)
+    √ V7 空结果 ⇒ 可执行建议 note (4 ms)
+  AiDocSearchTool（R101-AI-35 S2 收官 · 结构化检索）
+    √ ① 必经 ACL：只在可见集合内检索（绕过 ACL 直查 ⇒ 结果变多 ⇒ 红） (5 ms)
+    √ ② 关键词匹配：标题 / 目录命中（大小写不敏感），matchedIn 如实标注 (3 ms)
+    √ ③ 筛选透传：category / status 传给 ACL；非法 status 忽略 (2 ms)
+    √ ④ 空结果 ⇒ note（success 仍为 true，不是错误） (1 ms)
+    √ ⑤ 入参校验：keyword 空 ⇒ 拒绝（不调 ACL）；ACL 抛错 ⇒ 不崩 (3 ms)
+    √ ⑥ 读工具契约：isWriteOperation=false（读全自动） (1 ms)
+    √ ⑦ 【契约演进·R101-AI-35 tags 补齐】search 按**单个标签**命中，matchedIn 含 tags (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       14 passed, 14 total
+Snapshots:   0 total
+Time:        4.295 s
+Ran all test suites matching src/tools/definitions/ai-doc-search.tool.spec.ts.
