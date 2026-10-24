@@ -231,12 +231,16 @@ export class AiDocAskTool implements ITool {
         },
       };
     } catch (err) {
+      // AI-P1-3F1：DB/ACL 等基础设施异常**只进日志**，商户文案固定化。
+      // 事故背景：DB 抛 "Table 'liquor_inventory.t_ai_knowledge_chunks' doesn't exist"
+      // 时旧实现把原文拼进 error ⇒ 商户看到内部表名（信息泄漏 + 无法理解）。
+      // 红线：不吞错误、不返回假成功 —— 仍是 success:false，只是文案脱敏。
       const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(`文档问答失败：${message}`);
+      this.logger.error(`文档问答失败（内部原因仅记日志）：${message}`);
       return {
         success: false,
-        error: `文档问答失败：${message}`,
-        suggestion: '请稍后重试；若持续失败请检查数据库连接',
+        error: '当前暂时无法读取这份文档，请稍后重试',
+        suggestion: '请稍后重试；若持续失败请联系管理员',
       };
     }
   }

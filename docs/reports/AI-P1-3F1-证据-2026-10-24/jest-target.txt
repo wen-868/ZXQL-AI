@@ -1,0 +1,20 @@
+[Nest] 11284  - 2026/10/24 23:48:50    WARN [AiDocAskTool] 文档问答模型调用失败（降级为失败结果）：所有 AI 服务商均不可用
+[Nest] 11284  - 2026/10/24 23:48:50   ERROR [AiDocAskTool] 文档问答失败（内部原因仅记日志）：DB down
+[Nest] 11284  - 2026/10/24 23:48:50   ERROR [AiDocAskTool] 文档问答失败（内部原因仅记日志）：Table 'liquor_inventory.t_ai_knowledge_chunks' doesn't exist
+PASS src/tools/definitions/ai-doc-ask.tool.spec.ts
+  AiDocAskTool（AI-P1-3 · 文档问答）
+    √ ① ACL 先行：无权/不存在 ⇒ 统一口径失败且 runner 零调用（存在性不泄漏） (11 ms)
+    √ ② 无分块 ⇒ not_indexed 如实分支：不编造、有可执行建议 (2 ms)
+    √ ③ 正常问答：answer 来自模型，citations 由工具按 chunkIndex 组装（断到关键内容） (7 ms)
+    √ ④ 只喂本 docId + 本租户的分块（tenant+doc_name 双条件，防串料/串租户） (5 ms)
+    √ ⑤ LLM 失败 ⇒ success:false 无 answer；商户文案不含内部术语 (8 ms)
+    √ ⑥ 读工具契约 + topK 边界：非法回落默认、超上限截断 (3 ms)
+    √ ⑦ runner 收到完整授权载荷（docTitle/question/passages 有文本；入参校验先行） (5 ms)
+    √ ⑧ DB 查询失败 ⇒ 不崩，失败透明（error 收敛 + 建议 + 内部词零泄漏） (8 ms)
+    √ ⑨【脱敏探针】真实 MySQL 表不存在错误 ⇒ 商户文案内部词命中 0（点名用例） (5 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        3.412 s
+Ran all test suites matching src/tools/definitions/ai-doc-ask.tool.spec.ts.
