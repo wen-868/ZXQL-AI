@@ -1,0 +1,163 @@
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿：安静时段，入箱 5 条，即时推送 0 条
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 5，通知失败 0，单推 0，摘要 0，安静时段=true
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 5，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 3，入箱 3，通知失败 0，单推 3，摘要 0，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 1，入箱 1，通知失败 0，单推 1，摘要 0，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 1，入箱 1，通知失败 0，单推 1，摘要 0，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 1，入箱 1，通知失败 0，单推 0，摘要 0，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 1，入箱 0，通知失败 0，单推 0，摘要 0，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 4，入箱 4，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 5，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:21     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:23     LOG [ReminderCatchupService] 补偿完成：扫描 100，入箱 100，通知失败 0，单推 0，摘要 1，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:23     LOG [ReminderCatchupService] 补偿完成：扫描 2，入箱 2，通知失败 0，单推 2，摘要 0，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:23    WARN [ReminderCatchupService] 漏提醒补偿失败（已隔离）：DB down
+[Nest] 9372  - 2026/10/25 04:57:23     LOG [ReminderCatchupService] 补偿：安静时段，入箱 1 条，即时推送 0 条
+[Nest] 9372  - 2026/10/25 04:57:23     LOG [ReminderCatchupService] 补偿完成：扫描 1，入箱 1，通知失败 0，单推 0，摘要 0，安静时段=true
+[Nest] 9372  - 2026/10/25 04:57:23     LOG [ReminderCatchupService] 补偿：安静时段，入箱 8 条，即时推送 0 条
+[Nest] 9372  - 2026/10/25 04:57:23     LOG [ReminderCatchupService] 补偿完成：扫描 8，入箱 8，通知失败 0，单推 0，摘要 0，安静时段=true
+[Nest] 9372  - 2026/10/25 04:57:23     LOG [ReminderCatchupService] 补偿完成：扫描 1，入箱 1，通知失败 0，单推 1，摘要 0，安静时段=false
+[Nest] 9372  - 2026/10/25 04:57:23     LOG [ReminderCatchupService] 补偿完成：扫描 6，入箱 6，通知失败 0，单推 0，摘要 1，安静时段=false
+FAIL src/brain/proactive/reminder-catchup.spec.ts (5.285 s)
+  ReminderCatchupService（AI-P2-3F1 · 落库与推送分离）
+    √ ① quiet 5 条：notice 5 / push 0（真实 bridge 组合语义） (18 ms)
+    √ ② >3 条（5 条）：notice 5 / push 1（仅摘要），禁止逐条单推 (6 ms)
+    √ ②b ≤3 条（3 条）：notice 3 / push 3（逐条单推，无摘要） (4 ms)
+    √ ②c 1 条：notice 1 / push 1 (2 ms)
+    × ③ 通知落库失败 + push 成功：不得写 reminded_at，下轮重试 (6 ms)
+    √ ④ 通知成功 + push 失败：通知保留、下轮重试 push、通知不重复插入 (3 ms)
+    √ ⑤ 同名不同 scheduleId：按 (scheduleId, occurrenceAt) 精确归集，不互相冒充 (4 ms)
+    √ ⑥ 摘要幂等：连续扫描 100 次只成功推 1 次 (81 ms)
+    √ ⑦ 100 条全部补回（分批扫尽，不设"只补最近 N 条"） (2013 ms)
+    √ ⑧ 跨租户隔离：各条按自身 tenant 入箱，不串 (4 ms)
+    √ ⑨ quiet 判定边界（Asia/Shanghai） (3 ms)
+    √ ⑩ recurrence 继续 BLOCKED（不自造数据模型） (3 ms)
+    √ ⑪ 查询抛错 ⇒ 不外抛（@Cron 异常隔离） (2 ms)
+    √ ⑫ 通知幂等命中（deduped）也算"已在箱内"，不误判失败 (2 ms)
+    √ ⑬ 安静时段下 >3 条同样零推送（quiet 优先于条数分层） (3 ms)
+    √ ⑭ push 幂等：已成功推送的条目不重发（push 维度独立幂等） (2 ms)
+    √ ⑮ 摘要含"最紧急 3 条 + 引导通知中心"（商户可操作） (2 ms)
+    √ ⑯ AI 只读查询：返回条数与摘要，且零写操作 (2 ms)
+    √ ⑰ 复用既有通道（无自建旁路） (3 ms)
+    √ ⑱ 通知落库只走 recordNoticeOnly（结构上不得再出现 pushWithNotice） (3 ms)
+
+  ● ReminderCatchupService（AI-P2-3F1 · 落库与推送分离） › ③ 通知落库失败 + push 成功：不得写 reminded_at，下轮重试
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+      207 |     const r = await h.service.catchup(DAY_10AM);
+      208 |
+    > 209 |     expect(r.recorded).toBe(0);
+          |                        ^
+      210 |     expect(r.noticeFailed).toBe(1);
+      211 |     // 🔴 不得写完成标记
+      212 |     const updates = h.sqls.filter((s) =>
+
+      at Object.<anonymous> (brain/proactive/reminder-catchup.spec.ts:209:24)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 19 passed, 20 total
+Snapshots:   0 total
+Time:        6.114 s
+Ran all test suites matching src/brain/proactive/reminder-catchup.spec.ts.

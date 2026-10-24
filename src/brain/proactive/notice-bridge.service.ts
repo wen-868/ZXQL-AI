@@ -44,6 +44,45 @@ export class NoticeBridgeService {
   ) {}
 
   /**
+   * **仅落站内通知**，不触发任何实时推送（AI-P2-3F1）。
+   *
+   * 为什么需要它与 `pushWithNotice` 并存：
+   * `pushWithNotice` 的语义是"落通知 + 立刻推送"（② 步无条件 push），
+   * 对**日程提醒**这类"要不要推、怎么推由上层分层决定"的场景是错配——
+   * 补偿器需要在 quiet 时段**只入箱不推送**、在 >3 条时**只发一条摘要**，
+   * 若走 `pushWithNotice`，N 条单推已经发出且无法撤回（B1/B2 驳回事实）。
+   *
+   * 返回**落库真实结果**（不是推送结果）：
+   * - `inserted=true`：新入箱；
+   * - `deduped=true`：同 dedupeKey 未读已存在（幂等命中，视为"已在箱内"）；
+   * - `error` 非空：落库失败（调用方**不得**据此写"已提醒"完成标记）。
+   *
+   * 复用 `safeRecord`（不复制一套 notify 实现）。
+   */
+  async recordNoticeOnly(
+    tenantId: string,
+    push: {
+      title: string;
+      content: string;
+      type: ProactivePushType;
+      priority: ProactivePriority;
+    },
+    ctx: NoticeContext,
+  ): Promise<{ inserted: boolean; deduped?: boolean; error?: string }> {
+    return this.safeRecord({
+      tenantId,
+      receiver: ctx.receiver,
+      title: push.title,
+      content: push.content,
+      type: push.type,
+      priority: push.priority,
+      source: ctx.source,
+      refId: ctx.refId ?? null,
+      dedupeKey: ctx.dedupeKey ?? null,
+    });
+  }
+
+  /**
    * 落站内通知（无条件）+ 实时推送（尽力而为）
    *
    * @returns 实时推送结果（`push()` 的返回值语义不变）

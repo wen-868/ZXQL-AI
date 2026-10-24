@@ -1,0 +1,24 @@
+AI-P2-3F1 mutation 证据（注入 → 点名红 → 逐字节复原 → 复绿）
+============================================================
+
+PASS  M1 回落 pushWithNotice（旧语义：落通知+立刻推送）⇒ 应打穿 quiet 与 >3
+  Tests:       14 failed, 6 passed, 20 total
+  点名: ① quiet 5 条：notice 5 / push 0（真实 bridge 组合语义） | ② >3 条（5 条）：notice 5 / push 1（仅摘要），禁止逐条单推 | ②b ≤3 条（3 条）：notice 3 / push 3（逐条单推，无摘要） | ②c 1 条：notice 1 / push 1 | ④ 通知成功 + push 失败：通知保留、下轮重试 push、通知不重复插入
+  证据: mutation-1-fallback-to-pushWithNotice.txt
+
+PASS  M2 通知失败也标完成（去掉失败分支）⇒ 应打穿 ③
+  Tests:       1 failed, 19 passed, 20 total
+  点名: ③ 通知落库失败 + push 成功：不得写 reminded_at，下轮重试
+  证据: mutation-2-mark-done-on-notice-failure.txt
+
+PASS  M3 去掉摘要幂等 ⇒ 应打穿 ⑥
+  Tests:       1 failed, 19 passed, 20 total
+  点名: ⑥ 摘要幂等：连续扫描 100 次只成功推 1 次
+  证据: mutation-3-remove-digest-idempotency.txt
+
+============================================================
+SHA256 原: 282abcded868500de195c2b4c0f731d62b24201e1558df307f7362819fe536d3
+SHA256 后: 282abcded868500de195c2b4c0f731d62b24201e1558df307f7362819fe536d3
+逐字节一致: true
+复原复跑: Tests:       20 passed, 20 total (exit=0)
+三条均点名红: true

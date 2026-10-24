@@ -1,38 +1,36 @@
 /**
- * ReminderCatchupService — 停机漏提醒补偿器（AI-P2-3）
+ * ReminderCatchupService — 停机漏提醒补偿器（AI-P2-3 / F1 重构）
  *
  * 解决的真问题：`@Cron` 只在进程活着时扫描。系统停机、重启、渠道故障期间到期的提醒，
  * 恢复后**不能静默丢失**。本服务把"所有已到期但未成功送达"的提醒全部补回。
  *
  * ══════════════════════════════════════════════════════════════════
- * 设计约束（逐条对应派单卡硬验收，改动前必读）
+ * 🔴 F1 重构核心：通知落库 与 即时推送 **彻底分离**
  * ══════════════════════════════════════════════════════════════════
  *
- * ① **不设"只补最近 N 条"**（红线）：
- *    `LIMIT` 只是**单批**上限（防一次查询拖垮库/内存），采用**分批循环直到扫尽**，
- *    任何分批边界都不丢弃提醒。停机 7 天、100 条都能全部补回。
+ * 驳回事实（P2-3 的 B1/B2/B3）：
+ * 旧实现用 `NoticeBridgeService.pushWithNotice()`，而它的语义是"落通知 **+ 立刻推送**"
+ * ⇒ ① quiet 时段照样逐条推；② >3 条时每条推完再补一条摘要 = N+1；
+ *   ③ 其返回值只是 push 结果，**通知落库失败被掩盖**，push 成功就写完成标记 ⇒ 通知永久丢失。
  *
- * ② **推送分层，但通知中心逐条保全**：
- *    - 漏提醒 ≤ 3 条 ⇒ 逐条推送；
- *    - > 3 条 ⇒ 一条聚合摘要 + 每条仍**独立**进通知中心（NoticeService 逐条落库）。
- *    ⚠️ 聚合摘要**不是**提醒本体：它只是"告知总量"的引导入口，
- *    通知中心里每一条原始提醒都必须独立存在（mutation 2 专测此点）。
+ * 现设计与三者的对应：
+ * - **落库只走 `recordNoticeOnly()`**（不触发任何 push）⇒ quiet 时段天然零推送；
+ * - **推送由本服务的分层逻辑单独执行**（quiet=0 / ≤3 逐条 / >3 仅摘要一条）；
+ * - **投递状态分维度记录**（`t_ai_reminder_delivery`：notice / push 各自幂等），
+ *   不再用单一 `reminded_at` 兼任两职；摘要另有 `t_ai_reminder_digest_sent` 幂等表。
  *
- * ③ **安静时段 22:00–08:00 不推即时消息**：
- *    判定按 `Asia/Shanghai`。安静时段内：通知中心照常即时落库（用户打开就能看到），
- *    但**不发** WebSocket/推送；推迟到 08:00 生成一条聚合摘要。
+ * ══════════════════════════════════════════════════════════════════
+ * 硬约束（逐条对应 F1 派单卡 §三）
+ * ══════════════════════════════════════════════════════════════════
+ * 1. **不设"只补最近 N 条"**：`LIMIT` 只是单批上限，分批循环**直到扫尽**；7 天/100 条全补。
+ * 2. **安静时段 push 严格 0**：22:00–08:00 只入箱，不推即时消息。
+ * 3. **>3 条 push 严格 1**（摘要），N 条通知仍逐条独立落库。
+ * 4. **通知落库失败 ⇒ 不写完成标记**，下轮重试；push 成败**不能**掩盖通知失败。
+ * 5. **通知成功 + push 失败** ⇒ 通知保留（已入箱），push 下轮重试，通知不重复插入。
+ * 6. **身份 = (tenant, scheduleId, occurrenceAt)**，禁止用标题匹配（同名不同 id 不冒充）。
+ * 7. **摘要幂等**：连续 cron 重跑只成功发 1 次。
  *
- * ④ **幂等键覆盖 tenant/user/sourceId/occurrenceAt/channel**：
- *    与 `NoticeService` 的 `dedupe_key` 语义对齐（同租户同键未读存在 ⇒ 不重复插）。
- *    重复扫描 100 次也不得重复成功发送。渠道失败可重试，**已成功渠道不重发**。
- *
- * ⑤ **人工与 AI 共用同一补偿器**（红线：不建 AI 旁路）：
- *    本服务只看 `t_ai_schedule`（人工日程与 AI 创建的日程同表同字段），
- *    不区分创建者 ⇒ 天然共用。AI 只能查询/生成摘要，不得删除原始提醒。
- *
- * ⚠️ **recurrence 标 BLOCKED**：`ai-schedule.entity.ts` 无 recurrence 字段
- *    （实体注释明确"本批不做"），P2-2 尚未落地 ⇒ recurrence occurrence 无法覆盖，
- *    矩阵中如实登记，不自造数据模型（自造会与 P2-2 撞车）。
+ * ⚠️ recurrence 继续 BLOCKED：`ai-schedule.entity.ts` 无 recurrence 字段（属 P2-2 范围）。
  *
  * 负责人: 阿洲（AI 底座 owner）| 创建日期: 2026-10-25
  */
@@ -45,7 +43,7 @@ import { parseParticipants } from '../../tools/definitions/schedule-participants
 
 /** 单批扫描上限：只限制**单次查询**规模，不是丢弃上限 */
 const CATCHUP_BATCH = 100;
-/** 逐条推送阈值：≤ 此值逐条推，> 此值发聚合摘要 */
+/** 逐条推送阈值：≤ 此值逐条推，> 此值只发一条聚合摘要 */
 const DIGEST_THRESHOLD = 3;
 /** 安静时段（Asia/Shanghai 小时，左闭右开：22:00–08:00） */
 const QUIET_START_HOUR = 22;
@@ -61,18 +59,18 @@ interface DueRow {
   remind_at: Date | string;
 }
 
-/** 补偿结果（供 cron 日志与测试断言） */
+/** 补偿结果（字段语义严格对应派单卡判据） */
 export interface CatchupResult {
-  /** 扫描到的漏提醒总数（去重前） */
+  /** 扫描到的到期提醒总数 */
   scanned: number;
-  /** 逐条成功送达通知中心的条数 */
+  /** 成功入箱（含幂等命中）条数 */
   recorded: number;
-  /** 逐条推送条数（安静时段为 0） */
+  /** 通知落库**真实失败**条数（下轮重试） */
+  noticeFailed: number;
+  /** 单条即时推送成功条数 */
   pushed: number;
-  /** 聚合摘要条数（0 或 1） */
+  /** 摘要推送成功条数（0 或 1） */
   digests: number;
-  /** 渠道/落库失败条数（下次重试） */
-  failed: number;
   /** 是否处于安静时段 */
   quiet: boolean;
   /** 是否因安静时段推迟了即时推送 */
@@ -96,74 +94,72 @@ export class ReminderCatchupService {
     const result: CatchupResult = {
       scanned: 0,
       recorded: 0,
+      noticeFailed: 0,
       pushed: 0,
       digests: 0,
-      failed: 0,
       quiet: this.isQuietHours(now),
       deferred: false,
     };
 
     try {
-      // ── 08:00 汇总：先把安静时段积压的提醒汇总推送（硬验收 3）──
-      // 安静时段内这些提醒已入通知中心（recorded 过），但没推即时消息；
-      // 到 08:00 用一条摘要补告知，用户不会"昨晚的提醒完全没有提示"。
-      if (!result.quiet) {
-        const backlog = await this.collectQuietBacklog(now);
-        if (backlog.length > 0) {
-          const ok = await this.pushQuietDigest(backlog);
-          if (ok) result.digests += 1;
-          this.logger.log(
-            `08:00 汇总：安静时段积压 ${backlog.length} 条已生成摘要`,
-          );
-        }
-      }
-
       const rows = await this.collectAllDue(now);
       result.scanned = rows.length;
       if (rows.length === 0) {
         return result;
       }
 
-      // ── 逐条：先落通知中心（持久化事实，无条件），再决定是否即时推送 ──
+      // ══ 阶段 1：只落通知（绝不推送）══
+      // 通知失败的条目**不写完成标记**，下轮重试。
+      // noticeOk 含两类：本次新入箱的 + **此前已入箱**（push 待重试）的。
+      const noticeOk: DueRow[] = [];
+      const noticeFailed: DueRow[] = [];
+      let newlyRecorded = 0;
       for (const row of rows) {
-        const ok = await this.recordOne(row, now);
-        if (ok) {
-          result.recorded += 1;
+        const res = await this.recordNotice(row);
+        if (res.ok) {
+          noticeOk.push(row);
+          if (res.fresh) newlyRecorded += 1;
         } else {
-          result.failed += 1;
+          noticeFailed.push(row);
+          result.noticeFailed += 1;
+        }
+      }
+      result.recorded = newlyRecorded;
+
+      // ══ 阶段 2：按 quiet / 条数分层推送（只针对"通知已成功"的条目）══
+      if (noticeOk.length > 0) {
+        if (result.quiet) {
+          // 安静时段：通知已入箱，**推送严格 0**
+          result.deferred = true;
+          this.logger.log(
+            `补偿：安静时段，入箱 ${noticeOk.length} 条，即时推送 0 条`,
+          );
+        } else if (noticeOk.length <= DIGEST_THRESHOLD) {
+          // ≤3 条：逐条单推
+          for (const row of noticeOk) {
+            const ok = await this.pushSingle(row);
+            if (ok) result.pushed += 1;
+          }
+        } else {
+          // >3 条：**只发一条摘要**，禁止逐条单推
+          const ok = await this.pushDigest(noticeOk, now);
+          if (ok) result.digests += 1;
         }
       }
 
-      // ── 推送分层（安静时段不推即时消息）──
-      if (result.quiet) {
-        // 22:00–08:00：通知中心已即时入箱；不推即时消息，推迟到 08:00 汇总
-        result.deferred = result.recorded > 0;
-        this.logger.log(
-          `补偿：安静时段，通知已入箱 ${result.recorded} 条，即时推送推迟至 08:00`,
+      if (noticeFailed.length > 0) {
+        this.logger.warn(
+          `补偿：通知落库失败 ${noticeFailed.length} 条（不写完成标记，下轮重试）`,
         );
-      } else if (rows.length <= DIGEST_THRESHOLD) {
-        // ≤3 条：逐条推送
-        for (const row of rows) {
-          const ok = await this.pushOne(row);
-          if (ok) {
-            result.pushed += 1;
-          }
-        }
-      } else {
-        // >3 条：一条聚合摘要（每条原始提醒已在上面独立进通知中心）
-        const ok = await this.pushDigest(rows);
-        if (ok) {
-          result.digests = 1;
-        }
       }
 
       this.logger.log(
-        `补偿完成：扫描 ${result.scanned} 条，入箱 ${result.recorded} 条，` +
-          `推送 ${result.pushed} 条，摘要 ${result.digests} 条，失败 ${result.failed} 条，` +
-          `安静时段=${result.quiet}`,
+        `补偿完成：扫描 ${result.scanned}，入箱 ${result.recorded}，` +
+          `通知失败 ${result.noticeFailed}，单推 ${result.pushed}，` +
+          `摘要 ${result.digests}，安静时段=${result.quiet}`,
       );
     } catch (err) {
-      // @Cron 内绝不外抛（补偿失败不得影响其它链路）
+      // @Cron 内绝不外抛
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(`漏提醒补偿失败（已隔离）：${message}`);
     }
@@ -171,105 +167,206 @@ export class ReminderCatchupService {
   }
 
   /**
-   * 收集**全部**到期未送达提醒 —— 分批循环直到扫尽，不丢任何一条。
+   * 收集**全部**到期未送达提醒 —— 分批循环直到扫尽。
    *
-   * 为什么分批：`LIMIT` 防单次大查询，但必须循环到取空为止；
-   * 若只取一批就停，等于"只补最近 N 条"（红线禁止）。
+   * "未送达"口径（关键）：**notice 维度未 success** 才需要补。
+   * 但还有第二种"未送达"：notice 已 success、**push 维度未 success**（通知进了箱但没推出去），
+   * 这类条目也要被选中，否则 push 永远不会重试（F1 硬验收 4）。
+   *
+   * ⇒ 条件：notice 未 success **或** push 未 success（且该条通知已成功才允许 push 重试）。
+   *
+   * 分页改用**游标（remind_at + id）**而非 OFFSET：
+   * OFFSET 分页在"本轮没有把已扫条目标成功"时会重复取同一批（若通知全失败），
+   * 导致无限重复扫描；游标只向前推进，天然不会重复。
    */
   private async collectAllDue(now: Date): Promise<DueRow[]> {
     const all: DueRow[] = [];
-    let offset = 0;
-    // 防御性上限：避免异常数据导致无限循环（正常情况远达不到）
+    const seen = new Set<string>();
+    let cursorRemindAt: string | null = null;
+    let cursorId: string | null = null;
     const MAX_ROUNDS = 1000;
+
     for (let round = 0; round < MAX_ROUNDS; round += 1) {
+      const params: unknown[] = [now];
+      let cursorClause = '';
+      if (cursorRemindAt !== null && cursorId !== null) {
+        // 游标：按 (remind_at, id) 严格递增，避免同道同秒重复
+        cursorClause =
+          'AND (s.remind_at > ? OR (s.remind_at = ? AND s.id > ?))';
+        params.push(cursorRemindAt, cursorRemindAt, cursorId);
+      }
+
       const batch = await this.dataSource.query<DueRow[]>(
-        `SELECT id, tenant_id, title, owner, participants, start_at, remind_at
-           FROM t_ai_schedule
-          WHERE status = 'planned'
-            AND remind_at IS NOT NULL
-            AND reminded_at IS NULL
-            AND remind_at <= ?
-          ORDER BY remind_at ASC
-          LIMIT ${CATCHUP_BATCH} OFFSET ${offset}`,
-        [now],
+        `SELECT s.id, s.tenant_id, s.title, s.owner, s.participants,
+                s.start_at, s.remind_at
+           FROM t_ai_schedule s
+          WHERE s.status = 'planned'
+            AND s.remind_at IS NOT NULL
+            AND s.remind_at <= ?
+            ${cursorClause}
+            AND (
+              NOT EXISTS (
+                SELECT 1 FROM t_ai_reminder_delivery dn
+                 WHERE dn.tenant_id = s.tenant_id
+                   AND dn.schedule_id = CAST(s.id AS CHAR)
+                   AND dn.occurrence_at = s.remind_at
+                   AND dn.kind = 'notice'
+                   AND dn.status = 'success'
+              )
+              OR NOT EXISTS (
+                SELECT 1 FROM t_ai_reminder_delivery dp
+                 WHERE dp.tenant_id = s.tenant_id
+                   AND dp.schedule_id = CAST(s.id AS CHAR)
+                   AND dp.occurrence_at = s.remind_at
+                   AND dp.kind = 'push'
+                   AND dp.status = 'success'
+              )
+            )
+          ORDER BY s.remind_at ASC, s.id ASC
+          LIMIT ${CATCHUP_BATCH}`,
+        params,
       );
+
       if (batch.length === 0) break;
-      all.push(...batch);
+      for (const row of batch) {
+        const key = `${String(row.tenant_id)}:${String(row.id)}:${toIso(row.remind_at)}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          all.push(row);
+        }
+      }
+      const last = batch[batch.length - 1];
+      cursorRemindAt = toSqlDateTime(last.remind_at);
+      cursorId = String(last.id);
       if (batch.length < CATCHUP_BATCH) break;
-      offset += batch.length;
     }
     return all;
   }
 
   /**
-   * 单条落通知中心 + 写提醒标记。
+   * 阶段 1：**只落通知**（不推送），并记录 notice 维度投递状态。
    *
-   * 幂等：dedupeKey = `catchup:{sourceId}:{occurrenceAt}`，四段语义由 NoticeService
-   * 的 (tenantId, dedupeKey, 未读) 唯一约束承载 ⇒ 重复扫描不重复插入。
+   * 返回：
+   * - `ok=true, fresh=true`  ⇒ 本次新入箱（或幂等命中视为已有）；
+   * - `ok=true, fresh=false` ⇒ **此前已入箱**（push 待重试的那类），本轮不重复写；
+   * - `ok=false`             ⇒ 通知失败，绝不标记完成。
+   *
+   * 🔴 绝不因 push 成功而返回 ok —— push 根本不在本函数内发生。
    */
-  private async recordOne(row: DueRow, now: Date): Promise<boolean> {
+  private async recordNotice(
+    row: DueRow,
+  ): Promise<{ ok: boolean; fresh: boolean }> {
     const scheduleId = String(row.id);
+    const occurrence = toDate(row.remind_at);
     try {
+      // 幂等前置：notice 已 success ⇒ 不重复插入（只用于推送重试）
+      if (
+        this.noticeBridge &&
+        (await this.deliveryDone(row, occurrence, 'notice'))
+      ) {
+        return { ok: true, fresh: false };
+      }
+
       const receiver = this.receiverOf(row);
-      const occurrenceAt = toIso(row.remind_at);
-      const push = this.buildPush(row, 'catchup');
+      const push = this.buildPush(row);
 
       if (this.noticeBridge) {
-        // 通知无条件落库；dedupeKey 保证重复扫描不重复打扰
-        await this.noticeBridge.pushWithNotice(
+        const res = await this.noticeBridge.recordNoticeOnly(
           row.tenant_id,
-          'schedule_reminder',
           push,
           {
             receiver,
             source: 'schedule',
             refId: scheduleId,
-            dedupeKey: `catchup:${scheduleId}:${occurrenceAt}`,
+            dedupeKey: this.dedupeOf(
+              row.tenant_id,
+              scheduleId,
+              occurrence,
+              'notice',
+            ),
           },
         );
+        // 🔴 通知失败 ⇒ 记 failed，绝不标记完成
+        if (!res.inserted && !res.deduped) {
+          await this.markDelivery(
+            row,
+            occurrence,
+            'notice',
+            'failed',
+            res.error ?? 'notice record failed',
+          );
+          return { ok: false, fresh: false };
+        }
+        await this.markDelivery(row, occurrence, 'notice', 'success');
       } else {
-        // 无旁路（既有单测路径）：退回既有序次，保持原语义
+        // 无旁路（既有单测路径）：退回既有 push 通道
         await this.pushService.push(row.tenant_id, 'schedule_reminder', push);
+        await this.markDelivery(row, occurrence, 'notice', 'success');
       }
 
-      // 写提醒标记（幂等：只有未标记才写）
+      // 兼容既有语义：通知成功才写 reminded_at
       await this.dataSource.query(
         'UPDATE t_ai_schedule SET reminded_at = ? WHERE id = ? AND reminded_at IS NULL',
-        [now, scheduleId],
+        [new Date(), scheduleId],
       );
-      return true;
+      return { ok: true, fresh: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.logger.warn(
-        `补偿单条失败（下次重试）：schedule=${scheduleId} ${message}`,
-      );
-      return false;
+      this.logger.warn(`补偿：通知落库异常：schedule=${scheduleId} ${message}`);
+      try {
+        await this.markDelivery(row, occurrence, 'notice', 'failed', message);
+      } catch {
+        // 状态记录失败不掩盖主错误
+      }
+      return { ok: false, fresh: false };
     }
   }
 
-  /** 单条即时推送（安静时段不会调用） */
-  private async pushOne(row: DueRow): Promise<boolean> {
+  /** 阶段 2a：单条即时推送（独立幂等；已 success 过则跳过） */
+  private async pushSingle(row: DueRow): Promise<boolean> {
+    const scheduleId = String(row.id);
+    const occurrence = toDate(row.remind_at);
     try {
-      return await this.pushService.push(
+      if (await this.deliveryDone(row, occurrence, 'push')) {
+        return true;
+      }
+      const ok = await this.pushService.push(
         row.tenant_id,
         'schedule_reminder',
-        this.buildPush(row, 'catchup'),
+        this.buildPush(row),
       );
+      await this.markDelivery(
+        row,
+        occurrence,
+        'push',
+        ok ? 'success' : 'failed',
+      );
+      return ok;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`补偿推送失败：schedule=${String(row.id)} ${message}`);
+      this.logger.warn(`补偿：单推失败：schedule=${scheduleId} ${message}`);
+      try {
+        await this.markDelivery(row, occurrence, 'push', 'failed', message);
+      } catch {
+        /* 忽略 */
+      }
       return false;
     }
   }
 
   /**
-   * 聚合摘要：一条消息说明漏提醒总数 + 最紧急 3 条 + 引导打开通知中心。
+   * 阶段 2b：**只发一条**聚合摘要（>3 条时；禁止逐条单推）。
    *
-   * 🔴 摘要**不是**提醒本体 —— 每条原始提醒已在上方独立进通知中心（mutation 2 专测）。
+   * 幂等：batchKey 由本批 (scheduleId, occurrenceAt) 稳定集合构成 ⇒
+   * 同名不同 id 不会混淆；连续 cron 重跑同一批只成功发 1 次。
    */
-  private async pushDigest(rows: DueRow[]): Promise<boolean> {
+  private async pushDigest(rows: DueRow[], now: Date): Promise<boolean> {
     try {
       const tenantId = rows[0].tenant_id;
+      const batchKey = this.batchKeyOf(rows);
+      if (await this.digestDone(tenantId, batchKey)) {
+        return true;
+      }
       const urgent = rows.slice(0, DIGEST_THRESHOLD);
       const lines = urgent
         .map((r) => `· ${r.title}（${toIso(r.remind_at)}）`)
@@ -282,15 +379,18 @@ export class ReminderCatchupService {
           `以上为最紧急 ${urgent.length} 条，完整列表请打开通知中心查看。`,
         priority: 'reminder' as const,
       };
-      // 摘要本身不落通知中心（避免"摘要替代本体"）；仅推送告知
-      return await this.pushService.push(
+      const ok = await this.pushService.push(
         tenantId,
         'schedule_reminder_digest',
         digest,
       );
+      if (ok) {
+        await this.writeDigestSuccess(tenantId, batchKey, now);
+      }
+      return ok;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`补偿摘要推送失败：${message}`);
+      this.logger.warn(`补偿：摘要推送失败：${message}`);
       return false;
     }
   }
@@ -302,102 +402,8 @@ export class ReminderCatchupService {
       .join(',');
   }
 
-  /**
-   * 安静时段积压：已入通知中心（`reminded_at` 已写）但**未推送过即时消息**的提醒。
-   *
-   * 判定口径：安静时段内处理时，我们落了通知 + 写了 reminded_at，但**没调 push()**
-   * ⇒ `t_push_log` 里没有对应流水。到 08:00 查"今天安静时段内已标记、
-   * 但 push_log 无对应 title 记录"的日程，聚合成一条摘要补告知。
-   *
-   * 说明：用 title 匹配 push_log 是当前 schema 下可用的最稳判据（push_log 无 ref_id 列）；
-   * 若未来 push_log 加 source 列，应改为按 source+refId 精确匹配（已在风险项登记）。
-   */
-  private async collectQuietBacklog(now: Date): Promise<DueRow[]> {
-    try {
-      // 窗口：今天 08:00 之前 24 小时内（覆盖"昨晚 22:00 至今天 08:00"的安静时段）
-      const shanghaiNow = this.shanghaiParts(now);
-      const windowStart = new Date(
-        Date.UTC(
-          shanghaiNow.year,
-          shanghaiNow.month - 1,
-          shanghaiNow.day,
-          0,
-          0,
-          0,
-        ) -
-          24 * 60 * 60 * 1000,
-      );
-      const rows = await this.dataSource.query<DueRow[]>(
-        `SELECT s.id, s.tenant_id, s.title, s.owner, s.participants,
-                s.start_at, s.remind_at
-           FROM t_ai_schedule s
-          WHERE s.status = 'planned'
-            AND s.reminded_at IS NOT NULL
-            AND s.reminded_at >= ?
-            AND s.reminded_at < ?
-            AND NOT EXISTS (
-              SELECT 1 FROM t_push_log p
-               WHERE p.tenant_id = s.tenant_id
-                 AND p.title = CONCAT('日程提醒：', s.title)
-                 AND p.created_at >= s.reminded_at
-            )
-          ORDER BY s.remind_at ASC`,
-        [windowStart, now],
-      );
-      return rows;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`安静时段积压查询失败（已隔离）：${message}`);
-      return [];
-    }
-  }
-
-  /** 08:00 汇总摘要：告知昨晚积压总量 + 引导打开通知中心 */
-  private async pushQuietDigest(rows: DueRow[]): Promise<boolean> {
-    try {
-      const digest = {
-        type: 'system' as const,
-        title: `昨晚有 ${rows.length} 条日程提醒已入通知中心`,
-        content:
-          `您在免打扰时段（22:00–08:00）到期的 ${rows.length} 条日程提醒已全部记录，` +
-          `现汇总告知；完整列表请打开通知中心查看。`,
-        priority: 'reminder' as const,
-      };
-      return await this.pushService.push(
-        rows[0].tenant_id,
-        'schedule_reminder_quiet_digest',
-        digest,
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`安静时段汇总推送失败：${message}`);
-      return false;
-    }
-  }
-
-  /** 取 Asia/Shanghai 的年月日（用于安静时段窗口计算） */
-  private shanghaiParts(now: Date): {
-    year: number;
-    month: number;
-    day: number;
-  } {
-    const fmt = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Shanghai',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    const parts = fmt.formatToParts(now);
-    const get = (t: string): number =>
-      Number.parseInt(parts.find((p) => p.type === t)?.value ?? '0', 10);
-    return { year: get('year'), month: get('month'), day: get('day') };
-  }
-
-  /** 统一消息体（逐条推送与入箱共用，避免两套文案） */
-  private buildPush(
-    row: DueRow,
-    tag: string,
-  ): {
+  /** 统一消息体（逐条入箱与单推共用同一文案） */
+  private buildPush(row: DueRow): {
     type: 'system';
     title: string;
     content: string;
@@ -410,7 +416,7 @@ export class ReminderCatchupService {
       content:
         `「${row.title}」将于 ${startText} 开始（漏提醒补发；` +
         `归属人 ${row.owner ?? '-'}；参与者 ${row.participants ?? '-'}；` +
-        `日程ID ${String(row.id)}；补发标记 ${tag}）`,
+        `日程ID ${String(row.id)}）`,
       priority: 'reminder' as const,
     };
   }
@@ -421,14 +427,119 @@ export class ReminderCatchupService {
     return hour >= QUIET_START_HOUR || hour < QUIET_END_HOUR;
   }
 
+  // ────────────────────────── 投递状态读写 ──────────────────────────
+
+  /** 幂等键：tenant:scheduleId:occurrenceAt:kind（精确身份，禁用 title） */
+  private dedupeOf(
+    tenantId: string,
+    scheduleId: string,
+    occurrence: Date,
+    kind: 'notice' | 'push',
+  ): string {
+    return `${tenantId}:${scheduleId}:${occurrence.toISOString()}:${kind}`;
+  }
+
+  /** 该维度是否已 success */
+  private async deliveryDone(
+    row: DueRow,
+    occurrence: Date,
+    kind: 'notice' | 'push',
+  ): Promise<boolean> {
+    const rows = await this.dataSource.query<Array<{ c: unknown }>>(
+      `SELECT COUNT(*) AS c FROM t_ai_reminder_delivery
+        WHERE tenant_id = ? AND schedule_id = ? AND occurrence_at = ? AND kind = ? AND status = 'success'`,
+      [row.tenant_id, String(row.id), occurrence, kind],
+    );
+    return Number(rows[0]?.c ?? 0) > 0;
+  }
+
+  /** 写/更新投递状态（唯一键冲突 ⇒ 累加 attempts） */
+  private async markDelivery(
+    row: DueRow,
+    occurrence: Date,
+    kind: 'notice' | 'push',
+    status: 'success' | 'failed',
+    errorMsg?: string,
+  ): Promise<void> {
+    const now = new Date();
+    await this.dataSource.query(
+      `INSERT INTO t_ai_reminder_delivery
+         (tenant_id, schedule_id, occurrence_at, kind, status, dedupe_key, error_msg, attempts, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         status = VALUES(status),
+         error_msg = VALUES(error_msg),
+         attempts = attempts + 1,
+         updated_at = VALUES(updated_at)`,
+      [
+        row.tenant_id,
+        String(row.id),
+        occurrence,
+        kind,
+        status,
+        this.dedupeOf(row.tenant_id, String(row.id), occurrence, kind),
+        errorMsg ?? null,
+        now,
+        now,
+      ],
+    );
+  }
+
+  /** 本批摘要的稳定标识（scheduleId+occurrence 排序后哈希；同名不同 id 不混淆） */
+  private batchKeyOf(rows: DueRow[]): string {
+    const parts = rows
+      .map((r) => `${String(r.id)}@${toIso(r.remind_at)}`)
+      .sort()
+      .join('|');
+    let h = 0;
+    for (let i = 0; i < parts.length; i += 1) {
+      h = (h * 31 + parts.charCodeAt(i)) | 0;
+    }
+    return `digest:${Math.abs(h).toString(36)}`;
+  }
+
+  /** 该批摘要是否已发过 */
+  private async digestDone(
+    tenantId: string,
+    batchKey: string,
+  ): Promise<boolean> {
+    const rows = await this.dataSource.query<Array<{ c: unknown }>>(
+      `SELECT COUNT(*) AS c FROM t_ai_reminder_digest_sent
+        WHERE tenant_id = ? AND batch_key = ?`,
+      [tenantId, batchKey],
+    );
+    return Number(rows[0]?.c ?? 0) > 0;
+  }
+
+  /** 记录摘要已发送（唯一键防重） */
+  private async writeDigestSuccess(
+    tenantId: string,
+    batchKey: string,
+    now: Date,
+  ): Promise<void> {
+    await this.dataSource.query(
+      `INSERT INTO t_ai_reminder_digest_sent (tenant_id, batch_key, sent_at)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE sent_at = sent_at`,
+      [tenantId, batchKey, now],
+    );
+  }
+
+  /** 取 Asia/Shanghai 小时（0-23），不依赖服务器本地时区 */
+  private shanghaiHour(now: Date): number {
+    const text = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Shanghai',
+      hour: '2-digit',
+      hour12: false,
+    }).format(now);
+    const hour = Number.parseInt(text, 10);
+    return Number.isNaN(hour) ? now.getHours() : hour % 24;
+  }
+
   /**
-   * 只读查询：某租户当前有多少条漏提醒 + 生成可读摘要（供 AI 工具调用）。
+   * 只读查询：某租户当前有多少条漏提醒 + 可读摘要（供 AI 工具调用）。
    *
-   * 🔴 红线：**只读**。AI 不得删除/标记原始提醒（删除权只在人工通知中心）；
-   * 本方法不写 reminded_at、不改 status、不删任何行。
-   *
-   * 为什么需要它：派单卡 §三 要求"AI 可查询『我有多少漏提醒并生成本次摘要』"，
-   * 但**不得**因此让 AI 拥有补偿写权限 ⇒ 读路径与写路径（catchup）严格分离。
+   * 🔴 只读：不写 reminded_at、不改 status、不删任何行（AI 不得删原始提醒）。
    */
   async summarizeBacklog(
     tenantId: string,
@@ -440,14 +551,22 @@ export class ReminderCatchupService {
   }> {
     try {
       const rows = await this.dataSource.query<DueRow[]>(
-        `SELECT id, tenant_id, title, owner, participants, start_at, remind_at
-           FROM t_ai_schedule
-          WHERE tenant_id = ?
-            AND status = 'planned'
-            AND remind_at IS NOT NULL
-            AND reminded_at IS NULL
-            AND remind_at <= ?
-          ORDER BY remind_at ASC`,
+        `SELECT s.id, s.tenant_id, s.title, s.owner, s.participants,
+                s.start_at, s.remind_at
+           FROM t_ai_schedule s
+          WHERE s.tenant_id = ?
+            AND s.status = 'planned'
+            AND s.remind_at IS NOT NULL
+            AND s.remind_at <= ?
+            AND NOT EXISTS (
+              SELECT 1 FROM t_ai_reminder_delivery d
+               WHERE d.tenant_id = s.tenant_id
+                 AND d.schedule_id = CAST(s.id AS CHAR)
+                 AND d.occurrence_at = s.remind_at
+                 AND d.kind = 'notice'
+                 AND d.status = 'success'
+            )
+          ORDER BY s.remind_at ASC`,
         [tenantId, now],
       );
       const total = rows.length;
@@ -470,17 +589,16 @@ export class ReminderCatchupService {
       return { total: 0, urgent: [], summary: '暂时无法读取漏提醒信息' };
     }
   }
+}
 
-  /** 取 Asia/Shanghai 小时（0-23），不依赖服务器本地时区 */
-  private shanghaiHour(now: Date): number {
-    const text = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Shanghai',
-      hour: '2-digit',
-      hour12: false,
-    }).format(now);
-    const hour = Number.parseInt(text, 10);
-    return Number.isNaN(hour) ? now.getHours() : hour % 24;
-  }
+/** 时间归一为 Date（用于 occurrence 身份） */
+function toDate(v: Date | string): Date {
+  return v instanceof Date ? v : new Date(v);
+}
+
+/** 归一为 MySQL DATETIME(3) 文本（游标分页用） */
+function toSqlDateTime(v: Date | string): string {
+  return toDate(v).toISOString().slice(0, 23).replace('T', ' ');
 }
 
 /** 时间归一为 ISO 文本（兼容 Date / 字符串） */

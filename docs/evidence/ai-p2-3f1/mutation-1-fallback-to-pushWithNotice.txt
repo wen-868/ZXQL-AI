@@ -1,0 +1,1678 @@
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=true
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 3 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 3，入箱 0，通知失败 3，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 1 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 1，入箱 0，通知失败 1，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 1 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 1，入箱 0，通知失败 1，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 1 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 1，入箱 0，通知失败 1，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=11 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=22 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=33 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=44 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 4 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 4，入箱 0，通知失败 4，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:13    WARN [ReminderCatchupService] 补偿：通知落库失败 5 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:13     LOG [ReminderCatchupService] 补偿完成：扫描 5，入箱 0，通知失败 5，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=6 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=7 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=8 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=9 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=10 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=11 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=12 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=13 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=14 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=15 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=16 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=17 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=18 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=19 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=20 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=21 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=22 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=23 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=24 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=25 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=26 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=27 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=28 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=29 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=30 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=31 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=32 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=33 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=34 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=35 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=36 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=37 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=38 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=39 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=40 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=41 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=42 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=43 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=44 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=45 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=46 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=47 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=48 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=49 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=50 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=51 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=52 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=53 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=54 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=55 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=56 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=57 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=58 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=59 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=60 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=61 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=62 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=63 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=64 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=65 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=66 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=67 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=68 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=69 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=70 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=71 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=72 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=73 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=74 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=75 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=76 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=77 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=78 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=79 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=80 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=81 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=82 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=83 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=84 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=85 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=86 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=87 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=88 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=89 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=90 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=91 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=92 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=93 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=94 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=95 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=96 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=97 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=98 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=99 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=100 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库失败 100 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:15     LOG [ReminderCatchupService] 补偿完成：扫描 100，入箱 0，通知失败 100，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库失败 2 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:15     LOG [ReminderCatchupService] 补偿完成：扫描 2，入箱 0，通知失败 2，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 漏提醒补偿失败（已隔离）：DB down
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库失败 1 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:15     LOG [ReminderCatchupService] 补偿完成：扫描 1，入箱 0，通知失败 1，单推 0，摘要 0，安静时段=true
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=6 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=7 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=8 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库失败 8 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:15     LOG [ReminderCatchupService] 补偿完成：扫描 8，入箱 0，通知失败 8，单推 0，摘要 0，安静时段=true
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库失败 1 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:15     LOG [ReminderCatchupService] 补偿完成：扫描 1，入箱 0，通知失败 1，单推 0，摘要 0，安静时段=false
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=1 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=2 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=3 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=4 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=5 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库异常：schedule=6 Cannot read properties of undefined (reading 'receiver')
+[Nest] 3488  - 2026/10/25 04:57:15    WARN [ReminderCatchupService] 补偿：通知落库失败 6 条（不写完成标记，下轮重试）
+[Nest] 3488  - 2026/10/25 04:57:15     LOG [ReminderCatchupService] 补偿完成：扫描 6，入箱 0，通知失败 6，单推 0，摘要 0，安静时段=false
+FAIL src/brain/proactive/reminder-catchup.spec.ts
+  ReminderCatchupService（AI-P2-3F1 · 落库与推送分离）
+    × ① quiet 5 条：notice 5 / push 0（真实 bridge 组合语义） (15 ms)
+    × ② >3 条（5 条）：notice 5 / push 1（仅摘要），禁止逐条单推 (5 ms)
+    × ②b ≤3 条（3 条）：notice 3 / push 3（逐条单推，无摘要） (3 ms)
+    × ②c 1 条：notice 1 / push 1 (3 ms)
+    √ ③ 通知落库失败 + push 成功：不得写 reminded_at，下轮重试 (3 ms)
+    × ④ 通知成功 + push 失败：通知保留、下轮重试 push、通知不重复插入 (4 ms)
+    × ⑤ 同名不同 scheduleId：按 (scheduleId, occurrenceAt) 精确归集，不互相冒充 (3 ms)
+    × ⑥ 摘要幂等：连续扫描 100 次只成功推 1 次 (193 ms)
+    × ⑦ 100 条全部补回（分批扫尽，不设"只补最近 N 条"） (1858 ms)
+    × ⑧ 跨租户隔离：各条按自身 tenant 入箱，不串 (10 ms)
+    √ ⑨ quiet 判定边界（Asia/Shanghai） (2 ms)
+    √ ⑩ recurrence 继续 BLOCKED（不自造数据模型） (2 ms)
+    √ ⑪ 查询抛错 ⇒ 不外抛（@Cron 异常隔离） (2 ms)
+    × ⑫ 通知幂等命中（deduped）也算"已在箱内"，不误判失败 (1 ms)
+    × ⑬ 安静时段下 >3 条同样零推送（quiet 优先于条数分层） (3 ms)
+    × ⑭ push 幂等：已成功推送的条目不重发（push 维度独立幂等） (2 ms)
+    × ⑮ 摘要含"最紧急 3 条 + 引导通知中心"（商户可操作） (3 ms)
+    √ ⑯ AI 只读查询：返回条数与摘要，且零写操作 (3 ms)
+    √ ⑰ 复用既有通道（无自建旁路） (3 ms)
+    × ⑱ 通知落库只走 recordNoticeOnly（结构上不得再出现 pushWithNotice） (3 ms)
+
+  ● ReminderCatchupService（AI-P2-3F1 · 落库与推送分离） › ① quiet 5 条：notice 5 / push 0（真实 bridge 组合语义）
+
+    expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+    Expected number of calls: 5
+    Received number of calls: 0
+
+      155 |
+      156 |     expect(r.quiet).toBe(true);
+    > 157 |     expect(h.noticeRecord).toHaveBeenCalledTimes(5);
+          |                            ^
+      158 |     expect(r.recorded).toBe(5);
+      159 |     // 🔴 推送严格 0（旧实现此处为 5 = B1 的正面反证）
+      160 |     expect(h.push).toHaveBeenCalledTimes(0);
+
+      at Object.<anonymous> (brain/proactive/reminder-catchup.spec.ts:157:28)
+
+  ● ReminderCatchupService（AI-P2-3F1 · 落库与推送分离） › ② >3 条（5 条）：notice 5 / push 1（仅摘要），禁止逐条单推
+
+    expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+    Expected number of calls: 5
+    Received number of calls: 0
+
+      170 |     const r = await h.service.catchup(DAY_10AM);
+      171 |
+    > 172 |     expect(h.noticeRecord).toHaveBeenCalledTimes(5);
+          |                            ^
+      173 |     expect(r.recorded).toBe(5);
+      174 |     // 🔴 推送严格 1（旧实现是 5+1=6 = B2 的正面反证）
+      175 |     expect(h.push).toHaveBeenCalledTimes(1);
+
+      at Object.<anonymous> (brain/proactive/reminder-catchup.spec.ts:172:28)
+
+  ● ReminderCatchupService（AI-P2-3F1 · 落库与推送分离） › ②b ≤3 条（3 条）：notice 3 / push 3（逐条单推，无摘要）
+
+    expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+    Expected number of calls: 3
+    Received number of calls: 0
+
+      188 |     const r = await h.service.catchup(DAY_10AM);
+      189 |
+    > 190 |     expect(h.noticeRecord).toHaveBeenCalledTimes(3);
+          |                            ^
+      191 |     expect(h.push).toHaveBeenCalledTimes(3);
+      192 |     expect(r.pushed).toBe(3);
+      193 |     expect(r.digests).toBe(0);
+
+      at Object.<anonymous> (brain/proactive/reminder-catchup.spec.ts:190:28)
+
+  ● ReminderCatchupService（AI-P2-3F1 · 落库与推送分离） › ②c 1 条：notice 1 / push 1
+
+    expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+    Expected number of calls: 1
+    Received number of calls: 0
+
+      197 |     const h = createHarness({ rows: [rowOf({ id: 1 })] });
+      198 |     const r = await h.service.catchup(DAY_10AM);
+    > 199 |     expect(h.noticeRecord).toHaveBeenCalledTimes(1);
+          |                            ^
+      200 |     expect(h.push).toHaveBeenCalledTimes(1);
+      201 |     expect(r.pushed).toBe(1);
+      202 |   });
+
+      at Object.<anonymous> (brain/proactive/reminder-catchup.spec.ts:199:28)
+
+  ● ReminderCatchupService（AI-P2-3F1 · 落库与推送分离） › ④ 通知成功 + push 失败：通知保留、下轮重试 push、通知不重复插入
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 0
+
+      230 |
+      231 |     const r1 = await h.service.catchup(DAY_10AM);
+    > 232 |     expect(r1.recorded).toBe(1);
+          |                         ^
+      233 |     expect(r1.pushed).toBe(0);
+      234 |
+      235 |     const r2 = await h.service.catchup(DAY_10AM);
+
+      at Object.<anonymous> (brain/proactive/reminder-catchup.spec.ts:232:25)
+
+  ● ReminderCatchupService（AI-P2-3F1 · 落库与推送分离） › ⑤ 同名不同 scheduleId：按 (scheduleId, occurrenceAt) 精确归集，不互相冒充
+
+    expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+    Expected number of calls: 4
+    Received number of calls: 0
+
+      252 |     const r = await h.service.catchup(DAY_10AM);
+      253 |
+    > 254 |     expect(h.noticeRecord).toHaveBeenCalledTimes(4);
+          |                            ^
+      255 |     expect(h.push).toHaveBeenCalledTimes(1);
+      256 |     expect(r.digests).toBe(1);
+      257 |     // dedupeKey 含各自 scheduleId（不是 title）
+
+      at Object.<anonymous> (brain/proactive/reminder-catchup.spec.ts:254:28)
+
+  ● ReminderCatchupService（AI-P2-3F1 · 落库与推送分离） › ⑥ 摘要幂等：连续扫描 100 次只成功推 1 次
+
+    expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+    Expected number of calls: 1
+    Received number of calls: 0
+
+      274 |
+      275 |     // 🔴 摘要只推 1 次（digest_sent 幂等表承重）
+    > 276 |     expect(h.push).toHaveBeenCalledTimes(1);
+          |                    ^
+      277 |     // 通知也只 5 次（已 success 不再入选）
+      278 |     expect(h.noticeRecord).toHaveBeenCalledTimes(5);
+      279 |   });
+
+      at Object.<anonymous> (brain/proactive/reminder-catchup.spec.ts:276:20)
+
+  ● ReminderCatchupService（AI-P2-3F1 · 落库与推送分离） › ⑦ 100 条全部补回（分批扫尽，不设"只补最近 N 条"）
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 100
+    Received: 0
+
+      286 |
+      287 |     expect(r.scanned).toBe(100);
+    > 288 |     expect(r.recorded).toBe(100);
+          |                        ^
+      289 |     expect(h.noticeRecord).toHaveBeenCalledTimes(100);
+      290 |     expect(h.push).toHaveBeenCalledTimes(1);
+      291 |   });
+
+      at Object.<anonymous> (brain/proactive/reminder-catchup.spec.ts:288:24)
+
+  ● ReminderCatchupService（AI-P2-3F1 · 落库与推送分离） › ⑧ 跨租户隔离：各条按自身 tenant 入箱，不串
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 1
+
+    - Array [
+    -   "tA",
+    -   "tB",
+    - ]
+    + Array []
+
+      303 |       (c) => (c[0] as { tenantId: string }).tenantId,
+      304 |     );
+    > 305 |     expect(tenants).toEqual(['tA', 'tB']);
+          |                     ^
+      306 |   });
+      307 |
+      308 |   it('⑨ quiet 判定边界（Asia/Shanghai）', () => {
+
+      at Object.<anonymous> (brain/proactive/reminder-catchup.spec.ts:305:21)
+
+  ● ReminderCatchupService（AI-P2-3F1 · 落库与推送分离） › ⑫ 通知幂等命中（deduped）也算"已在箱内"，不误判失败
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+      352 |     const r = await h.service.catchup(NIGHT_11PM);
+      353 |
+    > 354 |     expect(r.noticeFailed).toBe(0);
+          |                            ^
+      355 |     expect(h.push).toHaveBeenCalledTimes(0);
+      356 |   });
+      357 |
+
+      at Object.<anonymous> (brain/proactive/reminder-catchup.spec.ts:354:28)
+
+  ● ReminderCatchupService（AI-P2-3F1 · 落库与推送分离） › ⑬ 安静时段下 >3 条同样零推送（quiet 优先于条数分层）
+
+    expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+    Expected number of calls: 8
+    Received number of calls: 0
+
+      362 |     const r = await h.service.catchup(NIGHT_11PM);
+      363 |
+    > 364 |     expect(h.noticeRecord).toHaveBeenCalledTimes(8);
+          |                            ^
+      365 |     expect(h.push).toHaveBeenCalledTimes(0);
+      366 |     expect(r.pushed).toBe(0);
+      367 |     expect(r.digests).toBe(0);
+
+      at Object.<anonymous> (brain/proactive/reminder-catchup.spec.ts:364:28)
+
+  ● ReminderCatchupService（AI-P2-3F1 · 落库与推送分离） › ⑭ push 幂等：已成功推送的条目不重发（push 维度独立幂等）
+
+    expect(jest.fn()).toHaveBeenCalledTimes(expected)
+
+    Expected number of calls: 1
+    Received number of calls: 0
+
+      374 |
+      375 |     await h.service.catchup(DAY_10AM);
+    > 376 |     expect(h.push).toHaveBeenCalledTimes(1);
+          |                    ^
+      377 |
+      378 |     const r2 = await h.service.catchup(DAY_10AM);
+      379 |     expect(h.push).toHaveBeenCalledTimes(1);
+
+      at Object.<anonymous> (brain/proactive/reminder-catchup.spec.ts:376:20)
+
+  ● ReminderCatchupService（AI-P2-3F1 · 落库与推送分离） › ⑮ 摘要含"最紧急 3 条 + 引导通知中心"（商户可操作）
+
+    TypeError: Cannot read properties of undefined (reading '2')
+
+      389 |     await h.service.catchup(DAY_10AM);
+      390 |
+    > 391 |     const digest = (h.push.mock.calls[0] as unknown[])[2] as {
+          |                                                       ^
+      392 |       title: string;
+      393 |       content: string;
+      394 |     };
+
+      at Object.<anonymous> (brain/proactive/reminder-catchup.spec.ts:391:55)
+
+  ● ReminderCatchupService（AI-P2-3F1 · 落库与推送分离） › ⑱ 通知落库只走 recordNoticeOnly（结构上不得再出现 pushWithNotice）
+
+    expect(received).not.toContain(expected) // indexOf
+
+    Expected substring: not "pushWithNotice"
+    Received string:        "
+    import { Injectable, Logger, Optional } from '@nestjs/common';
+    import { InjectDataSource } from '@nestjs/typeorm';
+    import { DataSource } from 'typeorm';
+    import { ProactivePushService } from './proactive-push.service';
+    import { NoticeBridgeService } from './notice-bridge.service';
+    import { parseParticipants } from '../../tools/definitions/schedule-participants.util';
+
+
+    const CATCHUP_BATCH = 100;
+
+    const DIGEST_THRESHOLD = 3;
+
+    const QUIET_START_HOUR = 22;
+    const QUIET_END_HOUR = 8;
+
+    interface DueRow {
+      id: string | number;
+      tenant_id: string;
+      title: string;
+      owner: string | null;
+      participants: string | null;
+      start_at: Date | string;
+      remind_at: Date | string;
+    }
+
+
+    export interface CatchupResult {
+      
+      scanned: number;
+      
+      recorded: number;
+      
+      noticeFailed: number;
+      
+      pushed: number;
+      
+      digests: number;
+      
+      quiet: boolean;
+      
+      deferred: boolean;
+    }
+
+    @Injectable()
+    export class ReminderCatchupService {
+      private readonly logger = new Logger(ReminderCatchupService.name);
+
+      constructor(
+        @InjectDataSource()
+        private readonly dataSource: DataSource,
+        private readonly pushService: ProactivePushService,
+        @Optional()
+        private readonly noticeBridge?: NoticeBridgeService,
+      ) {}
+
+      
+      async catchup(now: Date = new Date()): Promise<CatchupResult> {
+        const result: CatchupResult = {
+          scanned: 0,
+          recorded: 0,
+          noticeFailed: 0,
+          pushed: 0,
+          digests: 0,
+          quiet: this.isQuietHours(now),
+          deferred: false,
+        };
+
+        try {
+          const rows = await this.collectAllDue(now);
+          result.scanned = rows.length;
+          if (rows.length === 0) {
+            return result;
+          }
+
+          
+          
+          
+          const noticeOk: DueRow[] = [];
+          const noticeFailed: DueRow[] = [];
+          let newlyRecorded = 0;
+          for (const row of rows) {
+            const res = await this.recordNotice(row);
+            if (res.ok) {
+              noticeOk.push(row);
+              if (res.fresh) newlyRecorded += 1;
+            } else {
+              noticeFailed.push(row);
+              result.noticeFailed += 1;
+            }
+          }
+          result.recorded = newlyRecorded;
+
+          
+          if (noticeOk.length > 0) {
+            if (result.quiet) {
+              
+              result.deferred = true;
+              this.logger.log(
+                `补偿：安静时段，入箱 ${noticeOk.length} 条，即时推送 0 条`,
+              );
+            } else if (noticeOk.length <= DIGEST_THRESHOLD) {
+              
+              for (const row of noticeOk) {
+                const ok = await this.pushSingle(row);
+                if (ok) result.pushed += 1;
+              }
+            } else {
+              
+              const ok = await this.pushDigest(noticeOk, now);
+              if (ok) result.digests += 1;
+            }
+          }
+
+          if (noticeFailed.length > 0) {
+            this.logger.warn(
+              `补偿：通知落库失败 ${noticeFailed.length} 条（不写完成标记，下轮重试）`,
+            );
+          }
+
+          this.logger.log(
+            `补偿完成：扫描 ${result.scanned}，入箱 ${result.recorded}，` +
+              `通知失败 ${result.noticeFailed}，单推 ${result.pushed}，` +
+              `摘要 ${result.digests}，安静时段=${result.quiet}`,
+          );
+        } catch (err) {
+          
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.warn(`漏提醒补偿失败（已隔离）：${message}`);
+        }
+        return result;
+      }
+
+      
+      private async collectAllDue(now: Date): Promise<DueRow[]> {
+        const all: DueRow[] = [];
+        const seen = new Set<string>();
+        let cursorRemindAt: string | null = null;
+        let cursorId: string | null = null;
+        const MAX_ROUNDS = 1000;
+
+        for (let round = 0; round < MAX_ROUNDS; round += 1) {
+          const params: unknown[] = [now];
+          let cursorClause = '';
+          if (cursorRemindAt !== null && cursorId !== null) {
+            
+            cursorClause =
+              'AND (s.remind_at > ? OR (s.remind_at = ? AND s.id > ?))';
+            params.push(cursorRemindAt, cursorRemindAt, cursorId);
+          }
+
+          const batch = await this.dataSource.query<DueRow[]>(
+            `SELECT s.id, s.tenant_id, s.title, s.owner, s.participants,
+                    s.start_at, s.remind_at
+               FROM t_ai_schedule s
+              WHERE s.status = 'planned'
+                AND s.remind_at IS NOT NULL
+                AND s.remind_at <= ?
+                ${cursorClause}
+                AND (
+                  NOT EXISTS (
+                    SELECT 1 FROM t_ai_reminder_delivery dn
+                     WHERE dn.tenant_id = s.tenant_id
+                       AND dn.schedule_id = CAST(s.id AS CHAR)
+                       AND dn.occurrence_at = s.remind_at
+                       AND dn.kind = 'notice'
+                       AND dn.status = 'success'
+                  )
+                  OR NOT EXISTS (
+                    SELECT 1 FROM t_ai_reminder_delivery dp
+                     WHERE dp.tenant_id = s.tenant_id
+                       AND dp.schedule_id = CAST(s.id AS CHAR)
+                       AND dp.occurrence_at = s.remind_at
+                       AND dp.kind = 'push'
+                       AND dp.status = 'success'
+                  )
+                )
+              ORDER BY s.remind_at ASC, s.id ASC
+              LIMIT ${CATCHUP_BATCH}`,
+            params,
+          );
+
+          if (batch.length === 0) break;
+          for (const row of batch) {
+            const key = `${String(row.tenant_id)}:${String(row.id)}:${toIso(row.remind_at)}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              all.push(row);
+            }
+          }
+          const last = batch[batch.length - 1];
+          cursorRemindAt = toSqlDateTime(last.remind_at);
+          cursorId = String(last.id);
+          if (batch.length < CATCHUP_BATCH) break;
+        }
+        return all;
+      }
+
+      
+      private async recordNotice(
+        row: DueRow,
+      ): Promise<{ ok: boolean; fresh: boolean }> {
+        const scheduleId = String(row.id);
+        const occurrence = toDate(row.remind_at);
+        try {
+          
+          if (
+            this.noticeBridge &&
+            (await this.deliveryDone(row, occurrence, 'notice'))
+          ) {
+            return { ok: true, fresh: false };
+          }
+
+          const receiver = this.receiverOf(row);
+          const push = this.buildPush(row);
+
+          if (this.noticeBridge) {
+            const res = (await this.noticeBridge.pushWithNotice(
+              row.tenant_id,
+              push,
+              {
+                receiver,
+                source: 'schedule',
+                refId: scheduleId,
+                dedupeKey: this.dedupeOf(
+                  row.tenant_id,
+                  scheduleId,
+                  occurrence,
+                  'notice',
+                ),
+              },
+            )) as unknown as { inserted: boolean; deduped?: boolean; error?: string };
+            void res;
+            
+            if (!res.inserted && !res.deduped) {
+              await this.markDelivery(
+                row,
+                occurrence,
+                'notice',
+                'failed',
+                res.error ?? 'notice record failed',
+              );
+              return { ok: false, fresh: false };
+            }
+            await this.markDelivery(row, occurrence, 'notice', 'success');
+          } else {
+            
+            await this.pushService.push(row.tenant_id, 'schedule_reminder', push);
+            await this.markDelivery(row, occurrence, 'notice', 'success');
+          }
+
+          
+          await this.dataSource.query(
+            'UPDATE t_ai_schedule SET reminded_at = ? WHERE id = ? AND reminded_at IS NULL',
+            [new Date(), scheduleId],
+          );
+          return { ok: true, fresh: true };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.warn(`补偿：通知落库异常：schedule=${scheduleId} ${message}`);
+          try {
+            await this.markDelivery(row, occurrence, 'notice', 'failed', message);
+          } catch {
+            
+          }
+          return { ok: false, fresh: false };
+        }
+      }
+
+      
+      private async pushSingle(row: DueRow): Promise<boolean> {
+        const scheduleId = String(row.id);
+        const occurrence = toDate(row.remind_at);
+        try {
+          if (await this.deliveryDone(row, occurrence, 'push')) {
+            return true;
+          }
+          const ok = await this.pushService.push(
+            row.tenant_id,
+            'schedule_reminder',
+            this.buildPush(row),
+          );
+          await this.markDelivery(
+            row,
+            occurrence,
+            'push',
+            ok ? 'success' : 'failed',
+          );
+          return ok;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.warn(`补偿：单推失败：schedule=${scheduleId} ${message}`);
+          try {
+            await this.markDelivery(row, occurrence, 'push', 'failed', message);
+          } catch {
+            
+          }
+          return false;
+        }
+      }
+
+      
+      private async pushDigest(rows: DueRow[], now: Date): Promise<boolean> {
+        try {
+          const tenantId = rows[0].tenant_id;
+          const batchKey = this.batchKeyOf(rows);
+          if (await this.digestDone(tenantId, batchKey)) {
+            return true;
+          }
+          const urgent = rows.slice(0, DIGEST_THRESHOLD);
+          const lines = urgent
+            .map((r) => `· ${r.title}（${toIso(r.remind_at)}）`)
+            .join('\\n');
+          const digest = {
+            type: 'system' as const,
+            title: `您有 ${rows.length} 条漏提醒待查看`,
+            content:
+              `系统恢复后发现 ${rows.length} 条到期提醒未及时送达：\\n${lines}\\n` +
+              `以上为最紧急 ${urgent.length} 条，完整列表请打开通知中心查看。`,
+            priority: 'reminder' as const,
+          };
+          const ok = await this.pushService.push(
+            tenantId,
+            'schedule_reminder_digest',
+            digest,
+          );
+          if (ok) {
+            await this.writeDigestSuccess(tenantId, batchKey, now);
+          }
+          return ok;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.warn(`补偿：摘要推送失败：${message}`);
+          return false;
+        }
+      }
+
+      
+      private receiverOf(row: DueRow): string {
+        return [row.owner ?? '', ...parseParticipants(row.participants)]
+          .filter((x) => x.length > 0)
+          .join(',');
+      }
+
+      
+      private buildPush(row: DueRow): {
+        type: 'system';
+        title: string;
+        content: string;
+        priority: 'reminder';
+      } {
+        const startText = toIso(row.start_at);
+        return {
+          type: 'system' as const,
+          title: `日程提醒：${row.title}`,
+          content:
+            `「${row.title}」将于 ${startText} 开始（漏提醒补发；` +
+            `归属人 ${row.owner ?? '-'}；参与者 ${row.participants ?? '-'}；` +
+            `日程ID ${String(row.id)}）`,
+          priority: 'reminder' as const,
+        };
+      }
+
+      
+      isQuietHours(now: Date = new Date()): boolean {
+        const hour = this.shanghaiHour(now);
+        return hour >= QUIET_START_HOUR || hour < QUIET_END_HOUR;
+      }
+
+      
+
+      
+      private dedupeOf(
+        tenantId: string,
+        scheduleId: string,
+        occurrence: Date,
+        kind: 'notice' | 'push',
+      ): string {
+        return `${tenantId}:${scheduleId}:${occurrence.toISOString()}:${kind}`;
+      }
+
+      
+      private async deliveryDone(
+        row: DueRow,
+        occurrence: Date,
+        kind: 'notice' | 'push',
+      ): Promise<boolean> {
+        const rows = await this.dataSource.query<Array<{ c: unknown }>>(
+          `SELECT COUNT(*) AS c FROM t_ai_reminder_delivery
+            WHERE tenant_id = ? AND schedule_id = ? AND occurrence_at = ? AND kind = ? AND status = 'success'`,
+          [row.tenant_id, String(row.id), occurrence, kind],
+        );
+        return Number(rows[0]?.c ?? 0) > 0;
+      }
+
+      
+      private async markDelivery(
+        row: DueRow,
+        occurrence: Date,
+        kind: 'notice' | 'push',
+        status: 'success' | 'failed',
+        errorMsg?: string,
+      ): Promise<void> {
+        const now = new Date();
+        await this.dataSource.query(
+          `INSERT INTO t_ai_reminder_delivery
+             (tenant_id, schedule_id, occurrence_at, kind, status, dedupe_key, error_msg, attempts, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             status = VALUES(status),
+             error_msg = VALUES(error_msg),
+             attempts = attempts + 1,
+             updated_at = VALUES(updated_at)`,
+          [
+            row.tenant_id,
+            String(row.id),
+            occurrence,
+            kind,
+            status,
+            this.dedupeOf(row.tenant_id, String(row.id), occurrence, kind),
+            errorMsg ?? null,
+            now,
+            now,
+          ],
+        );
+      }
+
+      
+      private batchKeyOf(rows: DueRow[]): string {
+        const parts = rows
+          .map((r) => `${String(r.id)}@${toIso(r.remind_at)}`)
+          .sort()
+          .join('|');
+        let h = 0;
+        for (let i = 0; i < parts.length; i += 1) {
+          h = (h * 31 + parts.charCodeAt(i)) | 0;
+        }
+        return `digest:${Math.abs(h).toString(36)}`;
+      }
+
+      
+      private async digestDone(
+        tenantId: string,
+        batchKey: string,
+      ): Promise<boolean> {
+        const rows = await this.dataSource.query<Array<{ c: unknown }>>(
+          `SELECT COUNT(*) AS c FROM t_ai_reminder_digest_sent
+            WHERE tenant_id = ? AND batch_key = ?`,
+          [tenantId, batchKey],
+        );
+        return Number(rows[0]?.c ?? 0) > 0;
+      }
+
+      
+      private async writeDigestSuccess(
+        tenantId: string,
+        batchKey: string,
+        now: Date,
+      ): Promise<void> {
+        await this.dataSource.query(
+          `INSERT INTO t_ai_reminder_digest_sent (tenant_id, batch_key, sent_at)
+           VALUES (?, ?, ?)
+           ON DUPLICATE KEY UPDATE sent_at = sent_at`,
+          [tenantId, batchKey, now],
+        );
+      }
+
+      
+      private shanghaiHour(now: Date): number {
+        const text = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'Asia/Shanghai',
+          hour: '2-digit',
+          hour12: false,
+        }).format(now);
+        const hour = Number.parseInt(text, 10);
+        return Number.isNaN(hour) ? now.getHours() : hour % 24;
+      }
+
+      
+      async summarizeBacklog(
+        tenantId: string,
+        now: Date = new Date(),
+      ): Promise<{
+        total: number;
+        urgent: Array<{ title: string; remindAt: string }>;
+        summary: string;
+      }> {
+        try {
+          const rows = await this.dataSource.query<DueRow[]>(
+            `SELECT s.id, s.tenant_id, s.title, s.owner, s.participants,
+                    s.start_at, s.remind_at
+               FROM t_ai_schedule s
+              WHERE s.tenant_id = ?
+                AND s.status = 'planned'
+                AND s.remind_at IS NOT NULL
+                AND s.remind_at <= ?
+                AND NOT EXISTS (
+                  SELECT 1 FROM t_ai_reminder_delivery d
+                   WHERE d.tenant_id = s.tenant_id
+                     AND d.schedule_id = CAST(s.id AS CHAR)
+                     AND d.occurrence_at = s.remind_at
+                     AND d.kind = 'notice'
+                     AND d.status = 'success'
+                )
+              ORDER BY s.remind_at ASC`,
+            [tenantId, now],
+          );
+          const total = rows.length;
+          const urgent = rows.slice(0, DIGEST_THRESHOLD).map((r) => ({
+            title: r.title,
+            remindAt: toIso(r.remind_at),
+          }));
+          const summary =
+            total === 0
+              ? '当前没有待补发的漏提醒。'
+              : `你有 ${total} 条漏提醒待查看：` +
+                urgent.map((u) => `${u.title}（${u.remindAt}）`).join('；') +
+                (total > urgent.length
+                  ? `；等共 ${total} 条，完整列表见通知中心。`
+                  : '。');
+          return { total, urgent, summary };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.warn(`漏提醒查询失败（已隔离）：${message}`);
+          return { total: 0, urgent: [], summary: '暂时无法读取漏提醒信息' };
+        }
+      }
+    }
+
+
+    function toDate(v: Date | string): Date {
+      return v instanceof Date ? v : new Date(v);
+    }
+
+
+    function toSqlDateTime(v: Date | string): string {
+      return toDate(v).toISOString().slice(0, 23).replace('T', ' ');
+    }
+
+
+    function toIso(v: Date | string): string {
+      const d = v instanceof Date ? v : new Date(v);
+      return Number.isNaN(d.getTime()) ? String(v) : d.toISOString();
+    }
+    "
+
+      449 |       .replace(/\/\/[^\n]*/g, '');
+      450 |     // 🔴 结构承重：补偿器**代码**里不得调用 pushWithNotice（那会"落通知+立刻推送"）
+    > 451 |     expect(codeOnly).not.toContain('pushWithNotice');
+          |                          ^
+      452 |     expect(codeOnly).toContain('recordNoticeOnly');
+      453 |   });
+      454 | });
+
+      at Object.<anonymous> (brain/proactive/reminder-catchup.spec.ts:451:26)
+
+Test Suites: 1 failed, 1 total
+Tests:       14 failed, 6 passed, 20 total
+Snapshots:   0 total
+Time:        5.403 s, estimated 7 s
+Ran all test suites matching src/brain/proactive/reminder-catchup.spec.ts.
