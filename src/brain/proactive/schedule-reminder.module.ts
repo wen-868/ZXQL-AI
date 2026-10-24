@@ -16,10 +16,24 @@ import { ScheduleReminderService } from './schedule-reminder.service';
 // R101-AI-40：站内通知落库 + 旁路组合（推送 + 通知）
 import { NoticeService } from './notice.service';
 import { NoticeBridgeService } from './notice-bridge.service';
+// AI-P2-3：停机漏提醒补偿器（与正常提醒共用同一 push/notice 通道，不建旁路）
+import { ReminderCatchupService } from './reminder-catchup.service';
 
 @Module({
   imports: [ProactiveModule, DatabaseModule],
-  providers: [ScheduleReminderService, NoticeService, NoticeBridgeService],
-  exports: [ScheduleReminderService, NoticeService, NoticeBridgeService],
+  providers: [
+    ScheduleReminderService,
+    NoticeService,
+    NoticeBridgeService,
+    // AI-P2-3：补偿器与提醒服务同模块 ⇒ 共享同一 push/notice 实例（人工与 AI 共用，无旁路）
+    ReminderCatchupService,
+  ],
+  exports: [
+    ScheduleReminderService,
+    NoticeService,
+    NoticeBridgeService,
+    // AI-P2-3：导出以便 AI 查询漏提醒摘要（只读；不得删除原始提醒）
+    ReminderCatchupService,
+  ],
 })
 export class ScheduleReminderModule {}

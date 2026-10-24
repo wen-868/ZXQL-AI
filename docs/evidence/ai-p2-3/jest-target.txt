@@ -1,0 +1,44 @@
+[Nest] 22056  - 2026/10/25 03:20:29     LOG [ReminderCatchupService] 补偿完成：扫描 100 条，入箱 100 条，推送 0 条，摘要 1 条，失败 0 条，安静时段=false
+[Nest] 22056  - 2026/10/25 03:20:29     LOG [ReminderCatchupService] 补偿完成：扫描 150 条，入箱 150 条，推送 0 条，摘要 1 条，失败 0 条，安静时段=false
+[Nest] 22056  - 2026/10/25 03:20:29     LOG [ReminderCatchupService] 补偿完成：扫描 1 条，入箱 1 条，推送 1 条，摘要 0 条，失败 0 条，安静时段=false
+[Nest] 22056  - 2026/10/25 03:20:29     LOG [ReminderCatchupService] 补偿完成：扫描 3 条，入箱 3 条，推送 3 条，摘要 0 条，失败 0 条，安静时段=false
+[Nest] 22056  - 2026/10/25 03:20:29     LOG [ReminderCatchupService] 补偿完成：扫描 4 条，入箱 4 条，推送 0 条，摘要 1 条，失败 0 条，安静时段=false
+[Nest] 22056  - 2026/10/25 03:20:29     LOG [ReminderCatchupService] 补偿完成：扫描 5 条，入箱 5 条，推送 0 条，摘要 1 条，失败 0 条，安静时段=false
+[Nest] 22056  - 2026/10/25 03:20:29     LOG [ReminderCatchupService] 补偿完成：扫描 1 条，入箱 1 条，推送 1 条，摘要 0 条，失败 0 条，安静时段=false
+[Nest] 22056  - 2026/10/25 03:20:29     LOG [ReminderCatchupService] 补偿：安静时段，通知已入箱 5 条，即时推送推迟至 08:00
+[Nest] 22056  - 2026/10/25 03:20:29     LOG [ReminderCatchupService] 补偿完成：扫描 5 条，入箱 5 条，推送 0 条，摘要 0 条，失败 0 条，安静时段=true
+[Nest] 22056  - 2026/10/25 03:20:29     LOG [ReminderCatchupService] 08:00 汇总：安静时段积压 2 条已生成摘要
+[Nest] 22056  - 2026/10/25 03:20:29     LOG [ReminderCatchupService] 补偿完成：扫描 6 条，入箱 6 条，推送 0 条，摘要 1 条，失败 0 条，安静时段=false
+[Nest] 22056  - 2026/10/25 03:20:29     LOG [ReminderCatchupService] 08:00 汇总：安静时段积压 2 条已生成摘要
+[Nest] 22056  - 2026/10/25 03:20:29    WARN [ReminderCatchupService] 补偿单条失败（下次重试）：schedule=2 channel down
+[Nest] 22056  - 2026/10/25 03:20:29     LOG [ReminderCatchupService] 补偿完成：扫描 2 条，入箱 1 条，推送 2 条，摘要 1 条，失败 1 条，安静时段=false
+[Nest] 22056  - 2026/10/25 03:20:29     LOG [ReminderCatchupService] 补偿完成：扫描 2 条，入箱 2 条，推送 2 条，摘要 0 条，失败 0 条，安静时段=false
+[Nest] 22056  - 2026/10/25 03:20:29     LOG [ReminderCatchupService] 补偿完成：扫描 1 条，入箱 1 条，推送 1 条，摘要 0 条，失败 0 条，安静时段=false
+[Nest] 22056  - 2026/10/25 03:20:29    WARN [ReminderCatchupService] 安静时段积压查询失败（已隔离）：DB down
+[Nest] 22056  - 2026/10/25 03:20:29    WARN [ReminderCatchupService] 漏提醒补偿失败（已隔离）：DB down
+PASS src/brain/proactive/reminder-catchup.spec.ts
+  ReminderCatchupService（AI-P2-3 停机漏提醒补偿）
+    √ ① 100 条全部补回（不设"只补最近 N 条"；分批扫尽） (25 ms)
+    √ ①b 跨批（两批各 100）仍全部补回，证明循环到扫尽 (8 ms)
+    √ ④ 1 条（≤3）⇒ 逐条推送 1 次，不发聚合摘要 (4 ms)
+    √ ④ 3 条（≤3）⇒ 逐条推送 3 次，不发聚合摘要 (3 ms)
+    √ ④b 4 条 ⇒ 一条聚合摘要（不逐条推），但 4 条都独立入箱 (4 ms)
+    √ ② 聚合摘要不替代通知中心：每条 dedupeKey 独立（可追溯每条原始提醒） (3 ms)
+    √ ③ 幂等键格式：tenant 维度 + sourceId + occurrenceAt（重复扫描不重复成功发送） (5 ms)
+    √ ⑤ 安静时段（23:00）⇒ 通知照常入箱、但不推即时消息 (4 ms)
+    √ ⑤b 08:00 生成汇总摘要（安静时段积压的提醒得到告知） (4 ms)
+    √ ⑥ 停机 7 天的积压同样全部补回（时间窗不影响"全部"语义） (3 ms)
+    √ ⑦ 渠道失败：failed 计数如实，成功的照常 (4 ms)
+    √ ⑧ 跨租户隔离：各条按自己的 tenant 落箱，不串租户 (3 ms)
+    √ ⑨ 无通知旁路时退回既有 push（既有单测路径保持兼容） (3 ms)
+    √ ⑩ 查询抛错 ⇒ 不抛、返回零结果（@Cron 内异常隔离） (2 ms)
+    √ ⑪ 安静时段判定：22:00 起、08:00 止（Asia/Shanghai 边界） (3 ms)
+    √ ⑬ AI 只读查询：返回条数与摘要，且**不写任何数据**（红线：AI 不得删原始提醒） (14 ms)
+    √ ⑭ 人工与 AI 共用同一补偿器：同一 SQL 表 + 同一 push/notice 通道（无旁路） (6 ms)
+    √ ⑫ BLOCKED 登记：recurrence 无数据模型（不造假用例） (6 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       18 passed, 18 total
+Snapshots:   0 total
+Time:        4.147 s
+Ran all test suites matching src/brain/proactive/reminder-catchup.spec.ts.

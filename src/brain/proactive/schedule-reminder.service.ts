@@ -25,6 +25,8 @@ import { ProactivePushService } from './proactive-push.service';
 // R101-AI-40 S3：站内通知旁路（有则"先落通知、再推实时"；无则退回既有 push 路径）
 import { NoticeBridgeService } from './notice-bridge.service';
 import { parseParticipants } from '../../tools/definitions/schedule-participants.util';
+// AI-P2-3：停机漏提醒补偿（与正常提醒共用同一调度器，不新建旁路）
+import { ReminderCatchupService } from './reminder-catchup.service';
 
 /** 单次扫描上限（防一次性推送风暴） */
 const SCAN_LIMIT = 50;
@@ -50,15 +52,25 @@ export class ScheduleReminderService {
     // R101-AI-40：站内通知旁路（@Optional ⇒ 既有单测保持原路径；模块注入后自动走"落通知+推送"）
     @Optional()
     private readonly noticeBridge?: NoticeBridgeService,
+    // AI-P2-3：停机漏提醒补偿器（@Optional ⇒ 既有 5 例单测无需改动即可保持原路径）
+    @Optional()
+    private readonly catchup?: ReminderCatchupService,
   ) {}
 
   /**
    * 每分钟扫描到期日程并推送提醒
    *
    * **绝不抛**：任何异常都被隔离（提醒失败不得影响其它链路）；单条失败不阻断其余条目。
+   *
+   * AI-P2-3：扫描前**先跑补偿**（同一调度器，先补历史漏提醒再处理当前到期），
+   * 保证停机期间的积压不会被"当前窗口"挤掉。
    */
   @Cron('* * * * *')
   async scanDueReminders(now: Date = new Date()): Promise<number> {
+    // AI-P2-3：补偿优先（补偿内部已全异常隔离，不会阻断本函数）
+    if (this.catchup) {
+      await this.catchup.catchup(now);
+    }
     let pushed = 0;
     try {
       const rows = await this.dataSource.query<DueRow[]>(
