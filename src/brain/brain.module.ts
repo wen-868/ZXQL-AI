@@ -56,6 +56,10 @@ import { AnswerSelfCheckService } from './answer-self-check.service';
 import { KnowledgeRulesService } from './knowledge-rules.service';
 import { EmployeeModule } from '../brain/employee/employee.module';
 import { EmployeeTaskBridge } from './employee/employee-task-bridge.service';
+// AI-P1-3：文档问答执行桥（把 tools 叶子 DocAskRunner 接到 ProviderRouter；
+//   方向=Brain→Tools 合法依赖；若反向（工具注入 ProviderRouterService）则成环——
+//   R101-AI-47 实测踩过的坑，本桥是该教训的正解复用）
+import { DocAskBridge } from './doc-ask-bridge.service';
 import { PlannerService } from './agent/planner.service';
 import { SelfHealLoopService } from './agent/self-heal-loop.service';
 import { TaskRunnerService } from './agent/task-runner.service';
@@ -114,6 +118,8 @@ import { ReportService } from './v2/report.service';
     EvolutionAutonomyScheduler,
     AnswerSelfCheckService,
     EmployeeTaskBridge,
+    // AI-P1-3：注册文档问答执行器到 tools 叶子 holder（onModuleInit 时机）
+    DocAskBridge,
     KnowledgeRulesService,
   ],
   exports: [

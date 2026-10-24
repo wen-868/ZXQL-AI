@@ -1,0 +1,36 @@
+[Nest] 19676  - 2026/10/24 08:45:43    WARN [AiDocAskTool] 文档问答模型调用失败（降级为失败结果）：所有 AI 服务商均不可用
+[Nest] 19676  - 2026/10/24 08:45:43   ERROR [AiDocAskTool] 文档问答失败：Cannot read properties of null (reading 'id')
+[Nest] 19676  - 2026/10/24 08:45:43   ERROR [AiDocAskTool] 文档问答失败：DB down
+FAIL src/tools/definitions/ai-doc-ask.tool.spec.ts
+  AiDocAskTool（AI-P1-3 · 文档问答）
+    × ① ACL 先行：无权/不存在 ⇒ 统一口径失败且 runner 零调用（存在性不泄漏） (15 ms)
+    √ ② 无分块 ⇒ not_indexed 如实分支：不编造、有可执行建议 (2 ms)
+    √ ③ 正常问答：answer 来自模型，citations 由工具按 chunkIndex 组装（断到关键内容） (4 ms)
+    √ ④ 只喂本 docId + 本租户的分块（tenant+doc_name 双条件，防串料/串租户） (4 ms)
+    √ ⑤ LLM 失败 ⇒ success:false 无 answer；商户文案不含内部术语 (4 ms)
+    √ ⑥ 读工具契约 + topK 边界：非法回落默认、超上限截断 (4 ms)
+    √ ⑦ runner 收到完整授权载荷（docTitle/question/passages 有文本；入参校验先行） (3 ms)
+    √ ⑧ DB 查询失败 ⇒ 不崩，失败透明（error 收敛 + 建议） (3 ms)
+
+  ● AiDocAskTool（AI-P1-3 · 文档问答） › ① ACL 先行：无权/不存在 ⇒ 统一口径失败且 runner 零调用（存在性不泄漏）
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "不存在或无权访问"
+    Received string:    "文档问答失败：Cannot read properties of null (reading 'id')"
+
+       99 |     expect(r.success).toBe(false);
+      100 |     // 无权与不存在同一口径（不暴露"其实存在只是你不能看"）
+    > 101 |     expect(r.error).toContain('不存在或无权访问');
+          |                     ^
+      102 |     // 🔴 承重断言：LLM 一次都没被调用（mutation：把 ACL 挪到 LLM 后 ⇒ 此断言红）
+      103 |     expect(h.askCalls).toHaveLength(0);
+      104 |   });
+
+      at Object.<anonymous> (tools/definitions/ai-doc-ask.tool.spec.ts:101:21)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 7 passed, 8 total
+Snapshots:   0 total
+Time:        2.919 s, estimated 3 s
+Ran all test suites matching src/tools/definitions/ai-doc-ask.tool.spec.ts.

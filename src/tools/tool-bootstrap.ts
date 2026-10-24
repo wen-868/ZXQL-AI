@@ -62,6 +62,8 @@ import { HandleSubscriptionApplyTool } from './definitions/handle-subscription-a
 import { AiDocListTool } from './definitions/ai-doc-list.tool';
 import { AiDocGetTool } from './definitions/ai-doc-get.tool';
 import { AiDocSearchTool } from './definitions/ai-doc-search.tool';
+// AI-P1-3: 文档问答（读）
+import { AiDocAskTool } from './definitions/ai-doc-ask.tool';
 // R101-AI-44: （写）
 import { AiDocCreateTool } from './definitions/ai-doc-create.tool';
 import { AiDocUpdateTool } from './definitions/ai-doc-update.tool';
@@ -202,6 +204,8 @@ export class ToolBootstrap implements OnModuleInit {
     private readonly aiDocListTool: AiDocListTool,
     private readonly aiDocGetTool: AiDocGetTool,
     private readonly aiDocSearchTool: AiDocSearchTool,
+    // AI-P1-3: 文档问答（读）
+    private readonly aiDocAskTool: AiDocAskTool,
     // （写）
     private readonly aiDocCreateTool: AiDocCreateTool,
     private readonly aiDocUpdateTool: AiDocUpdateTool,
@@ -316,6 +320,8 @@ export class ToolBootstrap implements OnModuleInit {
       this.aiDocListTool,
       this.aiDocGetTool,
       this.aiDocSearchTool,
+      // AI-P1-3: 文档问答（读，必经 ACL；LLM 经 DocAskRunner 由 Brain 侧桥注册）
+      this.aiDocAskTool,
       // R101-AI-44: （写）
       this.aiDocCreateTool,
       this.aiDocUpdateTool,

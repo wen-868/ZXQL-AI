@@ -55,6 +55,9 @@ import { AiDocGetTool } from './definitions/ai-doc-get.tool';
 import { CancelSalesOrderTool } from './definitions/cancel-sales-order.tool';
 import { AiDocArchiveTool } from './definitions/ai-doc-archive.tool';
 import { AiDocSearchTool } from './definitions/ai-doc-search.tool';
+// AI-P1-3：文档问答（读工具；LLM 经 DocAskRunner 叶子 holder 调用 ⇒ ToolsModule 不 import BrainModule，无环）
+import { AiDocAskTool } from './definitions/ai-doc-ask.tool';
+import { DocAskRunner } from './doc-ask-runner';
 // R101-AI-37 步骤 3：待办清单（读工具；ACL 可见集作为库查询条件）
 import { AiTodoListTool } from './definitions/ai-todo-list.tool';
 // R101-AI-37 步骤 3：新建待办（写工具；幂等双保险 + 复用既有派单）
@@ -192,6 +195,9 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     AiDocArchiveTool,
     // R101-AI-35 S2：文档中心读工具（aiDocSearch；结构化检索，必经 ACL）
     AiDocSearchTool,
+    // AI-P1-3：文档问答（读工具；必经 ACL + DocAskRunner 叶子 holder）
+    AiDocAskTool,
+    DocAskRunner,
     // R101-AI-37 步骤 3：待办读工具
     AiTodoListTool,
     // R101-AI-37 步骤 3：待办写工具
@@ -297,6 +303,8 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     ToolExecutor,
     CircuitBreakerService,
     ToolGeneratorService,
+    // AI-P1-3：Brain 侧 DocAskBridge 注入**同一实例**注册实现（叶子 holder，无环方向）
+    DocAskRunner,
   ],
 })
 export class ToolsModule {}

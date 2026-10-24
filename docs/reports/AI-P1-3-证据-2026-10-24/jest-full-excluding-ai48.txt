@@ -1,0 +1,1698 @@
+PASS src/gateway/external-model.scope.spec.ts
+PASS src/gateway/external-model.read-scope.spec.ts (5.344 s)
+PASS src/brain/v2/report.service.spec.ts (5.968 s)
+PASS src/rag/rag.module.spec.ts (6.797 s)
+PASS src/gateway/chat.controller.revoke.spec.ts (6.911 s)
+[Nest] 17504  - 2026/10/24 08:50:48     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=7fddaf11-f147-4d23-9eae-d136fcf7bf6f tool=createSalesOrder（创建销售单）
+[Nest] 17504  - 2026/10/24 08:50:48     LOG [ConfirmationService] 操作已撤销：id=7fddaf11-f147-4d23-9eae-d136fcf7bf6f tool=createSalesOrder（创建销售单）
+[Nest] 17504  - 2026/10/24 08:50:48     LOG [ChatController] 操作已登记撤销：id=7fddaf11-f147-4d23-9eae-d136fcf7bf6f tenant=tenant-A reason=用户主动撤销
+[Nest] 17504  - 2026/10/24 08:50:48     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=3c455690-61c6-4914-9339-54a9c20e9832 tool=createSalesOrder（创建销售单）
+[Nest] 17504  - 2026/10/24 08:50:48    WARN [ConfirmationService] 自动回滚失败，保留撤销记录待重试：id=3c455690-61c6-4914-9339-54a9c20e9832 tool=createSalesOrder attempts=1 error=自动回滚失败：后端取消接口 500
+[Nest] 17504  - 2026/10/24 08:50:48    WARN [ChatController] 撤销登记未完成：自动回滚失败，保留重试入口 id=3c455690-61c6-4914-9339-54a9c20e9832 tenant=tenant-A
+[Nest] 17504  - 2026/10/24 08:50:48     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=1bb88fd8-5d16-4435-904c-449c0d1e78df tool=createSalesOrder（创建销售单）
+[Nest] 17504  - 2026/10/24 08:50:48    WARN [ConfirmationService] 自动回滚失败，保留撤销记录待重试：id=1bb88fd8-5d16-4435-904c-449c0d1e78df tool=createSalesOrder attempts=1 error=自动回滚失败：超时
+[Nest] 17504  - 2026/10/24 08:50:48    WARN [ChatController] 撤销登记未完成：自动回滚失败，保留重试入口 id=1bb88fd8-5d16-4435-904c-449c0d1e78df tenant=tenant-A
+[Nest] 17504  - 2026/10/24 08:50:48    WARN [ConfirmationService] 自动回滚失败，保留撤销记录待重试：id=1bb88fd8-5d16-4435-904c-449c0d1e78df tool=createSalesOrder attempts=2 error=自动回滚失败：超时
+[Nest] 17504  - 2026/10/24 08:50:48    WARN [ChatController] 撤销登记未完成：自动回滚失败，保留重试入口 id=1bb88fd8-5d16-4435-904c-449c0d1e78df tenant=tenant-A
+[Nest] 17504  - 2026/10/24 08:50:48     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=84dbbedd-e206-42af-9359-07d832bff4f1 tool=createSalesOrder（创建销售单）
+[Nest] 17504  - 2026/10/24 08:50:48     LOG [ConfirmationService] 操作已撤销：id=84dbbedd-e206-42af-9359-07d832bff4f1 tool=createSalesOrder（创建销售单）
+[Nest] 17504  - 2026/10/24 08:50:48     LOG [ChatController] 操作已登记撤销：id=84dbbedd-e206-42af-9359-07d832bff4f1 tenant=tenant-A reason=用户主动撤销
+[Nest] 17504  - 2026/10/24 08:50:48     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=dceeddf7-c373-4305-80cb-ee4df8dd2d30 tool=createSalesOrder（创建销售单）
+[Nest] 17504  - 2026/10/24 08:50:48     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=2f08f568-5886-418f-a25b-68bd0d34bacf tool=createSalesOrder（创建销售单）
+[Nest] 17504  - 2026/10/24 08:50:48     LOG [ConfirmationService] 操作已撤销：id=2f08f568-5886-418f-a25b-68bd0d34bacf tool=createSalesOrder（创建销售单）
+[Nest] 17504  - 2026/10/24 08:50:48     LOG [ChatController] 操作已登记撤销：id=2f08f568-5886-418f-a25b-68bd0d34bacf tenant=tenant-A reason=用户主动撤销
+[Nest] 4604  - 2026/10/24 08:50:49     LOG [RagSeedService] RAG 未启用（EMBEDDING_MODEL 未配置），跳过预置知识库加载
+[Nest] 4604  - 2026/10/24 08:50:49     LOG [RagSeedService] 预置知识文档已存在（跳过）：已有文档.md
+[Nest] 4604  - 2026/10/24 08:50:49   DEBUG [DocumentLoaderService] 加载文档：新增文档.md（type=markdown）
+[Nest] 4604  - 2026/10/24 08:50:49     LOG [RagSeedService] 预置知识文档已加载：新增文档.md（1 分块）
+[Nest] 4604  - 2026/10/24 08:50:49   DEBUG [DocumentLoaderService] 加载文档：规则A.md（type=markdown）
+[Nest] 4604  - 2026/10/24 08:50:49     LOG [RagSeedService] 预置知识文档已加载：规则A.md（1 分块）
+PASS src/rag/rag-seed.service.spec.ts
+[Nest] 4604  - 2026/10/24 08:50:49   DEBUG [DocumentLoaderService] 加载文档：规则B.md（type=markdown）
+[Nest] 4604  - 2026/10/24 08:50:49     LOG [RagSeedService] 预置知识文档已加载：规则B.md（1 分块）
+[Nest] 4604  - 2026/10/24 08:50:49   DEBUG [DocumentLoaderService] 加载文档：有效文档.md（type=markdown）
+[Nest] 4604  - 2026/10/24 08:50:49     LOG [RagSeedService] 预置知识文档已加载：有效文档.md（1 分块）
+[Nest] 4604  - 2026/10/24 08:50:49   DEBUG [DocumentLoaderService] 加载文档：空文档.md（type=markdown）
+[Nest] 4604  - 2026/10/24 08:50:49    WARN [RagSeedService] 预置文档无有效内容（跳过）：空文档.md
+PASS src/common/redis.provider.spec.ts
+PASS src/database/database.module.spec.ts
+[Nest] 21976  - 2026/10/24 08:50:50     LOG [CheckpointerService] Redis 连接成功（图状态 Checkpointer 就绪）
+[Nest] 21976  - 2026/10/24 08:50:50     LOG [WriteGuardService] Redis 连接成功：127.0.0.1:1 db=1（WriteGuard 令牌服务就绪）
+[Nest] 21976  - 2026/10/24 08:50:50     LOG [RateLimiterService] Redis 限流计数连接成功：127.0.0.1:1 db=1（每租户 60 次/分钟）
+[Nest] 21976  - 2026/10/24 08:50:50     LOG [MemoryManager] Redis 连接成功：127.0.0.1:1 db=1（对话记忆服务就绪）
+PASS src/rag/rag.controller.spec.ts
+[Nest] 17504  - 2026/10/24 08:50:50     LOG [RagController] 文档已建立索引：tenant=default doc=手册.pdf chunks=2
+[Nest] 17504  - 2026/10/24 08:50:50     LOG [RagController] 文档已建立索引：tenant=tenant-A doc=手册.pdf chunks=1
+[Nest] 17504  - 2026/10/24 08:50:50     LOG [RagController] 文档已建立索引：tenant=default doc=手册.pdf chunks=0
+PASS src/brain/rollback-executor.service.spec.ts
+PASS src/brain/proactive/proactive.module.spec.ts (10.75 s)
+[Nest] 21976  - 2026/10/24 08:50:52   ERROR [TaskRunnerService] 计划写步骤挂起失败（WriteGuard 令牌未创建，步骤按失败处理）：plan=1 step=s1 tool=createSalesOrder err=Redis down
+PASS src/brain/agent/task-runner.service.spec.ts
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 创建执行计划：id=1 tenant=t1 steps=2 goal="查库存..."
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 创建执行计划：id=1 tenant=t1 steps=2 goal="开单..."
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 人工审批通过：plan=1 step=s1 label=查询库存 tenant=t1
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 创建执行计划：id=1 tenant=t1 steps=2 goal="开单..."
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 人工驳回步骤：plan=1 step=s1 label=查询库存 reason=客户取消
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 创建执行计划：id=1 tenant=t1 steps=1 goal="长任务..."
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 取消执行计划：id=1 tenant=t1
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 创建执行计划：id=1 tenant=t1 steps=2 goal="查五粮液库存..."
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 执行计划：id=1 tenant=t1 state=pending 续跑起点=查询库存
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 执行计划完成：id=1 state=success steps=2 latency=1ms
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 创建执行计划：id=1 tenant=t1 steps=2 goal="给红星商行开单20件五粮液..."
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 执行计划：id=1 tenant=t1 state=pending 续跑起点=查询库存
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 计划写步骤挂起：plan=1 step=s1 tool=createSalesOrder token=wg_test_toke…
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 创建执行计划：id=1 tenant=t1 steps=2 goal="给红星商行开单20件五粮液..."
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 执行计划：id=1 tenant=t1 state=pending 续跑起点=查询库存
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 执行计划完成：id=1 state=failed steps=2 latency=2ms
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 创建执行计划：id=1 tenant=t1 steps=2 goal="开单..."
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 执行计划：id=1 tenant=t1 state=pending 续跑起点=查询库存
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 计划写步骤挂起：plan=1 step=s1 tool=createSalesOrder token=wg_test_toke…
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 计划步骤确认结果回写：plan=1 step=s1 status=success token=wg_test_toke…
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 执行计划：id=1 tenant=t1 state=pending 续跑起点=完成
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 执行计划完成：id=1 state=success steps=2 latency=1ms
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 创建执行计划：id=1 tenant=t1 steps=3 goal="多步骤任务..."
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 执行计划：id=1 tenant=t1 state=pending 续跑起点=查询库存
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 执行计划完成：id=1 state=failed steps=3 latency=1ms
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 创建执行计划：id=1 tenant=t1 steps=2 goal="开单..."
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 取消执行计划：id=1 tenant=t1
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 创建执行计划：id=1 tenant=t1 steps=1 goal="查库存..."
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 创建执行计划：id=1 tenant=t1 steps=1 goal="查库存..."
+[Nest] 21976  - 2026/10/24 08:50:52     LOG [TaskRunnerService] 取消执行计划：id=1 tenant=t1
+PASS src/ops/readiness.module.spec.ts (11.927 s)
+PASS src/providers/getdefault-bootstrap.r101-ai-19.spec.ts
+[Nest] 4604  - 2026/10/24 08:50:53   DEBUG [AiConfigService] 租户 tenant-db-only 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 4604  - 2026/10/24 08:50:53   DEBUG [AiConfigService] 租户 tenant-db-only 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 4604  - 2026/10/24 08:50:53   DEBUG [GlmProvider] 非流式调用 GLM：model=glm-4-flash, messages=1条
+[Nest] 4604  - 2026/10/24 08:50:53   DEBUG [AiConfigService] 租户 tenant-db-only 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 4604  - 2026/10/24 08:50:53   DEBUG [GlmProvider] 非流式调用 GLM：model=glm-4-flash, messages=1条
+[Nest] 4604  - 2026/10/24 08:50:53   DEBUG [AiConfigService] 租户 tenant-db-only 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 4604  - 2026/10/24 08:50:53   DEBUG [GlmProvider] 非流式调用 GLM：model=glm-4-flash, messages=2条
+[Nest] 4604  - 2026/10/24 08:50:53     LOG [ExperienceExtractorService] 经验萃取完成：纠正=1 提案=1
+[Nest] 4604  - 2026/10/24 08:50:53   DEBUG [AiConfigService] 租户 tenant-db-only 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 4604  - 2026/10/24 08:50:53   DEBUG [GlmProvider] 非流式调用 GLM：model=glm-4-flash, messages=2条
+[Nest] 4604  - 2026/10/24 08:50:53     LOG [ExperienceExtractorService] 经验萃取完成：纠正=1 提案=1
+PASS src/gateway/admin.controller.tenant-scope.spec.ts
+PASS src/brain/employee/employee-task-bridge.service.spec.ts
+[Nest] 21412  - 2026/10/24 08:50:53     LOG [IdempotencyGateService] 写工具幂等回放（裁定 A）：tool=createSalesOrder tenant=t1 keySource=confirm_token
+[Nest] 12008  - 2026/10/24 08:50:53   DEBUG [EmployeeTaskBridge] 待办 #99 已是 done（回放，不重复改）
+[Nest] 21412  - 2026/10/24 08:50:53     LOG [IdempotencyGateService] 写工具幂等回放（裁定 A）：tool=createSalesOrder tenant=t1 keySource=confirm_token
+[Nest] 21412  - 2026/10/24 08:50:54   ERROR [IdempotencyGateService] 幂等认领失败（MySQL 不可用），按裁定 B fail-open 放行：tool=createSalesOrder err=TypeError: The database connection is not open
+[Nest] 21412  - 2026/10/24 08:50:54   ERROR [ErrorSemantics] [bestEffort] 旁路失败已入死信 op=idem.claim tenant=t1 detail=tool=createSalesOrder（已 fail-open 放行，残余重复风险需人工核查） err=TypeError: The database connection is not open
+Error: TypeError: The database connection is not open
+    at IdempotencyGateService.reportFailure (D:\Users\ZXQL\ZXQL-AI\src\tools\idempotency-gate.service.ts:630:48)
+    at IdempotencyGateService.runGate (D:\Users\ZXQL\ZXQL-AI\src\tools\idempotency-gate.service.ts:353:18)
+    at IdempotencyGateService.check (D:\Users\ZXQL\ZXQL-AI\src\tools\idempotency-gate.service.ts:151:14)
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\tools\idempotency-gate.sqlite.spec.ts:192:22)
+[Nest] 21412  - 2026/10/24 08:50:54   ERROR [ErrorSemantics] [bestEffort] 无死信接收方，记录仅留存日志 op=idem.claim（请注册 setDefaultDeadLetterSink）
+PASS src/tools/idempotency-gate.sqlite.spec.ts
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_629c5c3f-0998-4573-b07d-44963e840660 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_f3ef7595-8050-4240-ae0a-1227c33fb64f tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_02b0b8b7-70c8-47a3-968f-83c8788d1dfc tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_da34f2cb-c1ff-4550-b93f-d0cb28e9dc9b tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_ef05e2e5-451a-4503-83d8-719d10a9e155 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/25 08:50:55    WARN [WriteGuardService] 写审核令牌已过期：token=wg_ef05e2e5-451a-4503-83d8-719d10a9e155 tool=createSalesOrder
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_8ba01789-d7d3-4a78-95c4-64fd4a45ab4d tenant=tenant-A tool=createPurchaseOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/25 08:50:55     LOG [WriteGuardService] 写操作挂起：token=wg_7596268c-35d6-4894-91f6-40d75b761a7a tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/25 08:50:55     LOG [WriteGuardService] 写操作挂起：token=wg_9602effc-ede4-4a44-a0ea-23c69a9f5074 tenant=tenant-B tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/25 08:50:55    WARN [WriteGuardService] 写审核令牌已过期：token=wg_8ba01789-d7d3-4a78-95c4-64fd4a45ab4d tool=createPurchaseOrder
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_1fe7ab80-2389-4a67-a837-bea612cc8054 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作已确认（首次）：token=wg_1fe7ab80-2389-4a67-a837-bea612cc8054 tool=createSalesOrder risk=medium
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_54b1eaaf-8e6a-419f-ba26-c2433b08cab9 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/25 08:50:55    WARN [WriteGuardService] 写审核令牌已过期：token=wg_54b1eaaf-8e6a-419f-ba26-c2433b08cab9 tool=createSalesOrder
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_5fb814fd-a05d-410a-a41d-6d44e208206d tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_1f359071-6cf0-4f05-b6e2-af200e45257e tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作已确认（首次）：token=wg_1f359071-6cf0-4f05-b6e2-af200e45257e tool=createSalesOrder risk=medium
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_9b190f6b-0f5d-44dc-9c8b-9b4d45708be5 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作已取消：token=wg_9b190f6b-0f5d-44dc-9c8b-9b4d45708be5 tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_64dbfabd-a35c-4b54-9879-f99f23b02251 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_9ac35705-061f-4865-94d6-4ada746e3d4a tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作已确认（首次）：token=wg_9ac35705-061f-4865-94d6-4ada746e3d4a tool=createSalesOrder risk=medium
+[Nest] 6860  - 2026/10/24 08:50:54    WARN [WriteGuardService] 已确认的操作不可取消：token=wg_9ac35705-061f-4865-94d6-4ada746e3d4a tool=createSalesOrder
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_7204f1b0-c381-42f9-96f1-0b5dede59ff9 tenant=tenant-A tool=adjustCreditLimit risk=high（信用额度调整）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 高危写操作首次确认（待二次确认）：token=wg_7204f1b0-c381-42f9-96f1-0b5dede59ff9 tool=adjustCreditLimit risk=high
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_35764cb0-81f3-44f2-8441-3155a81c4899 tenant=tenant-A tool=adjustCreditLimit risk=high（信用额度调整）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 高危写操作首次确认（待二次确认）：token=wg_35764cb0-81f3-44f2-8441-3155a81c4899 tool=adjustCreditLimit risk=high
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作已确认（二次）：token=wg_35764cb0-81f3-44f2-8441-3155a81c4899 tool=adjustCreditLimit risk=high
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_1dc38d33-9254-4a2c-b3c0-540796d1c819 tenant=tenant-A tool=createPlatformAnnouncement risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 高危写操作首次确认（待二次确认）：token=wg_1dc38d33-9254-4a2c-b3c0-540796d1c819 tool=createPlatformAnnouncement risk=medium
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=67916cf5-a637-4ffa-b86a-33bcd2cbd055 tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=f5c027cd-b594-40f5-a92e-916dbe2e5d6f tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=f0584d01-a1db-473f-8e18-d0ac5b650f49 tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=2b8f123e-f0ed-4720-bcaa-52cbe1519968 tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=5dd1ce51-807a-4674-a598-ab94eb88d56d tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [ConfirmationService] 操作已撤销：id=5dd1ce51-807a-4674-a598-ab94eb88d56d tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=4b135715-9f8c-4402-9eff-0cefa7794777 tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [ConfirmationService] 操作已撤销：id=4b135715-9f8c-4402-9eff-0cefa7794777 tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54    WARN [ConfirmationService] 撤销被拒绝：id=4b135715-9f8c-4402-9eff-0cefa7794777 tenant=tenant-A reason=操作记录不存在或已过期
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=86793aac-d226-41f9-9736-717d67e25cc7 tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54    WARN [ConfirmationService] 自动回滚失败，保留撤销记录待重试：id=86793aac-d226-41f9-9736-717d67e25cc7 tool=createSalesOrder attempts=1 error=后端取消失败
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=24f6b1e1-554b-4b65-a0d6-97e34b0469ff tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54    WARN [ConfirmationService] 自动回滚失败，保留撤销记录待重试：id=24f6b1e1-554b-4b65-a0d6-97e34b0469ff tool=createSalesOrder attempts=1 error=第一次失败
+[Nest] 6860  - 2026/10/24 08:50:54    WARN [ConfirmationService] 自动回滚失败，保留撤销记录待重试：id=24f6b1e1-554b-4b65-a0d6-97e34b0469ff tool=createSalesOrder attempts=2 error=第二次失败
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=3106bcb4-a9d2-4b2e-ad25-58e2cbcbfc47 tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54    WARN [ConfirmationService] 自动回滚失败，保留撤销记录待重试：id=3106bcb4-a9d2-4b2e-ad25-58e2cbcbfc47 tool=createSalesOrder attempts=1 error=失败
+[Nest] 6860  - 2026/10/24 08:53:55     LOG [ConfirmationService] 清理过期确认/撤销记录：1 条
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_ee9946d2-c534-4302-b33f-d26461807dfd tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=cb9227b1-4642-42ed-b181-b33b178d8e52 tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/25 08:50:55     LOG [WriteGuardService] 清理过期写审核令牌：1 条
+[Nest] 6860  - 2026/10/25 08:50:55     LOG [ConfirmationService] 清理过期确认/撤销记录：2 条
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_f06b1ba8-6ae7-4572-bf46-87fa8ccd4781 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_13f8ba46-5ca5-46bf-a23f-65cfe438c74b tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作已确认（首次）：token=wg_13f8ba46-5ca5-46bf-a23f-65cfe438c74b tool=createSalesOrder risk=medium
+[Nest] 6860  - 2026/10/24 08:50:54    WARN [WriteGuardService] 确认执行失败，令牌已回滚 pending（可重试）：token=wg_13f8ba46-… tool=createSalesOrder
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作已确认（首次）：token=wg_13f8ba46-5ca5-46bf-a23f-65cfe438c74b tool=createSalesOrder risk=medium
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_db4134a7-b78a-4d4a-ada8-8bc1c9957e9f tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_b708eadf-4007-4b09-8a38-c44b7a0dd2f9 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作已确认（首次）：token=wg_b708eadf-4007-4b09-8a38-c44b7a0dd2f9 tool=createSalesOrder risk=medium
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=31fdb123-3e3d-4687-ae78-38363114b156 tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [ConfirmationService] 确认执行成功：id=wg_b708eadf-4007-4b09-8a38-c44b7a0dd2f9 tool=createSalesOrder operationId=31fdb123-3e3d-4687-ae78-38363114b156
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_3cf38cdb-017f-442d-9949-3f586ffc0880 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作已确认（首次）：token=wg_3cf38cdb-017f-442d-9949-3f586ffc0880 tool=createSalesOrder risk=medium
+[Nest] 6860  - 2026/10/24 08:50:54    WARN [ConfirmationService] 确认执行失败：id=wg_3cf38cdb-017f-442d-9949-3f586ffc0880 tool=createSalesOrder error=后端 500
+[Nest] 6860  - 2026/10/24 08:50:54    WARN [WriteGuardService] 确认执行失败，令牌已回滚 pending（可重试）：token=wg_3cf38cdb-… tool=createSalesOrder
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作挂起：token=wg_76be8ed6-a355-4cb8-9ee6-f9437c60e462 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:50:54     LOG [WriteGuardService] 写操作已确认（首次）：token=wg_76be8ed6-a355-4cb8-9ee6-f9437c60e462 tool=createSalesOrder risk=medium
+[Nest] 6860  - 2026/10/24 08:50:54    WARN [ConfirmationService] 确认执行失败：id=wg_76be8ed6-a355-4cb8-9ee6-f9437c60e462 tool=createSalesOrder error=后端 500
+[Nest] 6860  - 2026/10/24 08:50:54   ERROR [ErrorSemantics] [bestEffort] 旁路失败已入死信 op=confirmation.resetToPending tenant=tenant-A detail=confirmationId=wg_76be8ed6-a355-4cb8-9ee6-f9437c60e462 tool=createSalesOrder err=redis 连接失败
+Error: redis 连接失败
+    at WriteGuardService.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\brain\confirmation.service.spec.ts:585:50)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-mock\build\index.js:305:39
+    at WriteGuardService.<anonymous> (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-mock\build\index.js:312:13)
+    at WriteGuardService.mockConstructor [as resetToPending] (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-mock\build\index.js:102:19)
+    at op (D:\Users\ZXQL\ZXQL-AI\src\brain\confirmation.service.ts:468:42)
+    at bestEffort (D:\Users\ZXQL\ZXQL-AI\src\common\error-semantics.ts:216:11)
+    at ConfirmationService.executeConfirmed (D:\Users\ZXQL\ZXQL-AI\src\brain\confirmation.service.ts:465:23)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\brain\confirmation.service.spec.ts:597:19)
+[Nest] 6860  - 2026/10/24 08:50:54   ERROR [ErrorSemantics] [bestEffort] 无死信接收方，记录仅留存日志 op=confirmation.resetToPending（请注册 setDefaultDeadLetterSink）
+PASS src/brain/confirmation.service.spec.ts
+PASS src/gateway/admin.controller.tools-scope.spec.ts
+[Nest] 17504  - 2026/10/24 08:50:55   ERROR [ErrorSemantics] [bestEffort] 旁路失败已入死信 op=billing.consume tenant=t_001 detail=tokens=1000 chatCount=1 err=DB down
+Error: DB down
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\common\error-semantics.p1b-write-path-contract.spec.ts:113:23)
+    at Promise.finally.completed (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1561:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1501:10)
+    at _callCircusTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1011:40)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at _runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:951:3)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:853:7
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:866:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at run (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:765:3)
+    at runAndTransformResultsToJestFormat (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1993:21)
+    at jestAdapter (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\runner.js:111:19)
+    at runTestInternal (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:276:16)
+    at runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:344:7)
+    at Object.worker (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:498:12)
+[Nest] 17504  - 2026/10/24 08:50:55   ERROR [ErrorSemantics] [bestEffort] 旁路失败已入死信 op=weekly_plan.push tenant=t_001 detail=weekly-plan 推送留痕 err=t_push_log 写入失败
+Error: t_push_log 写入失败
+    at createWeekly (D:\Users\ZXQL\ZXQL-AI\src\common\error-semantics.p1b-write-path-contract.spec.ts:253:41)
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\common\error-semantics.p1b-write-path-contract.spec.ts:312:27)
+    at Promise.finally.completed (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1561:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1501:10)
+    at _callCircusTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1011:40)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at _runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:951:3)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:853:7
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:866:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at run (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:765:3)
+    at runAndTransformResultsToJestFormat (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1993:21)
+    at jestAdapter (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\runner.js:111:19)
+    at runTestInternal (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:276:16)
+    at runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:344:7)
+    at Object.worker (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:498:12)
+[Nest] 17504  - 2026/10/24 08:50:55   ERROR [ErrorSemantics] [bestEffort] 旁路失败已入死信 op=agent.step tenant=t1 detail=plan=1 step=s1 type=tool err=工具执行炸了
+Error: 工具执行炸了
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\common\error-semantics.p1b-write-path-contract.spec.ts:533:9)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+[Nest] 17504  - 2026/10/24 08:50:55   ERROR [ErrorSemantics] [bestEffort] 旁路失败已入死信 op=agent.experience_capture tenant=t1 detail=plan=1 steps=1 err=ai_db 不可用
+Error: ai_db 不可用
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\common\error-semantics.p1b-write-path-contract.spec.ts:560:52)
+    at Promise.finally.completed (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1561:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1501:10)
+    at _callCircusTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1011:40)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at _runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:951:3)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:853:7
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:866:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at run (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:765:3)
+    at runAndTransformResultsToJestFormat (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1993:21)
+    at jestAdapter (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\runner.js:111:19)
+    at runTestInternal (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:276:16)
+    at runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:344:7)
+    at Object.worker (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:498:12)
+PASS src/brain/v2/v2-handle.service.spec.ts
+PASS src/common/error-semantics.p1b-write-path-contract.spec.ts
+[Nest] 17504  - 2026/10/24 08:50:55    WARN [ServiceClient] CSRF_SECRET 与 JWT_SECRET 均未配置：写操作请求将缺少 x-csrf-token，后端会统一返回 403。请配置与管理系统 backend 一致的 CSRF_SECRET。
+[Nest] 17504  - 2026/10/24 08:50:55    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=bridge.healthCheck tenant=- detail=http://backend err=ECONNREFUSED 127.0.0.1:8080
+[Nest] 17504  - 2026/10/24 08:50:55    WARN [ServiceClient] CSRF_SECRET 与 JWT_SECRET 均未配置：写操作请求将缺少 x-csrf-token，后端会统一返回 403。请配置与管理系统 backend 一致的 CSRF_SECRET。
+[Nest] 17504  - 2026/10/24 08:50:55    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=weekly_plan.llm tenant=t_001 detail=signals=1 err=llm down
+[Nest] 17504  - 2026/10/24 08:50:55     LOG [WeeklyPlanService] S3 周计划已生成：tenant=t_001 signals=1 plan=36字
+[Nest] 17504  - 2026/10/24 08:50:55     LOG [WeeklyPlanService] S3 周计划已生成：tenant=t_001 signals=1 plan=25字
+[Nest] 17504  - 2026/10/24 08:50:55     LOG [WeeklyPlanService] S3 周计划已生成：tenant=t_001 signals=1 plan=25字
+[Nest] 4604  - 2026/10/24 08:50:55     LOG [V2HandleService] v2/handle 写意图挂起：tenant=t1 tool=createSalesOrder risk=medium token=wg_v2_token…
+[Nest] 17504  - 2026/10/24 08:50:55    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=weekly_plan.cron tenant=default detail=- err=t_push_log 无 tenant_id 列
+[Nest] 17504  - 2026/10/24 08:50:55     LOG [WeeklyPlanService] S3 周计划已生成：tenant=default signals=1 plan=25字
+[Nest] 17504  - 2026/10/24 08:50:55     LOG [TaskRunnerService] 创建执行计划：id=1 tenant=t1 steps=2 goal="查五粮液库存..."
+[Nest] 17504  - 2026/10/24 08:50:55     LOG [TaskRunnerService] 执行计划：id=1 tenant=t1 state=pending 续跑起点=查询库存
+[Nest] 17504  - 2026/10/24 08:50:55     LOG [TaskRunnerService] 执行计划完成：id=1 state=failed steps=2 latency=3ms
+[Nest] 4604  - 2026/10/24 08:50:55    WARN [V2HandleService] 写工具未返回预览：tool=createSalesOrder tenant=t1，拒绝自动执行
+[Nest] 17504  - 2026/10/24 08:50:55     LOG [TaskRunnerService] 创建执行计划：id=1 tenant=t1 steps=1 goal="查库存..."
+[Nest] 17504  - 2026/10/24 08:50:55     LOG [TaskRunnerService] 执行计划：id=1 tenant=t1 state=pending 续跑起点=完成
+[Nest] 17504  - 2026/10/24 08:50:55     LOG [TaskRunnerService] 执行计划完成：id=1 state=success steps=1 latency=0ms
+[Nest] 4604  - 2026/10/24 08:50:55    WARN [V2HandleService] v2/handle 写分支异常（降级分析）：LLM 不可用
+[Nest] 17504  - 2026/10/24 08:50:55     LOG [TaskRunnerService] 创建执行计划：id=1 tenant=t1 steps=1 goal="查库存..."
+[Nest] 17504  - 2026/10/24 08:50:55     LOG [TaskRunnerService] 执行计划：id=1 tenant=t1 state=pending 续跑起点=完成
+[Nest] 17504  - 2026/10/24 08:50:55     LOG [TaskRunnerService] 执行计划完成：id=1 state=success steps=1 latency=1ms
+[Nest] 6860  - 2026/10/24 08:50:55    WARN [ServiceClient] CSRF_SECRET 与 JWT_SECRET 均未配置：写操作请求将缺少 x-csrf-token，后端会统一返回 403。请配置与管理系统 backend 一致的 CSRF_SECRET。
+[Nest] 6860  - 2026/10/24 08:50:55   DEBUG [ServiceClient] POST /sale-bills（tenant=t1）
+[Nest] 6860  - 2026/10/24 08:50:55    WARN [ServiceClient] CSRF_SECRET 与 JWT_SECRET 均未配置：写操作请求将缺少 x-csrf-token，后端会统一返回 403。请配置与管理系统 backend 一致的 CSRF_SECRET。
+[Nest] 6860  - 2026/10/24 08:50:55   DEBUG [ServiceClient] PATCH /x（tenant=t1）
+[Nest] 6860  - 2026/10/24 08:50:55    WARN [ServiceClient] CSRF_SECRET 与 JWT_SECRET 均未配置：写操作请求将缺少 x-csrf-token，后端会统一返回 403。请配置与管理系统 backend 一致的 CSRF_SECRET。
+[Nest] 6860  - 2026/10/24 08:50:55   DEBUG [ServiceClient] GET /inventory（tenant=t1）
+[Nest] 6860  - 2026/10/24 08:50:55    WARN [ServiceClient] GET /inventory 第 1 次请求失败，500ms 后重试：ECONNREFUSED
+PASS src/gateway/admin.controller.execute-tool-scope.spec.ts
+[Nest] 21976  - 2026/10/24 08:50:55   DEBUG [OpenAICompat:ext_probe] 非流式调用外部模型：model=m, messages=1条
+[Nest] 21976  - 2026/10/24 08:50:55    WARN [OutboundTargetGuard] 出站目标被拒 rule=dns-blocked-address-connect host=rebind.example.com detail=域名 rebind.example.com 解析到受限地址 10.0.0.7（连接期校验，防 DNS 重绑定）
+[Nest] 21976  - 2026/10/24 08:50:55   DEBUG [DeepSeekProvider] 非流式调用 DeepSeek：model=deepseek-chat, messages=1条
+[Nest] 21976  - 2026/10/24 08:50:55    WARN [OutboundTargetGuard] 出站目标被拒 rule=dns-blocked-address-connect host=rebind.example.com detail=域名 rebind.example.com 解析到受限地址 10.0.0.7（连接期校验，防 DNS 重绑定）
+[Nest] 21976  - 2026/10/24 08:50:55   DEBUG [GlmProvider] 非流式调用 GLM：model=glm-4-flash, messages=1条
+[Nest] 21976  - 2026/10/24 08:50:55    WARN [OutboundTargetGuard] 出站目标被拒 rule=dns-blocked-address-connect host=rebind.example.com detail=域名 rebind.example.com 解析到受限地址 10.0.0.7（连接期校验，防 DNS 重绑定）
+[Nest] 21976  - 2026/10/24 08:50:55    WARN [OutboundTargetGuard] 出站目标被拒 rule=dns-blocked-address-connect host=rebind.example.com detail=域名 rebind.example.com 解析到受限地址 10.0.0.7（连接期校验，防 DNS 重绑定）
+PASS src/gateway/ai-db.controller.tenant-scope.spec.ts
+[Nest] 21976  - 2026/10/24 08:50:55   DEBUG [OpenAICompat:ext_probe] 非流式调用外部模型：model=m, messages=1条
+[Nest] 6860  - 2026/10/24 08:50:56    WARN [ServiceClient] CSRF_SECRET 与 JWT_SECRET 均未配置：写操作请求将缺少 x-csrf-token，后端会统一返回 403。请配置与管理系统 backend 一致的 CSRF_SECRET。
+[Nest] 6860  - 2026/10/24 08:50:56   DEBUG [ServiceClient] PUT /x（tenant=t1）
+[Nest] 6860  - 2026/10/24 08:50:56    WARN [ServiceClient] PUT /x 第 1 次请求失败，500ms 后重试：error
+PASS src/providers/provider-egress-proxy.spec.ts
+[Nest] 21976  - 2026/10/24 08:50:56   DEBUG [DeepSeekProvider] 非流式调用 DeepSeek：model=deepseek-chat, messages=1条
+[Nest] 21976  - 2026/10/24 08:50:56    WARN [OutboundTargetGuard] 出站目标被拒 rule=dns-blocked-address-connect host=rebind.example.com detail=域名 rebind.example.com 解析到受限地址 10.0.0.7（连接期校验，防 DNS 重绑定）
+PASS src/app.module.di.spec.ts (10.698 s)
+PASS src/bridge/service-client.spec.ts
+[Nest] 6860  - 2026/10/24 08:50:56    WARN [ServiceClient] CSRF_SECRET 与 JWT_SECRET 均未配置：写操作请求将缺少 x-csrf-token，后端会统一返回 403。请配置与管理系统 backend 一致的 CSRF_SECRET。
+[Nest] 6860  - 2026/10/24 08:50:56   DEBUG [ServiceClient] POST /sale-bills（tenant=t1）
+[Nest] 6860  - 2026/10/24 08:50:56    WARN [ServiceClient] CSRF_SECRET 与 JWT_SECRET 均未配置：写操作请求将缺少 x-csrf-token，后端会统一返回 403。请配置与管理系统 backend 一致的 CSRF_SECRET。
+[Nest] 6860  - 2026/10/24 08:50:56   DEBUG [ServiceClient] POST /admin/members（tenant=t1）
+[Nest] 6860  - 2026/10/24 08:50:56    WARN [ServiceClient] CSRF_SECRET 与 JWT_SECRET 均未配置：写操作请求将缺少 x-csrf-token，后端会统一返回 403。请配置与管理系统 backend 一致的 CSRF_SECRET。
+[Nest] 6860  - 2026/10/24 08:50:56   DEBUG [ServiceClient] POST /a（tenant=t1）
+[Nest] 6860  - 2026/10/24 08:50:56    WARN [ServiceClient] CSRF_SECRET 与 JWT_SECRET 均未配置：写操作请求将缺少 x-csrf-token，后端会统一返回 403。请配置与管理系统 backend 一致的 CSRF_SECRET。
+[Nest] 6860  - 2026/10/24 08:50:56   DEBUG [ServiceClient] POST /a（tenant=t1）
+[Nest] 6860  - 2026/10/24 08:50:56    WARN [ServiceClient] CSRF_SECRET 与 JWT_SECRET 均未配置：写操作请求将缺少 x-csrf-token，后端会统一返回 403。请配置与管理系统 backend 一致的 CSRF_SECRET。
+[Nest] 6860  - 2026/10/24 08:50:56   DEBUG [ServiceClient] GET /inventory（tenant=t1）
+[Nest] 6860  - 2026/10/24 08:50:56    WARN [ServiceClient] CSRF_SECRET 与 JWT_SECRET 均未配置：写操作请求将缺少 x-csrf-token，后端会统一返回 403。请配置与管理系统 backend 一致的 CSRF_SECRET。
+[Nest] 6860  - 2026/10/24 08:50:56   DEBUG [ServiceClient] GET /inventory（tenant=t1）
+PASS src/gateway/dto/write-guard.dto.spec.ts
+PASS src/gateway/ai-config.price.spec.ts
+[Nest] 21412  - 2026/10/24 08:50:57     LOG [GraphExecutorService] 图 test_branch 从断点续跑：session=s1 node=check
+[Nest] 21412  - 2026/10/24 08:50:57     LOG [GraphExecutorService] 图 test_linear 从断点续跑：session=s1 node=step2
+[Nest] 21412  - 2026/10/24 08:50:57     LOG [GraphExecutorService] 图 test_resume 从断点续跑：session=s1 node=step1
+[Nest] 21412  - 2026/10/24 08:50:57     LOG [GraphExecutorService] 图 test_resume 从断点续跑：session=s1 node=step1
+[Nest] 21412  - 2026/10/24 08:50:57     LOG [GraphExecutorService] 图 test_resume 人工审核通过，继续执行：node=step1
+[Nest] 21412  - 2026/10/24 08:50:57     LOG [GraphExecutorService] 图 test_write 从断点续跑：session=s1 node=create
+[Nest] 21412  - 2026/10/24 08:50:57     LOG [GraphExecutorService] 图 test_write 写操作确认已完成，节点续跑：node=create
+[Nest] 21412  - 2026/10/24 08:50:57     LOG [GraphExecutorService] 图 test_write 从断点续跑：session=s1 node=create
+[Nest] 21412  - 2026/10/24 08:50:57     LOG [GraphExecutorService] 图 test_review 从断点续跑：session=s1 node=step
+[Nest] 21412  - 2026/10/24 08:50:57     LOG [GraphExecutorService] 图 test_review 人工审核通过，继续执行：node=step
+PASS src/gateway/ai-config.controller.spec.ts
+PASS src/brain/graph/graph-executor.service.spec.ts
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=dns-blocked-address host=example.com. detail=域名 example.com. 解析到受限地址 10.0.0.7
+[Nest] 21976  - 2026/10/24 08:50:58     LOG [EvolutionService] 进化提案已提交：id=1 tenant=t1 target=prompt review=9
+PASS src/brain/evolution/evolution.service.spec.ts
+[Nest] 21976  - 2026/10/24 08:50:58     LOG [EvolutionService] 进化审核通过：id=1 → gray（20%）
+[Nest] 21976  - 2026/10/24 08:50:58     LOG [EvolutionService] 进化审核驳回：id=1 reason=理由不充分
+[Nest] 21976  - 2026/10/24 08:50:58     LOG [EvolutionService] 进化已生效：id=1 target=prompt 租户系统提示词已更新
+[Nest] 21976  - 2026/10/24 08:50:58     LOG [EvolutionService] 进化已回滚：id=1 target=prompt
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=127.0.0.1 detail=host「127.0.0.1」命中受限网段
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=127.0.0.1 detail=host「127.0.0.1」命中受限网段
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=127.0.0.1 detail=host「127.0.0.1」命中受限网段
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=127.0.0.1 detail=host「127.0.0.1」命中受限网段
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=127.0.0.1 detail=host「127.0.0.1」命中受限网段
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=::ffff:7f00:1 detail=host「::ffff:7f00:1」命中受限网段
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=::ffff:a9fe:a9fe detail=host「::ffff:a9fe:a9fe」命中受限网段
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=::ffff:7f00:1 detail=host「::ffff:7f00:1」命中受限网段
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=::ffff:a9fe:a9fe detail=host「::ffff:a9fe:a9fe」命中受限网段
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=::7f00:1 detail=host「::7f00:1」命中受限网段
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=64:ff9b::a9fe:a9fe detail=host「64:ff9b::a9fe:a9fe」命中受限网段
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=url-embedded-credentials host=example.com detail=URL 不得内嵌凭据（user:pass@）
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=127.0.0.1 detail=host「127.0.0.1」命中受限网段
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=dns-blocked-address host=mixed.example.com detail=域名 mixed.example.com 解析到受限地址 10.0.0.7
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=dns-blocked-address-connect host=rebind.example.com detail=域名 rebind.example.com 解析到受限地址 169.254.169.254（连接期校验，防 DNS 重绑定）
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=dns-blocked-address-connect host=localhost detail=域名 localhost 解析到受限地址 169.254.169.254（连接期校验，防 DNS 重绑定）
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=redirect-scheme-not-https host=127.0.0.1 detail=重定向目标 scheme 必须为 https:（实际 http:）
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=redirect-scheme-not-https host=api.example.com detail=重定向目标 scheme 必须为 https:（实际 HTTP:）
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=redirect-scheme-not-https host=api.example.com detail=重定向目标 scheme 必须为 https:（实际 HTTPS:）
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=redirect-scheme-not-https host=api.example.com detail=重定向目标 scheme 必须为 https:（实际 ftp:）
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=redirect-ip-literal-blocked host=::ffff:127.0.0.1 detail=重定向目标 host「::ffff:127.0.0.1」命中受限网段
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=redirect-embedded-credentials host=api.example.com detail=重定向目标不得内嵌凭据（user:pass@）
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=127.0.0.1 detail=host「127.0.0.1」命中受限网段
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=127.0.0.1 detail=host「127.0.0.1」命中受限网段
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=127.0.0.1 detail=host「127.0.0.1」命中受限网段
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=url-unparsable host=- detail=URL 无法解析（已隐去原文，避免回显凭据）
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=url-unparsable host=- detail=URL 无法解析（已隐去原文，避免回显凭据）
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=::1 detail=host「::1」命中受限网段
+[Nest] 6860  - 2026/10/24 08:50:58     LOG [DocAskBridge] 文档问答执行器已注册（DocAskRunner ← DocAskBridge）
+[Nest] 6860  - 2026/10/24 08:50:58     LOG [DocAskBridge] 文档问答执行器已注册（DocAskRunner ← DocAskBridge）
+PASS src/brain/doc-ask-bridge.service.spec.ts
+PASS src/tenant/external-model.outbound-bypass.spec.ts
+PASS src/gateway/mcp-admin.controller.tenant-scope.spec.ts
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=::ffff:7f00:1 detail=host「::ffff:7f00:1」命中受限网段
+[Nest] 6860  - 2026/10/24 08:50:58     LOG [DocAskBridge] 文档问答执行器已注册（DocAskRunner ← DocAskBridge）
+[Nest] 9404  - 2026/10/24 08:50:58    WARN [OutboundTargetGuard] 出站目标被拒 rule=scheme-not-https host=127.0.0.1 detail=scheme 必须为 https:（实际 http:）
+[Nest] 9404  - 2026/10/24 08:50:58     LOG [ExternalModelService] 已加载 1 个外部大模型
+[Nest] 9404  - 2026/10/24 08:50:58   DEBUG [AiConfigService] 租户 tenant-001 使用自定义 AI 配置（provider=deepseek, model=deepseek-chat）
+[Nest] 6860  - 2026/10/24 08:50:58     LOG [DocAskBridge] 文档问答执行器已注册（DocAskRunner ← DocAskBridge）
+[Nest] 9404  - 2026/10/24 08:50:58   DEBUG [AiConfigService] 租户 tenant-001 使用自定义 AI 配置（provider=deepseek, model=deepseek-chat）
+[Nest] 9404  - 2026/10/24 08:50:58   DEBUG [AiConfigService] 租户 tenant-001 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 6860  - 2026/10/24 08:50:58     LOG [DocAskBridge] 文档问答执行器已注册（DocAskRunner ← DocAskBridge）
+[Nest] 6860  - 2026/10/24 08:50:58     LOG [DocAskBridge] 文档问答执行器已注册（DocAskRunner ← DocAskBridge）
+[Nest] 17504  - 2026/10/24 08:50:59     LOG [DeadLetterSinkService] 死信接收方已注册（sink → t_ai_dead_letter；写超时 1000ms，保留 30 天）
+[Nest] 17504  - 2026/10/24 08:50:59     LOG [DeadLetterSinkService] 死信接收方已注册（sink → t_ai_dead_letter；写超时 1000ms，保留 30 天）
+[Nest] 17504  - 2026/10/24 08:50:59     LOG [DeadLetterSinkService] 死信接收方已注册（sink → t_ai_dead_letter；写超时 1000ms，保留 30 天）
+[Nest] 17504  - 2026/10/24 08:50:59     LOG [DeadLetterReplayService] 死信重放消费：补录 2 条、失败留待下轮 0 条、退避跳过 0 条、转终态 0 条；积压 XLEN=0
+[Nest] 17504  - 2026/10/24 08:50:59     LOG [DeadLetterSinkService] 死信接收方已注册（sink → t_ai_dead_letter；写超时 1000ms，保留 30 天）
+[Nest] 17504  - 2026/10/24 08:50:59     LOG [DeadLetterReplayService] 死信重放消费：补录 0 条、失败留待下轮 1 条、退避跳过 0 条、转终态 0 条；积压 XLEN=0
+[Nest] 17504  - 2026/10/24 08:50:59     LOG [DeadLetterReplayService] 死信重放消费：补录 0 条、失败留待下轮 1 条、退避跳过 0 条、转终态 0 条；积压 XLEN=0
+[Nest] 17504  - 2026/10/24 08:50:59     LOG [DeadLetterReplayService] 死信重放消费：补录 0 条、失败留待下轮 0 条、退避跳过 0 条、转终态 1 条；积压 XLEN=0
+[Nest] 17504  - 2026/10/24 08:50:59     LOG [DeadLetterSinkService] 死信接收方已注册（sink → t_ai_dead_letter；写超时 1000ms，保留 30 天）
+[Nest] 17504  - 2026/10/24 08:50:59     LOG [DeadLetterReplayService] 死信重放消费：补录 0 条、失败留待下轮 1 条、退避跳过 0 条、转终态 0 条；积压 XLEN=0
+[Nest] 17504  - 2026/10/24 08:50:59     LOG [DeadLetterSinkService] 死信接收方已注册（sink → t_ai_dead_letter；写超时 1000ms，保留 30 天）
+[Nest] 17504  - 2026/10/24 08:50:59     LOG [DeadLetterReplayService] 死信重放消费：补录 1 条、失败留待下轮 0 条、退避跳过 0 条、转终态 0 条；积压 XLEN=7
+PASS src/ops/dead-letter-replay.service.spec.ts
+PASS src/brain/proactive/business-anomaly.service.spec.ts
+[Nest] 21412  - 2026/10/24 08:50:59   DEBUG [BusinessAnomalyService] 经营异常巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 21412  - 2026/10/24 08:50:59   DEBUG [BusinessAnomalyService] 经营异常巡检完成：tenant=tenant-1 found=1 pushed=1
+[Nest] 21412  - 2026/10/24 08:50:59   DEBUG [BusinessAnomalyService] 经营异常巡检完成：tenant=tenant-1 found=2 pushed=0
+[Nest] 21412  - 2026/10/24 08:50:59    WARN [BusinessAnomalyService] 经营异常巡检失败：tenant=tenant-1 报表表不可用
+[Nest] 21412  - 2026/10/24 08:50:59   DEBUG [BusinessAnomalyService] 经营异常巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 21412  - 2026/10/24 08:50:59    WARN [BusinessAnomalyService] 经营异常：站内通知落库失败（已隔离，不影响巡检）
+[Nest] 21412  - 2026/10/24 08:50:59   DEBUG [BusinessAnomalyService] 经营异常巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 21412  - 2026/10/24 08:50:59   DEBUG [BusinessAnomalyService] 经营异常巡检完成：tenant=tenant-1 found=2 pushed=1
+PASS src/brain/confirmation.cleanup-cron.spec.ts
+PASS src/brain/proactive/inventory-warning.service.spec.ts
+[Nest] 4604  - 2026/10/24 08:51:00   DEBUG [InventoryWarningService] 库存预警巡检完成：tenant=tenant-1 found=1 pushed=1
+[Nest] 4604  - 2026/10/24 08:51:00   DEBUG [InventoryWarningService] 库存预警巡检完成：tenant=tenant-1 found=1 pushed=1
+[Nest] 4604  - 2026/10/24 08:51:00   DEBUG [InventoryWarningService] 库存预警巡检完成：tenant=tenant-1 found=1 pushed=1
+[Nest] 4604  - 2026/10/24 08:51:00   DEBUG [InventoryWarningService] 库存预警巡检完成：tenant=tenant-1 found=1 pushed=0
+[Nest] 4604  - 2026/10/24 08:51:00    WARN [InventoryWarningService] 库存预警巡检失败：tenant=tenant-1 DB 连接失败
+[Nest] 4604  - 2026/10/24 08:51:00   DEBUG [InventoryWarningService] 库存预警巡检完成：tenant=tenant-1 found=1 pushed=1
+[Nest] 4604  - 2026/10/24 08:51:00    WARN [InventoryWarningService] 库存预警：站内通知落库失败（已隔离，不影响巡检）
+[Nest] 4604  - 2026/10/24 08:51:00   DEBUG [InventoryWarningService] 库存预警巡检完成：tenant=tenant-1 found=1 pushed=1
+[Nest] 4604  - 2026/10/24 08:51:00   DEBUG [InventoryWarningService] 库存预警巡检完成：tenant=tenant-1 found=1 pushed=1
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_69c2b427-94f4-4bbf-8161-a74439afbbb6 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_e86f7711-ab8f-45c9-91d4-3ceb8cf8d8e6 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_99e198af-7b3e-46b7-9bee-bbdf80c56d69 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/25 08:51:01    WARN [WriteGuardService] 写审核令牌已过期：token=wg_99e198af-7b3e-46b7-9bee-bbdf80c56d69 tool=createSalesOrder
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_ca7fae8e-385d-4daa-be43-1ec88a62a4d0 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_abd1030c-3ca0-4657-b9fb-ee57f52ca5f2 tenant=tenant-B tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_b70f6bb9-ab77-4dad-8f2d-8b296fcd4385 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_9157ec2f-c9ad-4c00-bdd7-62d6851614bc tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作已确认（首次）：token=wg_9157ec2f-c9ad-4c00-bdd7-62d6851614bc tool=createSalesOrder risk=medium
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_10d75424-d227-4f7a-8cb2-9d358c928b40 tenant=tenant-A tool=adjustCreditLimit risk=high（信用额度调整）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 高危写操作首次确认（待二次确认）：token=wg_10d75424-d227-4f7a-8cb2-9d358c928b40 tool=adjustCreditLimit risk=high
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作已确认（二次）：token=wg_10d75424-d227-4f7a-8cb2-9d358c928b40 tool=adjustCreditLimit risk=high
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_7f18e841-ec77-455d-8d2e-774a0bd9b1df tenant=tenant-A tool=createPlatformAnnouncement risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 高危写操作首次确认（待二次确认）：token=wg_7f18e841-ec77-455d-8d2e-774a0bd9b1df tool=createPlatformAnnouncement risk=medium
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_a44ca123-cd8a-4222-9215-6b491a562d47 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作已确认（首次）：token=wg_a44ca123-cd8a-4222-9215-6b491a562d47 tool=createSalesOrder risk=medium
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_a58f857b-5ef5-4915-aa11-c417fb1c97f0 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作已取消：token=wg_a58f857b-5ef5-4915-aa11-c417fb1c97f0 tool=createSalesOrder（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_69609efb-895f-4e7a-bb02-3e31612f9085 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/25 08:51:01    WARN [WriteGuardService] 写审核令牌已过期：token=wg_69609efb-895f-4e7a-bb02-3e31612f9085 tool=createSalesOrder
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_602ffa86-f093-4f0c-a3b7-66661b03a2f3 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_fcaa1be2-1eea-45e4-8f71-8f8dd7ca3343 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作已取消：token=wg_fcaa1be2-1eea-45e4-8f71-8f8dd7ca3343 tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:51:00     LOG [ProactiveController] 收到 proactive/jobs 请求，返回 2 个巡检任务
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_6dee17cc-50f3-428e-8632-23f2b7eab8ab tenant=tenant-A tool=createSalesOrder risk=high（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 高危写操作首次确认（待二次确认）：token=wg_6dee17cc-50f3-428e-8632-23f2b7eab8ab tool=createSalesOrder risk=high
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作已取消：token=wg_6dee17cc-50f3-428e-8632-23f2b7eab8ab tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:51:00     LOG [ProactiveController] 收到 proactive/jobs 请求，返回 0 个巡检任务
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_34678090-fcb4-4ab3-951a-6df01550aab4 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作已确认（首次）：token=wg_34678090-fcb4-4ab3-951a-6df01550aab4 tool=createSalesOrder risk=medium
+[Nest] 9404  - 2026/10/24 08:51:00    WARN [WriteGuardService] 已确认的操作不可取消：token=wg_34678090-fcb4-4ab3-951a-6df01550aab4 tool=createSalesOrder
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_e38a4a7f-83ae-400d-9702-120220bf5648 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_729085b9-9af8-42a6-bce2-44f87875525a tenant=tenant-A tool=api_create_return_apply risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作已确认（首次）：token=wg_729085b9-9af8-42a6-bce2-44f87875525a tool=api_create_return_apply risk=medium
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_31727312-ae56-4d07-9cb4-b7581fb2abca tenant=tenant-A tool=api_create_return_apply risk=medium（创建销售单）
+[Nest] 6860  - 2026/10/24 08:51:00     LOG [ProactiveController] 收到 proactive/jobs/inventory_warning/run 请求，开始手动巡检
+[Nest] 9404  - 2026/10/24 08:51:00    WARN [WriteGuardService] 写令牌确认人非本人：token=wg_31727312-… writeCustomer=c-100 confirmCustomer=c-200
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_9edb7b1e-db47-4919-8247-05b9698968fe tenant=tenant-A tool=api_create_return_apply risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00    WARN [WriteGuardService] 写令牌确认人非本人：token=wg_9edb7b1e-… writeCustomer=c-100 confirmCustomer=-
+[Nest] 6860  - 2026/10/24 08:51:00     LOG [ProactiveController] 收到 proactive/jobs/not_exist/run 请求，开始手动巡检
+PASS src/brain/proactive/proactive.controller.spec.ts
+[Nest] 6860  - 2026/10/24 08:51:00     LOG [ProactiveController] 收到 proactive/jobs/not_exist/run 请求，开始手动巡检
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_428138a7-9718-4dd2-81b3-8507be5c4387 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作已确认（首次）：token=wg_428138a7-9718-4dd2-81b3-8507be5c4387 tool=createSalesOrder risk=medium
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_eaf322f9-3e66-46cd-bca9-0c6b712e241b tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/25 08:51:01     LOG [WriteGuardService] 清理过期写审核令牌：1 条
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写审核令牌 TTL 已配置为 2 小时（默认 24）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_d0b896df-6b35-46d4-9232-30d3a8754696 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写审核令牌 TTL 已配置为 2 小时（默认 24）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_9a6f533c-0790-487d-8123-b406b053338a tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 10:51:01    WARN [WriteGuardService] 写审核令牌已过期：token=wg_9a6f533c-0790-487d-8123-b406b053338a tool=createSalesOrder
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_fa0a9d2b-6f8b-4c48-89ad-6bb4d416670b tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_b6feba38-82c5-408f-88d7-80e878698284 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写审核令牌 TTL 已配置为 2 小时（默认 24）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_7339fdc0-b486-4df9-bb77-cb57e102d9d9 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_888fe353-cd2a-428e-b91e-4de426a46e33 tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 08:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_9afdb038-56bb-49e2-87cb-e31e048df5ac tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+[Nest] 9404  - 2026/10/24 20:51:00     LOG [WriteGuardService] 写操作挂起：token=wg_270ad634-7427-4cf5-8ace-e9989335deec tenant=tenant-A tool=createSalesOrder risk=medium（创建销售单）
+PASS src/brain/write-guard.service.spec.ts
+[Nest] 17504  - 2026/10/24 08:51:00   DEBUG [AiConfigService] 租户 tenant-001 使用自定义 AI 配置（provider=deepseek, model=deepseek-chat）
+[Nest] 17504  - 2026/10/24 08:51:00    WARN [OutboundTargetGuard] 出站目标被拒 rule=scheme-not-https host=169.254.169.254 detail=scheme 必须为 https:（实际 http:）
+[Nest] 17504  - 2026/10/24 08:51:00   DEBUG [AiConfigService] 租户 tenant-001 使用自定义 AI 配置（provider=deepseek, model=deepseek-chat）
+[Nest] 17504  - 2026/10/24 08:51:00    WARN [OutboundTargetGuard] 出站目标被拒 rule=scheme-not-https host=169.254.169.254 detail=scheme 必须为 https:（实际 http:）
+[Nest] 17504  - 2026/10/24 08:51:00   DEBUG [AiConfigService] 租户 tenant-001 使用自定义 AI 配置（provider=deepseek, model=deepseek-chat）
+[Nest] 17504  - 2026/10/24 08:51:00    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=10.0.0.5 detail=host「10.0.0.5」命中受限网段
+[Nest] 17504  - 2026/10/24 08:51:00   DEBUG [AiConfigService] 租户 tenant-001 使用自定义 AI 配置（provider=deepseek, model=deepseek-chat）
+[Nest] 17504  - 2026/10/24 08:51:00    WARN [OutboundTargetGuard] 出站目标被拒 rule=url-embedded-credentials host=api.example.com detail=URL 不得内嵌凭据（user:pass@）
+[Nest] 17504  - 2026/10/24 08:51:00   DEBUG [AiConfigService] 租户 tenant-001 使用自定义 AI 配置（provider=deepseek, model=deepseek-chat）
+[Nest] 17504  - 2026/10/24 08:51:00   DEBUG [AiConfigService] 租户 tenant-001 使用自定义 AI 配置（provider=deepseek, model=deepseek-chat）
+[Nest] 17504  - 2026/10/24 08:51:00   DEBUG [AiConfigService] 租户 tenant-001 使用自定义 AI 配置（provider=deepseek, model=deepseek-chat）
+[Nest] 17504  - 2026/10/24 08:51:00   DEBUG [AiConfigService] 租户 tenant-001 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 17504  - 2026/10/24 08:51:00   DEBUG [AiConfigService] 租户 tenant-001 使用自定义 AI 配置（provider=deepseek, model=deepseek-chat）
+PASS src/tenant/ai-config.egress.spec.ts
+[Nest] 21412  - 2026/10/24 08:51:01   ERROR [IdempotencyGateService] 幂等认领失败（MySQL 不可用），按裁定 B fail-open 放行：tool=createSalesOrder err=connect ECONNREFUSED 127.0.0.1:3306
+[Nest] 21412  - 2026/10/24 08:51:01   ERROR [ErrorSemantics] [bestEffort] 旁路失败已入死信 op=idem.claim tenant=t1 detail=tool=createSalesOrder（已 fail-open 放行，残余重复风险需人工核查） err=connect ECONNREFUSED 127.0.0.1:3306
+[Nest] 21412  - 2026/10/24 08:51:01     LOG [IdempotencyGateService] 写工具幂等回放（裁定 A）：tool=createSalesOrder tenant=t1 keySource=confirm_token
+[Nest] 21412  - 2026/10/24 08:51:01     LOG [IdempotencyGateService] 幂等行此前失败，允许同键重试并重新认领：tool=createSalesOrder id=1
+[Nest] 21412  - 2026/10/24 08:51:01     LOG [IdempotencyGateService] 写工具幂等回放（裁定 A）：tool=createSalesOrder tenant=t1 keySource=confirm_token
+Error: connect ECONNREFUSED 127.0.0.1:3306
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\tools\idempotency-gate.service.spec.ts:509:28)
+    at Promise.finally.completed (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1561:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1501:10)
+    at _callCircusTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1011:40)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at _runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:951:3)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:853:7
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:866:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at run (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:765:3)
+    at runAndTransformResultsToJestFormat (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1993:21)
+    at jestAdapter (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\runner.js:111:19)
+    at runTestInternal (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:276:16)
+    at runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:344:7)
+    at Object.worker (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:498:12)
+[Nest] 21412  - 2026/10/24 08:51:01   ERROR [ErrorSemantics] [bestEffort] 无死信接收方，记录仅留存日志 op=idem.claim（请注册 setDefaultDeadLetterSink）
+[Nest] 21412  - 2026/10/24 08:51:01   ERROR [IdempotencyGateService] 幂等闸门自身异常，按裁定 B fail-open 放行：tool=createSalesOrder err=repository exploded
+Error: repository exploded
+    at FakeIdempotencyRepo.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\tools\idempotency-gate.service.spec.ts:522:15)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-mock\build\index.js:305:39
+    at FakeIdempotencyRepo.<anonymous> (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-mock\build\index.js:312:13)
+    at FakeIdempotencyRepo.mockConstructor [as findOne] (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-mock\build\index.js:57:19)
+    at IdempotencyGateService.findRow (D:\Users\ZXQL\ZXQL-AI\src\tools\idempotency-gate.service.ts:363:22)
+    at IdempotencyGateService.runGate (D:\Users\ZXQL\ZXQL-AI\src\tools\idempotency-gate.service.ts:305:30)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at IdempotencyGateService.check (D:\Users\ZXQL\ZXQL-AI\src\tools\idempotency-gate.service.ts:151:14)
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\tools\idempotency-gate.service.spec.ts:525:34)
+[Nest] 21412  - 2026/10/24 08:51:01   ERROR [ErrorSemantics] [bestEffort] 旁路失败已入死信 op=idem.gate tenant=t1 detail=tool=createSalesOrder（已 fail-open 放行，残余重复风险需人工核查） err=repository exploded
+Error: repository exploded
+    at FakeIdempotencyRepo.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\tools\idempotency-gate.service.spec.ts:522:15)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-mock\build\index.js:305:39
+    at FakeIdempotencyRepo.<anonymous> (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-mock\build\index.js:312:13)
+    at FakeIdempotencyRepo.mockConstructor [as findOne] (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-mock\build\index.js:57:19)
+    at IdempotencyGateService.findRow (D:\Users\ZXQL\ZXQL-AI\src\tools\idempotency-gate.service.ts:363:22)
+    at IdempotencyGateService.runGate (D:\Users\ZXQL\ZXQL-AI\src\tools\idempotency-gate.service.ts:305:30)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at IdempotencyGateService.check (D:\Users\ZXQL\ZXQL-AI\src\tools\idempotency-gate.service.ts:151:14)
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\tools\idempotency-gate.service.spec.ts:525:34)
+[Nest] 21412  - 2026/10/24 08:51:01   ERROR [ErrorSemantics] [bestEffort] 无死信接收方，记录仅留存日志 op=idem.gate（请注册 setDefaultDeadLetterSink）
+[Nest] 21412  - 2026/10/24 08:51:01     LOG [IdempotencyGateService] 幂等表清理完成：陈旧 in_flight 置 failed 1 行、删除过期 3 行（保留 30 天）
+PASS src/tools/idempotency-gate.service.spec.ts
+PASS src/brain/orchestrator.service.spec.ts
+[Nest] 21976  - 2026/10/24 08:51:01     LOG [Orchestrator] Agent Loop 启动：tenant=t1 user=u1 session=sess-1 msg="查一下五粮液库存..."
+[Nest] 21976  - 2026/10/24 08:51:01     LOG [Orchestrator] C9 路由：test；租户 t1 model=deepseek-chat source=platform
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 意图分诊：lane=rules 工具集=0 个 规则=无（消息「查一下五粮液库存」）
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 1 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：searchProduct
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 2 轮
+[Nest] 21976  - 2026/10/24 08:51:01     LOG [Orchestrator] Agent Loop 完成：session=sess-1 iterations=2 tokens=30 latency=3ms tools=1
+[Nest] 21976  - 2026/10/24 08:51:01     LOG [Orchestrator] Agent Loop 启动：tenant=t1 user=u1 session=sess-1 msg="查一下五粮液库存..."
+[Nest] 21976  - 2026/10/24 08:51:01     LOG [Orchestrator] C9 路由：test；租户 t1 model=deepseek-chat source=platform
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 意图分诊：lane=rules 工具集=0 个 规则=无（消息「查一下五粮液库存」）
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 1 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：searchProduct
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 2 轮
+[Nest] 21976  - 2026/10/24 08:51:01     LOG [Orchestrator] Agent Loop 完成：session=sess-1 iterations=2 tokens=30 latency=4ms tools=1
+[Nest] 21976  - 2026/10/24 08:51:01     LOG [Orchestrator] Agent Loop 启动：tenant=t1 user=u1 session=sess-1 msg="查一下五粮液库存..."
+[Nest] 21976  - 2026/10/24 08:51:01     LOG [Orchestrator] C9 路由：test；租户 t1 model=deepseek-chat source=platform
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 意图分诊：lane=rules 工具集=0 个 规则=无（消息「查一下五粮液库存」）
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 1 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：searchProduct
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 2 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：searchProduct
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 3 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：searchProduct
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 4 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：searchProduct
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 5 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：searchProduct
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 6 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：searchProduct
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 7 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：searchProduct
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 8 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：searchProduct
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 9 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：searchProduct
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 10 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：searchProduct
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 11 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：searchProduct
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 12 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：searchProduct
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 13 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：searchProduct
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 14 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：searchProduct
+[Nest] 21976  - 2026/10/24 08:51:01    WARN [Orchestrator] Agent Loop 达到最大迭代次数 14，强制终止
+[Nest] 21976  - 2026/10/24 08:51:01     LOG [Orchestrator] Agent Loop 完成：session=sess-1 iterations=15 tokens=210 latency=24ms tools=14
+[Nest] 21976  - 2026/10/24 08:51:01     LOG [Orchestrator] Agent Loop 启动：tenant=t1 user=u1 session=sess-1 msg="查一下五粮液库存..."
+[Nest] 21976  - 2026/10/24 08:51:01     LOG [Orchestrator] C9 路由：test；租户 t1 model=deepseek-chat source=platform
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 意图分诊：lane=rules 工具集=0 个 规则=无（消息「查一下五粮液库存」）
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 1 轮
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] 执行工具：createSalesOrder
+[Nest] 21976  - 2026/10/24 08:51:01   DEBUG [Orchestrator] Agent Loop 第 2 轮
+[Nest] 21976  - 2026/10/24 08:51:01     LOG [Orchestrator] Agent Loop 完成：session=sess-1 iterations=2 tokens=30 latency=2ms tools=1
+PASS src/brain/proactive/schedule-reminder.spec.ts
+[Nest] 4604  - 2026/10/24 08:51:01     LOG [ScheduleReminderService] 日程提醒扫描：候选 1 条，成功推送 1 条
+[Nest] 4604  - 2026/10/24 08:51:01    WARN [ScheduleReminderService] 日程提醒推送失败（不写标记，下次重试）：schedule=12
+[Nest] 4604  - 2026/10/24 08:51:01     LOG [ScheduleReminderService] 日程提醒扫描：候选 1 条，成功推送 0 条
+[Nest] 4604  - 2026/10/24 08:51:01    WARN [ScheduleReminderService] 日程提醒扫描失败（已隔离）：DB down
+[Nest] 12008  - 2026/10/24 08:51:01     LOG [AiConfigAdminService] 平台默认 AI 配置已更新（id=1）
+[Nest] 12008  - 2026/10/24 08:51:01     LOG [AiConfigAdminService] 平台默认 AI 配置已更新（id=1）
+[Nest] 17504  - 2026/10/24 08:51:01   DEBUG [LearningService] 学习吸收：tenant=t1 task=创建销售单 outcome=good
+[Nest] 12008  - 2026/10/24 08:51:01     LOG [AiConfigAdminService] 平台默认 AI 配置已更新（id=1）
+[Nest] 12008  - 2026/10/24 08:51:01     LOG [AiConfigAdminService] 平台默认 AI 配置已更新（id=1）
+[Nest] 17504  - 2026/10/24 08:51:01   DEBUG [LearningService] 学习吸收：tenant=t1 task=创建销售单 outcome=bad
+[Nest] 17504  - 2026/10/24 08:51:02   DEBUG [LearningService] 学习吸收：tenant=t1 task=发布视频 outcome=bad
+[Nest] 12008  - 2026/10/24 08:51:02     LOG [AiConfigAdminService] 租户 tenant-001 的 AI 配置已更新（id=1）
+PASS src/brain/learning/learning.service.spec.ts
+[Nest] 12008  - 2026/10/24 08:51:02     LOG [AiConfigAdminService] 租户 tenant-999 的 AI 配置已更新（id=undefined）
+[Nest] 12008  - 2026/10/24 08:51:02     LOG [AiConfigAdminService] 租户 tenant-001 的 AI 配置已更新（id=1）
+[Nest] 12008  - 2026/10/24 08:51:02     LOG [AiConfigAdminService] 租户 tenant-001 的计费套餐已更新（id=1 列=planType,freeChatCount,freeTokenLimit,overagePrice,monthlyChatLimit,monthlyTokenLimit,monthlyPrice,enabled）
+[Nest] 12008  - 2026/10/24 08:51:02     LOG [AiConfigAdminService] 租户 tenant-999 的计费套餐已创建（id=undefined）
+[Nest] 12008  - 2026/10/24 08:51:02     LOG [AiConfigAdminService] 租户 tenant-001 的计费套餐已更新（id=1 列=monthlyPrice）
+PASS src/tenant/ai-config-admin.service.spec.ts
+PASS src/brain/agent/agent-engine.service.spec.ts
+[Nest] 6860  - 2026/10/24 08:51:02     LOG [AgentEngineService] AgentEngine 创建计划：id=7 tenant=t1 steps=1
+[Nest] 6860  - 2026/10/24 08:51:02     LOG [AgentEngineService] AgentEngine 创建计划：id=1 tenant=t1 steps=1
+PASS src/brain/proactive/proactive-push.service.spec.ts
+[Nest] 9404  - 2026/10/24 08:51:02   DEBUG [ProactivePushService] AI 主动推送成功：task=inventory_warning tenant=tenant-1 title=⚠️ 库存预警
+[Nest] 9404  - 2026/10/24 08:51:02    WARN [ProactivePushService] AI 主动推送实时广播失败（task=inventory_warning, tenant=tenant-1）：连接已关闭
+[Nest] 9404  - 2026/10/24 08:51:02   DEBUG [ProactivePushService] AI 主动推送成功：task=inventory_warning tenant=tenant-1 title=⚠️ 库存预警
+[Nest] 9404  - 2026/10/24 08:51:02   DEBUG [ProactivePushService] AI 主动推送成功：task=task_a tenant=tenant-1 title=⚠️ 库存预警
+[Nest] 9404  - 2026/10/24 08:51:02    WARN [ProactivePushService] AI 主动推送写入 t_push_log 失败（task=inventory_warning, tenant=tenant-1）：表不存在
+[Nest] 9404  - 2026/10/24 08:51:02    WARN [ProactivePushService] AI 主动推送写入 t_push_log 失败（task=inventory_warning, tenant=tenant-1）：数据库连接丢失
+[Nest] 9404  - 2026/10/24 08:51:02   DEBUG [ProactivePushService] AI 主动推送成功：task=schedule_reminder tenant=tenant-1 title=📅 日程提醒
+[Nest] 9404  - 2026/10/24 08:51:02   DEBUG [ProactivePushService] AI 主动推送成功：task=inventory_warning tenant=tenant-1 title=⚠️ 库存预警
+[Nest] 9404  - 2026/10/24 08:51:02    WARN [ProactivePushService] AI 主动推送实时定向投递失败（task=schedule_reminder, tenant=tenant-1）：连接已关闭
+[Nest] 9404  - 2026/10/24 08:51:02   DEBUG [ProactivePushService] AI 主动推送成功：task=schedule_reminder tenant=tenant-1 title=📅 日程提醒
+PASS src/ops/usage-alert.service.spec.ts
+[Nest] 21412  - 2026/10/24 08:51:03   DEBUG [UsageAlertService] 用量告警未配置阈值（USAGE_DAILY_ALERT_COST/TOKENS），跳过
+[Nest] 21412  - 2026/10/24 08:51:03     LOG [UsageAlertService] 用量告警：tenant=t1 费用 ¥1.50 超阈值 ¥1.00 推送成功
+[Nest] 21412  - 2026/10/24 08:51:03     LOG [UsageAlertService] 用量告警：tenant=t1 费用 ¥2.00 超阈值 ¥1.00 推送成功
+[Nest] 21412  - 2026/10/24 08:51:03     LOG [UsageAlertService] 用量告警：tenant=t1 Token 1500 超阈值 1000 推送成功
+PASS src/brain/evolution-autonomy.scheduler.spec.ts
+PASS src/brain/evidence/evidence-ledger.service.spec.ts
+[Nest] 21976  - 2026/10/24 08:51:03    WARN [EvolutionAutonomyScheduler] E5 自治巡检：已达单日自动激活上限（5），本轮提前收工
+[Nest] 21976  - 2026/10/24 08:51:03    WARN [EvolutionAutonomyScheduler] E5 自治闭包失败（跳过该版本）：id=1 err=闭包注入失败
+[Nest] 4604  - 2026/10/24 08:51:03    WARN [EvidenceLedgerService] 证据核查发现问题：工具返回成功但缺少 data（结果不可信）
+[Nest] 4604  - 2026/10/24 08:51:03    WARN [EvidenceLedgerService] 证据核查发现问题：字段 amount 类型异常：{"value":100}
+PASS src/brain/proactive/gross-margin-anomaly.service.spec.ts
+PASS src/brain/proactive/replenishment-advice.service.spec.ts
+[Nest] 17504  - 2026/10/24 08:51:03   DEBUG [ReplenishmentAdviceService] 补货建议巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 12008  - 2026/10/24 08:51:03   DEBUG [GrossMarginAnomalyService] 毛利异常巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 12008  - 2026/10/24 08:51:03   DEBUG [GrossMarginAnomalyService] 毛利异常巡检完成：tenant=tenant-1 found=1 pushed=0
+[Nest] 17504  - 2026/10/24 08:51:03   DEBUG [ReplenishmentAdviceService] 补货建议巡检完成：tenant=tenant-1 found=1 pushed=1
+[Nest] 12008  - 2026/10/24 08:51:03    WARN [GrossMarginAnomalyService] 毛利异常巡检失败：tenant=tenant-1 销售明细表不可用
+[Nest] 12008  - 2026/10/24 08:51:03   DEBUG [GrossMarginAnomalyService] 毛利异常巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 12008  - 2026/10/24 08:51:03    WARN [GrossMarginAnomalyService] 毛利异常：站内通知落库失败（已隔离，不影响巡检）
+[Nest] 12008  - 2026/10/24 08:51:03   DEBUG [GrossMarginAnomalyService] 毛利异常巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 17504  - 2026/10/24 08:51:03   DEBUG [ReplenishmentAdviceService] 补货建议巡检完成：tenant=tenant-1 found=1 pushed=0
+[Nest] 12008  - 2026/10/24 08:51:03   DEBUG [GrossMarginAnomalyService] 毛利异常巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 17504  - 2026/10/24 08:51:03    WARN [ReplenishmentAdviceService] 补货建议巡检失败：tenant=tenant-1 库存表不可用
+[Nest] 17504  - 2026/10/24 08:51:03   DEBUG [ReplenishmentAdviceService] 补货建议巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 17504  - 2026/10/24 08:51:03    WARN [ReplenishmentAdviceService] 智能补货：站内通知落库失败（已隔离，不影响巡检）
+[Nest] 17504  - 2026/10/24 08:51:03   DEBUG [ReplenishmentAdviceService] 补货建议巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 17504  - 2026/10/24 08:51:03   DEBUG [ReplenishmentAdviceService] 补货建议巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 6860  - 2026/10/24 08:51:04   ERROR [ToolExecutor] 工具 echo 执行被拦截：执行上下文缺少 tenantId，无法执行工具（多租户隔离要求）
+[Nest] 6860  - 2026/10/24 08:51:04   ERROR [ToolExecutor] 工具 echo 执行被拦截：执行上下文缺少 tenantId，无法执行工具（多租户隔离要求）
+[Nest] 6860  - 2026/10/24 08:51:04   ERROR [ToolExecutor] 工具 throwing 执行抛异常（1ms）：工具执行异常：模拟内部异常
+Error: 模拟内部异常
+    at Object.execute (D:\Users\ZXQL\ZXQL-AI\src\tools\tool-executor.spec.ts:172:26)
+    at ToolExecutor.executeToolCall (D:\Users\ZXQL\ZXQL-AI\src\tools\tool-executor.ts:199:33)
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\tools\tool-executor.spec.ts:177:37)
+    at Promise.finally.completed (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1561:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1501:10)
+    at _callCircusTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1011:40)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at _runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:951:3)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:853:7
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:866:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at run (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:765:3)
+    at runAndTransformResultsToJestFormat (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1993:21)
+    at jestAdapter (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\runner.js:111:19)
+    at runTestInternal (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:276:16)
+    at runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:344:7)
+    at Object.worker (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:498:12)
+[Nest] 6860  - 2026/10/24 08:51:03   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:03   DEBUG [ToolExecutor] 执行工具 echo（tenant=tenant-001, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:03   DEBUG [ToolExecutor] 工具审计：echo success=true 0ms
+[Nest] 6860  - 2026/10/24 08:51:03   DEBUG [ToolExecutor] 工具 echo 执行成功（0ms）
+[Nest] 6860  - 2026/10/24 08:51:03   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:03   DEBUG [ToolExecutor] 执行工具 echo（tenant=tenant-001, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:03   DEBUG [ToolExecutor] 工具审计：echo success=true 0ms
+[Nest] 6860  - 2026/10/24 08:51:03   DEBUG [ToolExecutor] 工具 echo 执行成功（0ms）
+[Nest] 6860  - 2026/10/24 08:51:03   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:03    WARN [ToolExecutor] 工具 echo 执行失败：参数 JSON 解析失败：Expected property name or '}' in JSON at position 1 (line 1 column 2)（原始参数：{invalid json}）
+[Nest] 6860  - 2026/10/24 08:51:03   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:03    WARN [ToolExecutor] 工具 echo 执行失败：参数 JSON 解析失败：Unexpected end of JSON input（原始参数：）
+[Nest] 6860  - 2026/10/24 08:51:03   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:03    WARN [ToolExecutor] 工具 "notExist" 未注册（已注册工具：1 个）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolRegistry] 注册工具：throwing（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 执行工具 throwing（tenant=tenant-001, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具审计：throwing success=false 1ms error=工具执行异常：模拟内部异常
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolRegistry] 注册工具：throwNonError（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04   ERROR [ToolExecutor] 工具 throwNonError 执行抛异常（0ms）：工具执行异常：string error
+PASS src/tools/tool-executor.spec.ts
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 执行工具 throwNonError（tenant=tenant-001, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具审计：throwNonError success=false 0ms error=工具执行异常：string error
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolRegistry] 注册工具：failTool（category=order, isWriteOperation=true）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 执行工具 failTool（tenant=tenant-001, isWriteOperation=true）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具审计：failTool success=false 0ms error=库存不足
+[Nest] 6860  - 2026/10/24 08:51:04    WARN [ToolExecutor] 工具 failTool 执行返回失败（0ms）：库存不足
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04     LOG [ToolExecutor] 批量执行 1 个工具调用
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 执行工具 echo（tenant=tenant-001, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具审计：echo success=true 0ms
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具 echo 执行成功（0ms）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04     LOG [ToolExecutor] 批量执行 3 个工具调用
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 执行工具 echo（tenant=tenant-001, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 执行工具 echo（tenant=tenant-001, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 执行工具 echo（tenant=tenant-001, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具审计：echo success=true 1ms
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具 echo 执行成功（1ms）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具审计：echo success=true 1ms
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具 echo 执行成功（1ms）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具审计：echo success=true 1ms
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具 echo 执行成功（1ms）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04     LOG [ToolExecutor] 批量执行 3 个工具调用
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 执行工具 echo（tenant=tenant-001, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04    WARN [ToolExecutor] 工具 "notExist" 未注册（已注册工具：1 个）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 执行工具 echo（tenant=tenant-001, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具审计：echo success=true 1ms
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具 echo 执行成功（1ms）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具审计：echo success=true 0ms
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具 echo 执行成功（0ms）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04    WARN [ToolExecutor] 客户身份越权拦截：tool=echo customer=c-100 AI_010 无权限执行此操作：运营客户端仅可访问本人数据与受控写操作，「echo」不在客户授权范围
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolRegistry] 注册工具：api_query_my_orders（category=order, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 执行工具 api_query_my_orders（tenant=tenant-001, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具审计：api_query_my_orders success=true 1ms
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具 api_query_my_orders 执行成功（1ms）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolRegistry] 注册工具：api_query_my_orders（category=order, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04    WARN [ToolExecutor] 客户身份越权拦截：tool=api_query_my_orders customer=- 运营客户端身份不完整：缺少 customerId，无法建立客户数据边界
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 执行工具 echo（tenant=tenant-001, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具审计：echo success=true 0ms
+[Nest] 6860  - 2026/10/24 08:51:04   DEBUG [ToolExecutor] 工具 echo 执行成功（0ms）
+PASS src/brain/proactive/notice-bridge.spec.ts
+[Nest] 21412  - 2026/10/24 08:51:04    WARN [NoticeBridgeService] 站内通知落库异常（已隔离，不影响推送）：通知表不可用
+[Nest] 21412  - 2026/10/24 08:51:04     LOG [NoticeBridgeService] 站内通知未新增（deduped=false，err=通知表不可用）：task=schedule_reminder
+[Nest] 21412  - 2026/10/24 08:51:04     LOG [NoticeBridgeService] 站内通知未新增（deduped=false，err=-）：task=schedule_reminder
+PASS src/brain/mcp/mcp-server.service.spec.ts
+[Nest] 4604  - 2026/10/24 08:51:04     LOG [DeadLetterSinkService] 死信接收方已注册（sink → t_ai_dead_letter；写超时 1000ms，保留 30 天）
+[Nest] 4604  - 2026/10/24 08:51:04     LOG [DeadLetterSinkService] 死信接收方已注册（sink → t_ai_dead_letter；写超时 1000ms，保留 30 天）
+[Nest] 4604  - 2026/10/24 08:51:04     LOG [DeadLetterSinkService] 死信接收方已注册（sink → t_ai_dead_letter；写超时 1000ms，保留 30 天）
+[Nest] 4604  - 2026/10/24 08:51:04     LOG [DeadLetterSinkService] 死信接收方已注册（sink → t_ai_dead_letter；写超时 1000ms，保留 30 天）
+[Nest] 4604  - 2026/10/24 08:51:04     LOG [DeadLetterSinkService] 死信接收方已注册（sink → t_ai_dead_letter；写超时 1000ms，保留 30 天）
+[Nest] 4604  - 2026/10/24 08:51:04     LOG [DeadLetterSinkService] 死信接收方已注册（sink → t_ai_dead_letter；写超时 1000ms，保留 30 天）
+[Nest] 21976  - 2026/10/24 08:51:04    WARN [StructuredExtractor] 结构化抽取 LLM 调用失败：docType=sales_order err=provider timeout
+[Nest] 4604  - 2026/10/24 08:51:04     LOG [DeadLetterSinkService] 死信接收方已注册（sink → t_ai_dead_letter；写超时 50ms，保留 30 天）
+[Nest] 21976  - 2026/10/24 08:51:04     LOG [StructuredExtractor] 写参数需澄清：tool=createRefund docType=refund 缺失 1 项
+[Nest] 21976  - 2026/10/24 08:51:04    WARN [StructuredExtractor] 结构化抽取 LLM 调用失败：docType=sales_order err=timeout
+[Nest] 21976  - 2026/10/24 08:51:04   DEBUG [StructuredExtractor] E3 样本回流：docType=customer_create 注入 1 条 few-shot
+PASS src/brain/extraction/structured-extractor.spec.ts
+[Nest] 21976  - 2026/10/24 08:51:04    WARN [StructuredExtractor] E3 样本回流读取失败（降级为无 few-shot）：ai_db down
+[Nest] 21976  - 2026/10/24 08:51:04    WARN [StructuredExtractor] 写参数疑似编造已拦截：tool=createProduct 字段=零售价,批发价
+[Nest] 4604  - 2026/10/24 08:51:04     LOG [DeadLetterSinkService] 死信接收方已注册（sink → t_ai_dead_letter；写超时 1000ms，保留 30 天）
+[Nest] 4604  - 2026/10/24 08:51:05     LOG [DeadLetterSinkService] 死信接收方已注册（sink → t_ai_dead_letter；写超时 1000ms，保留 30 天）
+[Nest] 4604  - 2026/10/24 08:51:05     LOG [DeadLetterSinkService] 死信表清理完成：删除过期 5100 条（保留 30 天）
+PASS src/ops/dead-letter-sink.service.spec.ts
+PASS src/brain/proactive/weekly-plan.service.spec.ts
+[Nest] 12008  - 2026/10/24 08:51:05     LOG [WeeklyPlanService] S3 周计划已生成：tenant=t_001 signals=1 plan=25字
+[Nest] 12008  - 2026/10/24 08:51:05    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=weekly_plan.llm tenant=t_001 detail=signals=1 err=llm down
+[Nest] 12008  - 2026/10/24 08:51:05     LOG [WeeklyPlanService] S3 周计划已生成：tenant=t_001 signals=1 plan=36字
+[Nest] 12008  - 2026/10/24 08:51:05     LOG [WeeklyPlanService] S3 周计划已生成：tenant=t_001 signals=2 plan=24字
+[Nest] 12008  - 2026/10/24 08:51:05     LOG [WeeklyPlanService] S3 周计划已生成：tenant=t_001 signals=0 plan=0字
+[Nest] 12008  - 2026/10/24 08:51:05     LOG [WeeklyPlanService] S3 周计划已生成：tenant=default signals=0 plan=24字
+[Nest] 12008  - 2026/10/24 08:51:05    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=weekly_plan.llm tenant=t_001 detail=signals=0 err=llm down
+[Nest] 12008  - 2026/10/24 08:51:05     LOG [WeeklyPlanService] S3 周计划已生成：tenant=t_001 signals=0 plan=44字
+[Nest] 17504  - 2026/10/24 08:51:05     LOG [ProactiveService] inventory_warning：巡检 1 个租户，发现 0 条，推送 0 条
+[Nest] 17504  - 2026/10/24 08:51:05     LOG [ProactiveService] inventory_warning：巡检 2 个租户，发现 6 条，推送 2 条
+[Nest] 17504  - 2026/10/24 08:51:05     LOG [ProactiveService] inventory_warning：巡检 3 个租户，发现 0 条，推送 0 条
+[Nest] 17504  - 2026/10/24 08:51:05    WARN [ProactiveService] inventory_warning：未找到启用租户，跳过巡检
+[Nest] 17504  - 2026/10/24 08:51:05    WARN [ProactiveService] inventory_warning：获取租户列表失败 租户表不可用
+[Nest] 17504  - 2026/10/24 08:51:05    WARN [ProactiveService] 任务 inventory_warning 租户 t1 执行异常：租户 t1 查询失败
+[Nest] 17504  - 2026/10/24 08:51:05     LOG [ProactiveService] inventory_warning：巡检 2 个租户，发现 1 条，推送 1 条
+[Nest] 17504  - 2026/10/24 08:51:05    WARN [ProactiveService] 任务 inventory_warning 正在运行，跳过本次调度
+[Nest] 17504  - 2026/10/24 08:51:05     LOG [ProactiveService] inventory_warning：巡检 1 个租户，发现 0 条，推送 0 条
+[Nest] 17504  - 2026/10/24 08:51:05     LOG [ProactiveService] inventory_warning：巡检 1 个租户，发现 0 条，推送 0 条
+[Nest] 17504  - 2026/10/24 08:51:05    WARN [ProactiveService] inventory_warning：获取租户列表失败 租户表不可用
+[Nest] 17504  - 2026/10/24 08:51:05    WARN [ProactiveService] 任务 inventory_warning 租户 t1 执行异常：执行失败
+[Nest] 17504  - 2026/10/24 08:51:05     LOG [ProactiveService] inventory_warning：巡检 1 个租户，发现 0 条，推送 0 条
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 未配置单价，本次不计费：provider=unknown model=unknown tokens=30
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=undefined tokens=30 success=true
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=undefined tokens=0 success=true
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 未配置单价，本次不计费：provider=unknown model=unknown tokens=3
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=undefined tokens=3 success=true
+PASS src/brain/proactive/proactive.service.spec.ts
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=undefined tokens=0 success=true
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 工具审计已写入：tool=checkInventory tenant=t1 success=true 12ms
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 工具审计已写入：tool=checkInventory tenant=t1 success=true 12ms
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 未配置单价，本次不计费：provider=unknown model=unknown tokens=3
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=undefined tokens=3 success=true
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=undefined tokens=0 success=true
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=undefined tokens=0 success=true
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=undefined tokens=0 success=true
+[Nest] 6860  - 2026/10/24 08:51:05   ERROR [ErrorSemantics] [bestEffort] 旁路失败已入死信 op=audit.logAiCall tenant=t1 detail=lane=chat intent=- tokens=0 success=true session=- err=ai_db down
+Error: ai_db down
+    at Object.save (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.spec.ts:64:31)
+    at fireAndForget.op (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.ts:237:33)
+    at bestEffort (D:\Users\ZXQL\ZXQL-AI\src\common\error-semantics.ts:216:11)
+    at AuditLogger.fireAndForget (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.ts:669:20)
+    at AuditLogger.logAiCall (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.ts:185:10)
+    at D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.spec.ts:332:22
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\node_modules\expect\build\index.js:1824:9)
+    at Object.throwingMatcher [as toThrow] (D:\Users\ZXQL\ZXQL-AI\node_modules\expect\build\index.js:2235:93)
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.spec.ts:339:11)
+    at Promise.finally.completed (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1561:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1501:10)
+    at _callCircusTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1011:40)
+    at _runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:951:3)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:853:7
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:866:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at run (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:765:3)
+    at runAndTransformResultsToJestFormat (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1993:21)
+    at jestAdapter (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\runner.js:111:19)
+    at runTestInternal (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:276:16)
+    at runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:344:7)
+    at Object.worker (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:498:12)
+[Nest] 6860  - 2026/10/24 08:51:05   ERROR [ErrorSemantics] [bestEffort] 无死信接收方，记录仅留存日志 op=audit.logAiCall（请注册 setDefaultDeadLetterSink）
+[Nest] 6860  - 2026/10/24 08:51:05   ERROR [ErrorSemantics] [bestEffort] 旁路失败已入死信 op=audit.logAiCall tenant=t1 detail=lane=chat intent=- tokens=3 success=true session=- err=ai_db down
+Error: ai_db down
+    at Object.save (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.spec.ts:64:31)
+    at fireAndForget.op (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.ts:237:33)
+    at bestEffort (D:\Users\ZXQL\ZXQL-AI\src\common\error-semantics.ts:216:11)
+    at AuditLogger.fireAndForget (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.ts:669:20)
+    at AuditLogger.logAiCall (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.ts:185:10)
+    at D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.spec.ts:375:14
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\node_modules\expect\build\index.js:1824:9)
+    at Object.throwingMatcher [as toThrow] (D:\Users\ZXQL\ZXQL-AI\node_modules\expect\build\index.js:2235:93)
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.spec.ts:382:11)
+    at Promise.finally.completed (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1561:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1501:10)
+    at _callCircusTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1011:40)
+    at _runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:951:3)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:853:7
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:866:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at run (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:765:3)
+    at runAndTransformResultsToJestFormat (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1993:21)
+    at jestAdapter (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\runner.js:111:19)
+    at runTestInternal (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:276:16)
+    at runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:344:7)
+    at Object.worker (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:498:12)
+[Nest] 6860  - 2026/10/24 08:51:05   ERROR [ErrorSemantics] [bestEffort] 旁路失败已入死信 op=audit.logToolExecution tenant=t1 detail=tool=checkInventory category=inventory success=true session=s1 err=ai_db down
+Error: ai_db down
+    at Object.save (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.spec.ts:64:31)
+    at fireAndForget.op (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.ts:303:33)
+    at bestEffort (D:\Users\ZXQL\ZXQL-AI\src\common\error-semantics.ts:216:11)
+    at AuditLogger.fireAndForget (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.ts:669:20)
+    at AuditLogger.logToolExecution (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.ts:274:10)
+    at D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.spec.ts:405:25
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\node_modules\expect\build\index.js:1824:9)
+    at Object.throwingMatcher [as toThrow] (D:\Users\ZXQL\ZXQL-AI\node_modules\expect\build\index.js:2235:93)
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.spec.ts:405:65)
+    at Promise.finally.completed (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1561:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1501:10)
+    at _callCircusTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1011:40)
+    at _runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:951:3)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:853:7
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:866:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at run (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:765:3)
+    at runAndTransformResultsToJestFormat (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1993:21)
+    at jestAdapter (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\runner.js:111:19)
+    at runTestInternal (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:276:16)
+    at runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:344:7)
+    at Object.worker (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:498:12)
+[Nest] 6860  - 2026/10/24 08:51:05   ERROR [ErrorSemantics] [bestEffort] 旁路失败已入死信 op=audit.logWriteGuardEvent tenant=t1 detail=event=pending tool=createSalesOrder docType=sales_order_create risk=medium needsReview=false err=ai_db down
+Error: ai_db down
+    at Object.save (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.spec.ts:64:31)
+    at fireAndForget.op (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.ts:366:33)
+    at bestEffort (D:\Users\ZXQL\ZXQL-AI\src\common\error-semantics.ts:216:11)
+    at AuditLogger.fireAndForget (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.ts:669:20)
+    at AuditLogger.logWriteGuardEvent (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.ts:339:10)
+    at D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.spec.ts:423:14
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\node_modules\expect\build\index.js:1824:9)
+    at Object.throwingMatcher [as toThrow] (D:\Users\ZXQL\ZXQL-AI\node_modules\expect\build\index.js:2235:93)
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\bridge\audit-logger.spec.ts:433:11)
+    at Promise.finally.completed (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1561:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1501:10)
+    at _callCircusTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1011:40)
+    at _runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:951:3)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:853:7
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:866:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at run (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:765:3)
+    at runAndTransformResultsToJestFormat (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1993:21)
+    at jestAdapter (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\runner.js:111:19)
+    at runTestInternal (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:276:16)
+    at runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:344:7)
+    at Object.worker (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:498:12)
+PASS src/bridge/audit-logger.spec.ts
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=undefined tokens=0 success=true
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 未配置单价，本次不计费：provider=unknown model=unknown tokens=3
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=undefined tokens=3 success=true
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=deepseek tokens=1500 success=true
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=deepseek tokens=1110 success=true
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 未配置单价，本次不计费：provider=glm model=glm-4-flash tokens=2000
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=glm tokens=2000 success=true
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=ollama tokens=2000 success=true
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 工具审计已写入：tool=checkInventory tenant=t1 success=true 12ms
+[Nest] 6860  - 2026/10/24 08:51:05    WARN [AuditLogger] 单价查询失败，本次按未配置处理（不计费）：provider=deepseek model=deepseek-chat price table down
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=deepseek tokens=200 success=true
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=deepseek tokens=20 success=true
+[Nest] 6860  - 2026/10/24 08:51:05   DEBUG [AuditLogger] 审计日志已写入：tenant=t1 provider=deepseek tokens=20 success=true
+PASS src/tools/definitions/schedule-tools.spec.ts
+PASS src/rag/doc-rag.service.spec.ts
+[Nest] 9404  - 2026/10/24 08:51:05     LOG [DocRagService] RAG 索引完成：doc=42 tenant=t1 分块=1
+[Nest] 9404  - 2026/10/24 08:51:05     LOG [DocRagService] RAG 索引完成：doc=42 tenant=t1 分块=1
+[Nest] 9404  - 2026/10/24 08:51:06    WARN [DocRagService] RAG 索引失败（不影响文档入库）：doc=42 err=embedding 服务不可用
+[Nest] 9404  - 2026/10/24 08:51:06    WARN [DocRagService] RAG 索引失败（不影响文档入库）：doc=42 err=sqlite 落盘失败
+[Nest] 9404  - 2026/10/24 08:51:06    WARN [DocRagService] RAG 索引失败（embedding 未启用/未配置）：doc=42
+[Nest] 9404  - 2026/10/24 08:51:06    WARN [DocRagService] RAG 索引跳过（正文为空）：doc=42
+[Nest] 9404  - 2026/10/24 08:51:06    WARN [DocRagService] RAG 索引失败（分块为空）：doc=42
+[Nest] 9404  - 2026/10/24 08:51:06     LOG [DocRagService] RAG 索引完成：doc=42 tenant=t1 分块=1
+[Nest] 9404  - 2026/10/24 08:51:06    WARN [DocRagService] RAG 重试跳过（无已落库分块）：doc=42
+[Nest] 9404  - 2026/10/24 08:51:06    WARN [DocRagService] RAG 重试批量失败（不影响调用方）：DB down
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=scheme-not-https host=api.example.com detail=scheme 必须为 https:（实际 http:）
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=scheme-not-https host=api.example.com detail=scheme 必须为 https:（实际 http:）
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=scheme-not-https host=api.example.com detail=scheme 必须为 https:（实际 ftp:）
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=url-embedded-credentials host=api.example.com detail=URL 不得内嵌凭据（user:pass@）
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=127.0.0.1 detail=host「127.0.0.1」命中受限网段
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=10.1.2.3 detail=host「10.1.2.3」命中受限网段
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=172.16.0.1 detail=host「172.16.0.1」命中受限网段
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=172.31.255.254 detail=host「172.31.255.254」命中受限网段
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=192.168.1.1 detail=host「192.168.1.1」命中受限网段
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=169.254.169.254 detail=host「169.254.169.254」命中受限网段
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=0.0.0.0 detail=host「0.0.0.0」命中受限网段
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=::1 detail=host「::1」命中受限网段
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=fc00::1 detail=host「fc00::1」命中受限网段
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=fe80::1 detail=host「fe80::1」命中受限网段
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=dns-blocked-address host=dns-rebind.example.com detail=域名 dns-rebind.example.com 解析到受限地址 10.0.0.7
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=dns-resolve-failed host=nope.example.com detail=域名 nope.example.com 解析失败（getaddrinfo ENOTFOUND）
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=dns-no-address host=empty.example.com detail=域名 empty.example.com 未解析到任何地址
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=dns-blocked-address-connect host=metadata.example.com detail=域名 metadata.example.com 解析到受限地址 169.254.169.254（连接期校验，防 DNS 重绑定）
+[Nest] 4604  - 2026/10/24 08:51:06   DEBUG [OrderAnomalyService] 订单异常巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=redirect-scheme-not-https host=api.example.com detail=重定向目标 scheme 必须为 https:（实际 http:）
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=redirect-embedded-credentials host=api.example.com detail=重定向目标不得内嵌凭据（user:pass@）
+[Nest] 4604  - 2026/10/24 08:51:06   DEBUG [OrderAnomalyService] 订单异常巡检完成：tenant=tenant-1 found=1 pushed=1
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=redirect-ip-literal-blocked host=169.254.169.254 detail=重定向目标 host「169.254.169.254」命中受限网段
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=redirect-ip-literal-blocked host=::1 detail=重定向目标 host「::1」命中受限网段
+[Nest] 4604  - 2026/10/24 08:51:06   DEBUG [OrderAnomalyService] 订单异常巡检完成：tenant=tenant-1 found=1 pushed=1
+[Nest] 4604  - 2026/10/24 08:51:06   DEBUG [OrderAnomalyService] 订单异常巡检完成：tenant=tenant-1 found=1 pushed=1
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=scheme-not-https host=169.254.169.254 detail=scheme 必须为 https:（实际 http:）
+[Nest] 4604  - 2026/10/24 08:51:06   DEBUG [OrderAnomalyService] 订单异常巡检完成：tenant=tenant-1 found=1 pushed=0
+[Nest] 4604  - 2026/10/24 08:51:06    WARN [OrderAnomalyService] 订单异常巡检失败：tenant=tenant-1 订单表不可用
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=dns-blocked-address host=evil.example.com detail=域名 evil.example.com 解析到受限地址 192.168.1.20
+[Nest] 4604  - 2026/10/24 08:51:06   DEBUG [OrderAnomalyService] 订单异常巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 4604  - 2026/10/24 08:51:06    WARN [OrderAnomalyService] 订单异常：站内通知落库失败（已隔离，不影响巡检）
+[Nest] 4604  - 2026/10/24 08:51:06   DEBUG [OrderAnomalyService] 订单异常巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 4604  - 2026/10/24 08:51:06   DEBUG [OrderAnomalyService] 订单异常巡检完成：tenant=tenant-1 found=2 pushed=1
+PASS src/brain/proactive/order-anomaly.service.spec.ts
+PASS src/tenant/external-model.outbound.spec.ts
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=scheme-not-https host=127.0.0.1 detail=scheme 必须为 https:（实际 http:）
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=scheme-not-https host=api.example.com detail=scheme 必须为 https:（实际 http:）
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=10.0.0.5 detail=host「10.0.0.5」命中受限网段
+[Nest] 21976  - 2026/10/24 08:51:06    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=192.168.0.9 detail=host「192.168.0.9」命中受限网段
+[Nest] 21976  - 2026/10/24 08:51:06     LOG [ExternalModelService] 外部模型已添加并注册：custom_kimi（Kimi）
+[Nest] 12008  - 2026/10/24 08:51:06   ERROR [ToolExecutor] 工具 createSalesOrder 执行抛异常（0ms）：工具执行异常：后端 500
+Error: 后端 500
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\tools\tool-executor.idempotency.spec.ts:261:42)
+    at Promise.finally.completed (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1561:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1501:10)
+    at _callCircusTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1011:40)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at _runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:951:3)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:853:7
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:866:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at run (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:765:3)
+    at runAndTransformResultsToJestFormat (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1993:21)
+    at jestAdapter (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\runner.js:111:19)
+    at runTestInternal (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:276:16)
+    at runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:344:7)
+    at Object.worker (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:498:12)
+PASS src/tools/tool-executor.idempotency.spec.ts
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolRegistry] 注册工具：createSalesOrder（category=order, isWriteOperation=true）
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 执行工具 createSalesOrder（tenant=t1, isWriteOperation=true）
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 工具审计：createSalesOrder success=true 1ms
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 工具 createSalesOrder 执行成功（1ms）
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolRegistry] 注册工具：createSalesOrder（category=order, isWriteOperation=true）
+[Nest] 12008  - 2026/10/24 08:51:06    WARN [ToolExecutor] 写工具 confirm=true 已强制降级为预览（confirm 仅允许经确认通道执行）：createSalesOrder
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 执行工具 createSalesOrder（tenant=t1, isWriteOperation=true）
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 工具审计：createSalesOrder success=true 1ms
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 工具 createSalesOrder 执行成功（1ms）
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolRegistry] 注册工具：createSalesOrder（category=order, isWriteOperation=true）
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 执行工具 createSalesOrder（tenant=t1, isWriteOperation=true）
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 工具审计：createSalesOrder success=true 0ms
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 工具 createSalesOrder 执行成功（0ms）
+[Nest] 12008  - 2026/10/24 08:51:06    WARN [ToolExecutor] 写工具被幂等闸门拦截（replay）：tool=createSalesOrder tenant=t1 0ms
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolRegistry] 注册工具：createSalesOrder（category=order, isWriteOperation=true）
+[Nest] 12008  - 2026/10/24 08:51:06    WARN [ToolExecutor] 写工具被幂等闸门拦截（in_flight）：tool=createSalesOrder tenant=t1 0ms
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolRegistry] 注册工具：createSalesOrder（category=order, isWriteOperation=true）
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 执行工具 createSalesOrder（tenant=t1, isWriteOperation=true）
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 工具审计：createSalesOrder success=false 0ms error=工具执行异常：后端 500
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolRegistry] 注册工具：createSalesOrder（category=order, isWriteOperation=true）
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 执行工具 createSalesOrder（tenant=t1, isWriteOperation=true）
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 工具审计：createSalesOrder success=true 0ms
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 工具 createSalesOrder 执行成功（0ms）
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolRegistry] 注册工具：createSalesOrder（category=order, isWriteOperation=true）
+[Nest] 12008  - 2026/10/24 08:51:06    WARN [ToolExecutor] 写工具被幂等闸门拦截（rejected）：tool=createSalesOrder tenant=t1 0ms
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolRegistry] 注册工具：createSalesOrder（category=order, isWriteOperation=true）
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 执行工具 createSalesOrder（tenant=t1, isWriteOperation=true）
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 工具审计：createSalesOrder success=true 1ms
+[Nest] 12008  - 2026/10/24 08:51:06   DEBUG [ToolExecutor] 工具 createSalesOrder 执行成功（1ms）
+PASS src/tenant/ai-model-price.spec.ts
+PASS src/brain/router/provider-router.tenant-config-positive.spec.ts
+PASS src/brain/proactive/customer-churn.service.spec.ts
+[Nest] 6860  - 2026/10/24 08:51:07   DEBUG [CustomerChurnService] 客户流失巡检完成：tenant=tenant-1 found=3 pushed=1
+[Nest] 6860  - 2026/10/24 08:51:07   DEBUG [CustomerChurnService] 客户流失巡检完成：tenant=tenant-1 found=1 pushed=1
+[Nest] 6860  - 2026/10/24 08:51:07   DEBUG [CustomerChurnService] 客户流失巡检完成：tenant=tenant-1 found=1 pushed=0
+[Nest] 6860  - 2026/10/24 08:51:07    WARN [CustomerChurnService] 客户流失巡检失败：tenant=tenant-1 客户表不可用
+[Nest] 6860  - 2026/10/24 08:51:07   DEBUG [CustomerChurnService] 客户流失巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 6860  - 2026/10/24 08:51:07    WARN [CustomerChurnService] 客户流失：站内通知落库失败（已隔离，不影响巡检）
+[Nest] 6860  - 2026/10/24 08:51:07   DEBUG [CustomerChurnService] 客户流失巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 6860  - 2026/10/24 08:51:07   DEBUG [CustomerChurnService] 客户流失巡检完成：tenant=tenant-1 found=2 pushed=1
+PASS src/brain/context-builder.service.spec.ts
+[Nest] 9404  - 2026/10/24 08:51:07    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=context.longTermMemory tenant=tenant-A detail=- err=Cannot read properties of undefined (reading 'getHints')
+[Nest] 9404  - 2026/10/24 08:51:07    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=context.longTermMemory tenant=tenant-A detail=- err=Cannot read properties of undefined (reading 'getHints')
+[Nest] 9404  - 2026/10/24 08:51:07    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=context.ragSearch tenant=tenant-A detail=- err=Ollama 未启动
+[Nest] 9404  - 2026/10/24 08:51:07    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=context.longTermMemory tenant=tenant-A detail=- err=Cannot read properties of undefined (reading 'getHints')
+[Nest] 9404  - 2026/10/24 08:51:07    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=context.longTermMemory tenant=tenant-A detail=- err=Cannot read properties of undefined (reading 'getHints')
+[Nest] 9404  - 2026/10/24 08:51:07    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=context.longTermMemory tenant=tenant-A detail=- err=Cannot read properties of undefined (reading 'getHints')
+PASS src/tools/definitions/approval-tools.spec.ts
+PASS src/ops/health-monitor.service.spec.ts
+[Nest] 4604  - 2026/10/24 08:51:08    WARN [HealthMonitorService] AI 底座健康告警已推送（成功）：数据库不可达：连接超时
+[Nest] 4604  - 2026/10/24 08:51:08    WARN [HealthMonitorService] AI 底座健康告警已推送（成功）：数据库不可达：连接超时
+[Nest] 4604  - 2026/10/24 08:51:08    WARN [HealthMonitorService] AI 底座健康告警已推送（成功）：数据库不可达：连接超时
+[Nest] 4604  - 2026/10/24 08:51:08     LOG [HealthMonitorService] AI 底座健康已恢复，解除告警状态
+[Nest] 4604  - 2026/10/24 08:51:08    WARN [HealthMonitorService] AI 底座健康告警已推送（成功）：数据库不可达：再次故障
+[Nest] 4604  - 2026/10/24 08:51:08   DEBUG [HealthMonitorService] 健康监控已关闭（HEALTH_MONITOR_ENABLED=false），跳过自检
+PASS src/brain/router/provider-router.service.spec.ts
+[Nest] 17504  - 2026/10/24 08:51:08    WARN [ProviderRouterService] 配置 Provider deepseek 不可用（未配置），回退内置默认
+[Nest] 17504  - 2026/10/24 08:51:08    WARN [ProviderRouterService] Provider glm 同步调用失败（降级切换）：glm 连接失败
+[Nest] 17504  - 2026/10/24 08:51:08    WARN [ProviderRouterService] Provider glm 调用失败（降级切换）：glm 连接失败
+[Nest] 17504  - 2026/10/24 08:51:08    WARN [ProviderRouterService] Provider glm 同步调用失败（降级切换）：glm 连接失败
+[Nest] 17504  - 2026/10/24 08:51:08    WARN [ProviderRouterService] Provider ollama 同步调用失败（降级切换）：ollama 连接失败
+[Nest] 17504  - 2026/10/24 08:51:08    WARN [ProviderRouterService] Provider deepseek 同步调用失败（降级切换）：entry.provider.chatSync is not a function
+[Nest] 17504  - 2026/10/24 08:51:08    WARN [ProviderRouterService] Provider qwen 同步调用失败（降级切换）：entry.provider.chatSync is not a function
+[Nest] 21976  - 2026/10/24 08:51:08   ERROR [AiDocAskTool] 文档问答失败：DB down
+PASS src/tools/definitions/ai-doc-ask.tool.spec.ts
+[Nest] 21976  - 2026/10/24 08:51:08    WARN [AiDocAskTool] 文档问答模型调用失败（降级为失败结果）：所有 AI 服务商均不可用
+PASS src/evolution/e4-distillation.service.spec.ts
+PASS src/brain/proactive/daily-briefing.service.spec.ts
+[Nest] 9404  - 2026/10/24 08:51:09   ERROR [AiDocSearchTool] 检索文档失败：DB down
+PASS src/tools/definitions/ai-doc-search.tool.spec.ts
+[Nest] 21412  - 2026/10/24 08:51:09   DEBUG [DailyBriefingService] 每日简报巡检完成：tenant=tenant-1 found=7 pushed=1
+[Nest] 21412  - 2026/10/24 08:51:09   DEBUG [DailyBriefingService] 每日简报巡检完成：tenant=tenant-1 found=0 pushed=1
+[Nest] 21412  - 2026/10/24 08:51:09   DEBUG [DailyBriefingService] 每日简报巡检完成：tenant=tenant-1 found=0 pushed=1
+[Nest] 21412  - 2026/10/24 08:51:09   DEBUG [DailyBriefingService] 每日简报巡检完成：tenant=tenant-1 found=0 pushed=1
+[Nest] 21412  - 2026/10/24 08:51:09   DEBUG [DailyBriefingService] 每日简报巡检完成：tenant=tenant-1 found=0 pushed=1
+[Nest] 21412  - 2026/10/24 08:51:09   DEBUG [DailyBriefingService] 每日简报巡检完成：tenant=tenant-1 found=1 pushed=0
+[Nest] 21412  - 2026/10/24 08:51:09    WARN [DailyBriefingService] 每日简报巡检失败：tenant=tenant-1 销售表不可用
+[Nest] 21412  - 2026/10/24 08:51:09   DEBUG [DailyBriefingService] 每日简报巡检完成：tenant=tenant-1 found=7 pushed=1
+[Nest] 9404  - 2026/10/24 08:51:09    WARN [AiDocSearchTool] 向量检索降级：retriever down
+[Nest] 21412  - 2026/10/24 08:51:09    WARN [DailyBriefingService] 每日简报：站内通知落库失败（已隔离，不影响巡检）
+[Nest] 21412  - 2026/10/24 08:51:09   DEBUG [DailyBriefingService] 每日简报巡检完成：tenant=tenant-1 found=7 pushed=1
+[Nest] 21412  - 2026/10/24 08:51:09   DEBUG [DailyBriefingService] 每日简报巡检完成：tenant=tenant-1 found=7 pushed=1
+PASS src/tools/definitions/customer-commission-p1.spec.ts
+[Nest] 4604  - 2026/10/24 08:51:09    WARN [RateLimiterMiddleware] 限流触发：key=tenant:tenant-read:read remaining=0，返回 429（每租户 60 次/分钟）
+[Nest] 4604  - 2026/10/24 08:51:09    WARN [RateLimiterMiddleware] 限流触发：key=tenant:tenant-write:write remaining=0，返回 429（每租户 60 次/分钟）
+[Nest] 4604  - 2026/10/24 08:51:09    WARN [RateLimiterMiddleware] 限流触发：key=tenant:tenant-mix-a:write remaining=0，返回 429（每租户 60 次/分钟）
+PASS src/common/rate-limiter.buckets.spec.ts
+[Nest] 4604  - 2026/10/24 08:51:09    WARN [RateLimiterMiddleware] 限流触发：key=tenant:tenant-mix-b:read remaining=0，返回 429（每租户 60 次/分钟）
+[Nest] 21976  - 2026/10/24 08:51:10   ERROR [CreateSalesOrderTool] 创建销售单失败：后端 HTTP 400：参数校验失败（path=/api/admin/sale-bills）
+PASS src/tools/definitions/ai-doc-create.rag.spec.ts
+PASS src/tools/definitions/order-tools.spec.ts
+[Nest] 17504  - 2026/10/24 08:51:10    WARN [AiDocCreateTool] 文档已入库但向量索引失败：doc=77（可经 reindexPending 重试）
+[Nest] 17504  - 2026/10/24 08:51:10    WARN [AiDocCreateTool] RAG 索引异常（已隔离，不影响入库）：doc=77 RAG 服务内部 bug
+[Nest] 17504  - 2026/10/24 08:51:10    WARN [AiDocCreateTool] 文档已入库但向量索引失败：doc=77（可经 reindexPending 重试）
+PASS src/brain/memory-key.spec.ts
+PASS src/tenant/ai-config.external-merge-priority.spec.ts
+[Nest] 21412  - 2026/10/24 08:51:10   DEBUG [AiConfigService] 租户 tenant-001 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 21412  - 2026/10/24 08:51:10   DEBUG [AiConfigService] 租户 tenant-001 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 21412  - 2026/10/24 08:51:10    WARN [AiConfigService] 租户 tenant-001 降级到平台默认配置，但平台未配置 API Key
+[Nest] 21412  - 2026/10/24 08:51:10   DEBUG [AiConfigService] 租户 tenant-001 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 21412  - 2026/10/24 08:51:10   DEBUG [AiConfigService] 租户 tenant-001 无自定义配置或已禁用，降级到平台默认配置
+PASS src/brain/proactive/receivable-reminder.service.spec.ts
+[Nest] 6860  - 2026/10/24 08:51:10   DEBUG [ReceivableReminderService] 应收催收巡检完成：tenant=tenant-1 found=3 pushed=1
+[Nest] 6860  - 2026/10/24 08:51:10   DEBUG [ReceivableReminderService] 应收催收巡检完成：tenant=tenant-1 found=1 pushed=1
+[Nest] 6860  - 2026/10/24 08:51:10   DEBUG [ReceivableReminderService] 应收催收巡检完成：tenant=tenant-1 found=1 pushed=0
+[Nest] 6860  - 2026/10/24 08:51:10    WARN [ReceivableReminderService] 应收催收巡检失败：tenant=tenant-1 应收表不可用
+[Nest] 6860  - 2026/10/24 08:51:10   DEBUG [ReceivableReminderService] 应收催收巡检完成：tenant=tenant-1 found=1 pushed=1
+[Nest] 6860  - 2026/10/24 08:51:10    WARN [ReceivableReminderService] 应收催收：站内通知落库失败（已隔离，不影响巡检）
+[Nest] 6860  - 2026/10/24 08:51:10   DEBUG [ReceivableReminderService] 应收催收巡检完成：tenant=tenant-1 found=1 pushed=1
+[Nest] 6860  - 2026/10/24 08:51:10   DEBUG [ReceivableReminderService] 应收催收巡检完成：tenant=tenant-1 found=1 pushed=1
+PASS src/ops/usage.controller.tenant-gate.spec.ts
+[Nest] 12008  - 2026/10/24 08:51:11   ERROR [UpdateProductPriceTool] 修改价格失败：后端 HTTP 500：服务器内部错误
+[Nest] 12008  - 2026/10/24 08:51:11   ERROR [CreateCustomerTool] 创建客户失败：后端 HTTP 500：服务器内部错误
+[Nest] 12008  - 2026/10/24 08:51:11   ERROR [CreateCustomerTool] 创建客户失败：后端 HTTP 400：参数校验失败（path=/api/admin/members）
+[Nest] 12008  - 2026/10/24 08:51:11   ERROR [CreateCustomerTool] 创建客户失败：后端 HTTP 400：参数校验失败（path=/api/admin/members?keyword=%E5%85%B4%E6%97%BA%E8%B6%85%E5%B8%82&page=1&pageSize=10）
+PASS src/tools/definitions/product-customer-tools.spec.ts
+PASS src/common/error-semantics.degrade-contract.spec.ts
+[Nest] 4604  - 2026/10/24 08:51:11    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=rag.search tenant=tenant-A detail=五粮液多少钱 err=Ollama 未启动
+[Nest] 4604  - 2026/10/24 08:51:11    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=memory.loadHistory tenant=t1 detail=ai:memory:t1:sess_1 err=redis down
+[Nest] 4604  - 2026/10/24 08:51:11   DEBUG [OpenAICompat:external_test] 流式调用外部模型：model=test-model, messages=1条
+[Nest] 4604  - 2026/10/24 08:51:11    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=provider.parseSseLine tenant=- detail=这不是合法JSON（部分 Provider 的心跳行） err=Unexpected token '这', "这不是合法JSON（"... is not valid JSON
+PASS src/brain/proactive/delivery-anomaly.service.spec.ts
+[Nest] 21412  - 2026/10/24 08:51:11   ERROR [AiNoticeUnreadCountTool] 未读数查询失败：DB down
+PASS src/tools/definitions/notice-tools.spec.ts
+[Nest] 17504  - 2026/10/24 08:51:11   DEBUG [DeliveryAnomalyService] 配送异常巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 17504  - 2026/10/24 08:51:11   DEBUG [DeliveryAnomalyService] 配送异常巡检完成：tenant=tenant-1 found=1 pushed=1
+[Nest] 17504  - 2026/10/24 08:51:11   DEBUG [DeliveryAnomalyService] 配送异常巡检完成：tenant=tenant-1 found=1 pushed=0
+[Nest] 17504  - 2026/10/24 08:51:11    WARN [DeliveryAnomalyService] 配送异常巡检失败：tenant=tenant-1 配送表不可用
+[Nest] 17504  - 2026/10/24 08:51:11   DEBUG [DeliveryAnomalyService] 配送异常巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 17504  - 2026/10/24 08:51:11    WARN [DeliveryAnomalyService] 配送异常：站内通知落库失败（已隔离，不影响巡检）
+[Nest] 17504  - 2026/10/24 08:51:11   DEBUG [DeliveryAnomalyService] 配送异常巡检完成：tenant=tenant-1 found=2 pushed=1
+[Nest] 17504  - 2026/10/24 08:51:11   DEBUG [DeliveryAnomalyService] 配送异常巡检完成：tenant=tenant-1 found=2 pushed=1
+PASS src/rag/office-acl.service.spec.ts
+[Nest] 6860  - 2026/10/24 08:51:11    WARN [OfficeAclService] 资源无权访问：doc=7 tenant=t1 principal=user:u-a
+PASS src/tenant/ai-config.service.spec.ts
+[Nest] 9404  - 2026/10/24 08:51:11   DEBUG [AiConfigService] 租户 tenant-001 使用自定义 AI 配置（provider=ollama, model=qwen2.5:7b）
+[Nest] 9404  - 2026/10/24 08:51:11   DEBUG [AiConfigService] 租户 tenant-001 使用自定义 AI 配置（provider=ollama, model=qwen2.5:7b）
+[Nest] 9404  - 2026/10/24 08:51:11    WARN [AiConfigService] 租户 tenant-001 未配置自有 API Key，已忽略其 apiEndpoint=https://tenant-llm.example.com/v1，端点回退平台默认（禁止平台密钥发往租户指定地址）
+[Nest] 9404  - 2026/10/24 08:51:11   DEBUG [AiConfigService] 租户 tenant-001 使用自定义 AI 配置（provider=ollama, model=qwen2.5:7b）
+[Nest] 9404  - 2026/10/24 08:51:12   DEBUG [AiConfigService] 租户 tenant-001 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 9404  - 2026/10/24 08:51:12   DEBUG [AiConfigService] 租户 tenant-002 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 9404  - 2026/10/24 08:51:12   DEBUG [AiConfigService] 租户 tenant-001 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 9404  - 2026/10/24 08:51:12   DEBUG [AiConfigService] 租户 tenant-001 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 9404  - 2026/10/24 08:51:12   DEBUG [AiConfigService] 租户 tenant-001 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 9404  - 2026/10/24 08:51:12    WARN [AiConfigService] 租户 tenant-001 降级到平台默认配置，但平台未配置 API Key
+[Nest] 9404  - 2026/10/24 08:51:12   DEBUG [AiConfigService] 租户 tenant-001 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 9404  - 2026/10/24 08:51:12   DEBUG [AiConfigService] 租户 tenant-001 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 9404  - 2026/10/24 08:51:12   DEBUG [AiConfigService] 租户 tenant-001 无自定义配置或已禁用，降级到平台默认配置
+[Nest] 9404  - 2026/10/24 08:51:12   DEBUG [AiConfigService] 平台 AI 配置缓存已清除
+[Nest] 9404  - 2026/10/24 08:51:12   DEBUG [AiConfigService] 租户 tenant-001 无自定义配置或已禁用，降级到平台默认配置
+PASS src/tools/definitions/ai-todo-list.tool.spec.ts
+[Nest] 17504  - 2026/10/24 08:51:12     LOG [PushGatewayService] AI 主动推送 WebSocket 通道已启动：/api/ai/ws
+[Nest] 17504  - 2026/10/24 08:51:12     LOG [PushGatewayService] AI 主动推送 WebSocket 通道已启动：/api/ai/ws
+[Nest] 17504  - 2026/10/24 08:51:12   DEBUG [PushGatewayService] WebSocket 认证失败，拒绝连接：/api/ai/ws
+PASS src/tools/definitions/ai-41-tools.spec.ts
+[Nest] 17504  - 2026/10/24 08:51:12     LOG [PushGatewayService] AI 主动推送 WebSocket 通道已启动：/api/ai/ws
+[Nest] 17504  - 2026/10/24 08:51:12   DEBUG [PushGatewayService] WebSocket JWT 验证失败：jwt malformed
+[Nest] 17504  - 2026/10/24 08:51:12   DEBUG [PushGatewayService] WebSocket 认证失败，拒绝连接：/api/ai/ws?token=not-a-jwt
+[Nest] 17504  - 2026/10/24 08:51:12     LOG [PushGatewayService] AI 主动推送 WebSocket 通道已启动：/api/ai/ws
+[Nest] 17504  - 2026/10/24 08:51:12   DEBUG [PushGatewayService] WebSocket 连接已建立：tenant=tenant-1，在线连接数=1
+[Nest] 17504  - 2026/10/24 08:51:12   DEBUG [PushGatewayService] AI 主动推送实时广播：tenant=tenant-1 delivered=1/1 title=⚠️ 库存预警
+[Nest] 17504  - 2026/10/24 08:51:12     LOG [PushGatewayService] AI 主动推送 WebSocket 通道已启动：/api/ai/ws
+[Nest] 17504  - 2026/10/24 08:51:12   DEBUG [PushGatewayService] WebSocket 连接已建立：tenant=tenant-a，在线连接数=1
+PASS src/evolution/experience-extractor.service.spec.ts
+[Nest] 17504  - 2026/10/24 08:51:12   DEBUG [PushGatewayService] WebSocket 连接已建立：tenant=tenant-b，在线连接数=1
+[Nest] 17504  - 2026/10/24 08:51:12   DEBUG [PushGatewayService] AI 主动推送实时广播：tenant=tenant-a delivered=1/1 title=仅租户A
+[Nest] 21976  - 2026/10/24 08:51:12     LOG [EvolutionVersionService] 版本提案已生成（staged）：artifact=write_schema.customer_create -→vmvlons7w
+[Nest] 21976  - 2026/10/24 08:51:12     LOG [ExperienceExtractorService] 经验萃取完成：纠正=1 提案=1
+[Nest] 17504  - 2026/10/24 08:51:12     LOG [PushGatewayService] AI 主动推送 WebSocket 通道已启动：/api/ai/ws
+[Nest] 21976  - 2026/10/24 08:51:12    WARN [ExperienceExtractorService] 萃取任务类型失败（降级为保守提案）：type=refund err=llm down
+[Nest] 21976  - 2026/10/24 08:51:12     LOG [EvolutionVersionService] 版本提案已生成（staged）：artifact=write_schema.refund -→vmvlons88
+[Nest] 21976  - 2026/10/24 08:51:12     LOG [ExperienceExtractorService] 经验萃取完成：纠正=1 提案=1（含降级：llm down）
+[Nest] 21976  - 2026/10/24 08:51:12    WARN [ExperienceExtractorService] 萃取任务类型失败（降级为保守提案）：type=x err=萃取 LLM 输出格式不合法
+[Nest] 21976  - 2026/10/24 08:51:12     LOG [EvolutionVersionService] 版本提案已生成（staged）：artifact=write_schema.x -→vmvlons8d
+[Nest] 21976  - 2026/10/24 08:51:12     LOG [ExperienceExtractorService] 经验萃取完成：纠正=1 提案=1（含降级：萃取 LLM 输出格式不合法）
+[Nest] 17504  - 2026/10/24 08:51:12   DEBUG [PushGatewayService] WebSocket 连接已建立：tenant=tenant-1，在线连接数=1
+PASS src/tools/definitions/approval-decision.spec.ts
+[Nest] 17504  - 2026/10/24 08:51:12   DEBUG [PushGatewayService] AI 主动推送定向投递：tenant=tenant-1 user=42 delivered=1/1 title=📅 日程提醒
+[Nest] 17504  - 2026/10/24 08:51:12     LOG [PushGatewayService] AI 主动推送 WebSocket 通道已启动：/api/ai/ws
+[Nest] 17504  - 2026/10/24 08:51:12   DEBUG [PushGatewayService] WebSocket 连接已建立：tenant=tenant-1，在线连接数=1
+[Nest] 17504  - 2026/10/24 08:51:12   DEBUG [PushGatewayService] AI 主动推送定向投递：tenant=tenant-1 user=42 delivered=0/1 title=📅 日程提醒
+[Nest] 17504  - 2026/10/24 08:51:12     LOG [PushGatewayService] AI 主动推送 WebSocket 通道已启动：/api/ai/ws
+[Nest] 17504  - 2026/10/24 08:51:12   DEBUG [PushGatewayService] WebSocket 连接已建立：tenant=tenant-b，在线连接数=1
+[Nest] 17504  - 2026/10/24 08:51:12     LOG [PushGatewayService] AI 主动推送 WebSocket 通道已启动：/api/ai/ws
+[Nest] 17504  - 2026/10/24 08:51:12     LOG [PushGatewayService] AI 主动推送 WebSocket 通道已启动：/api/ai/ws
+[Nest] 17504  - 2026/10/24 08:51:12   DEBUG [PushGatewayService] WebSocket 连接已建立：tenant=tenant-1，在线连接数=1
+PASS src/gateway/push-gateway.service.spec.ts
+[Nest] 17504  - 2026/10/24 08:51:13     LOG [PushGatewayService] AI 主动推送 WebSocket 通道已启动：/api/ai/ws
+[Nest] 17504  - 2026/10/24 08:51:13   DEBUG [PushGatewayService] WebSocket 连接已建立：tenant=tenant-1，在线连接数=1
+[Nest] 17504  - 2026/10/24 08:51:13     LOG [PushGatewayService] AI 主动推送 WebSocket 通道已启动：/api/ai/ws
+[Nest] 6860  - 2026/10/24 08:51:13     LOG [ExternalModelService] 已加载 1 个外部大模型
+[Nest] 17504  - 2026/10/24 08:51:13     LOG [PushGatewayService] AI 主动推送 WebSocket 通道已启动：/api/ai/ws
+[Nest] 6860  - 2026/10/24 08:51:13     LOG [ExternalModelService] 外部模型已添加并注册：custom_kimi（Kimi 外部模型）
+PASS src/tenant/external-model.service.spec.ts
+[Nest] 6860  - 2026/10/24 08:51:13     LOG [ExternalModelService] 外部模型已更新：custom_kimi（enabled=1）
+[Nest] 6860  - 2026/10/24 08:51:13     LOG [ExternalModelService] 外部模型已更新：custom_kimi（enabled=0）
+[Nest] 6860  - 2026/10/24 08:51:13     LOG [ExternalModelService] 外部模型已删除并注销：custom_kimi
+PASS src/tenant/ai-model-price.admin.spec.ts
+[Nest] 9404  - 2026/10/24 08:51:13     LOG [AiConfigAdminService] AI 单价已新增：deepseek/deepseek-chat prompt=0.003 completion=0.006 effective_from=2026-06-30T16:00:00.000Z（id=1）
+[Nest] 9404  - 2026/10/24 08:51:13     LOG [AiConfigAdminService] AI 单价已新增：deepseek/deepseek-chat prompt=0.001 completion=0.002 effective_from=2025-12-31T16:00:00.000Z（id=1）
+[Nest] 9404  - 2026/10/24 08:51:13     LOG [AiConfigAdminService] AI 单价已新增：deepseek/deepseek-chat prompt=0.003 completion=0.006 effective_from=2026-06-30T16:00:00.000Z（id=2）
+[Nest] 9404  - 2026/10/24 08:51:13     LOG [AiConfigAdminService] AI 单价已新增：glm/glm-4-flash prompt=0 completion=0 effective_from=2026-10-24T00:51:13.576Z（id=1）
+[Nest] 9404  - 2026/10/24 08:51:13     LOG [AiConfigAdminService] AI 单价已停用：id=1
+PASS src/brain/memory-manager.spec.ts
+[Nest] 4604  - 2026/10/24 08:51:13     LOG [MemoryManager] Redis 连接恢复，记忆服务重新可用
+[Nest] 4604  - 2026/10/24 08:51:13    WARN [MemoryManager] 对话历史并发冲突重试超限（可能丢失最新一轮）：key=ai:memory:t1:sess_storm
+PASS src/tools/definitions/ai-todo-update.tool.spec.ts
+[Nest] 12008  - 2026/10/24 08:51:13    WARN [OutboundTargetGuard] 出站目标被拒 rule=scheme-not-https host=127.0.0.1 detail=scheme 必须为 https:（实际 http:）
+[Nest] 12008  - 2026/10/24 08:51:13     LOG [ExternalModelService] 已加载 2 个外部大模型
+[Nest] 12008  - 2026/10/24 08:51:13    WARN [OutboundTargetGuard] 出站目标被拒 rule=host-ip-literal-blocked host=10.0.0.5 detail=host「10.0.0.5」命中受限网段
+[Nest] 12008  - 2026/10/24 08:51:13     LOG [ExternalModelService] 已加载 1 个外部大模型
+[Nest] 12008  - 2026/10/24 08:51:13    WARN [OutboundTargetGuard] 出站目标被拒 rule=scheme-not-https host=169.254.169.254 detail=scheme 必须为 https:（实际 http:）
+[Nest] 12008  - 2026/10/24 08:51:13    WARN [OutboundTargetGuard] 出站目标被拒 rule=scheme-not-https host=169.254.169.254 detail=scheme 必须为 https:（实际 http:）
+PASS src/tenant/external-model.register-guard.spec.ts
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=createSalesOrder outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=createSalesOrder outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=analysis intent=office_document outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=analysis intent=write_sales_order outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=analysis intent=CreateSalesOrder outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=analysis intent=sales_order outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=analysis intent=chat outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=analysis intent=report outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=analysis intent=data_analysis outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=- outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=analysis intent=- outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=push intent=- outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=- outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=createSalesOrder outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=analysis intent=office_document outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=- outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=createCustomer outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=createProduct outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=updateProductPrice outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=createSalesOrder outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=createSalesReturn outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=createPurchaseOrder outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=api_create_purchase_return outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=createDelivery outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=createPaymentReconciliation outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=api_create_purchase_payment outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=createRefund outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=inventoryTransfer outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=stockCheck outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=api_create_flash_sale outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=api_create_flash_sale outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=createCouponTemplate outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=createFullReduction outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=createGroupBuy outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=createGiftRule outcome=success
+[Nest] 21976  - 2026/10/24 08:51:14   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=createLimitedDiscount outcome=success
+PASS src/evolution/capture-tasktype-normalize.spec.ts
+PASS src/tenant/ai-config.key-endpoint.spec.ts
+[Nest] 17504  - 2026/10/24 08:51:14   DEBUG [AiConfigService] 租户 tenant-001 使用自定义 AI 配置（provider=deepseek, model=deepseek-chat）
+[Nest] 17504  - 2026/10/24 08:51:14    WARN [AiConfigService] 租户 tenant-001 未配置自有 API Key，已忽略其 apiEndpoint=https://tenant-self-hosted.example.com/v1，端点回退平台默认（禁止平台密钥发往租户指定地址）
+[Nest] 17504  - 2026/10/24 08:51:14   DEBUG [AiConfigService] 租户 tenant-001 使用自定义 AI 配置（provider=deepseek, model=deepseek-chat）
+[Nest] 17504  - 2026/10/24 08:51:14    WARN [AiConfigService] 租户 tenant-001 未配置自有 API Key，已忽略其 apiEndpoint=https://tenant-self-hosted.example.com/v1，端点回退平台默认（禁止平台密钥发往租户指定地址）
+[Nest] 17504  - 2026/10/24 08:51:14   DEBUG [AiConfigService] 租户 tenant-001 使用自定义 AI 配置（provider=deepseek, model=deepseek-chat）
+PASS src/brain/confirmation.idempotency-key.spec.ts
+[Nest] 6860  - 2026/10/24 08:51:15     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=50c529e4-05e0-4b1e-8409-badd8557aa63 tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:51:15     LOG [ConfirmationService] 确认执行成功：id=wg_token_1 tool=createSalesOrder operationId=50c529e4-05e0-4b1e-8409-badd8557aa63
+[Nest] 6860  - 2026/10/24 08:51:15     LOG [ConfirmationService] 注册已执行操作（可撤销窗口 3 分钟）：id=e2f4f263-4ab8-457b-af71-8d710e9df416 tool=createSalesOrder（创建销售单）
+[Nest] 6860  - 2026/10/24 08:51:15     LOG [ConfirmationService] 确认执行成功：id=wg_token_1 tool=createSalesOrder operationId=e2f4f263-4ab8-457b-af71-8d710e9df416
+PASS src/brain/agent/planner.service.spec.ts
+PASS src/tools/definitions/marketing-plan-credit-tools.spec.ts
+[Nest] 9404  - 2026/10/24 08:51:15     LOG [PlannerService] Planner 命中模板：sale_create_graph（目标「给红星商行开单，20件五粮液，价格980」）
+[Nest] 9404  - 2026/10/24 08:51:15     LOG [PlannerService] Planner 命中模板：purchase_plan_graph（目标「生成采购计划：五粮液缺货需要补货」）
+[Nest] 9404  - 2026/10/24 08:51:15     LOG [PlannerService] Planner 兜底：单 agent 步骤（目标「随便聊聊」）
+[Nest] 9404  - 2026/10/24 08:51:15   DEBUG [PlannerService] 步骤参数填充成功：queryInventory → {"sku":"WLJ"}
+[Nest] 9404  - 2026/10/24 08:51:15   DEBUG [PlannerService] 步骤参数填充失败（保留原参数）：LLM 不可用
+PASS src/app.controller.spec.ts
+PASS src/tools/definitions/get-system-status.tool.spec.ts
+[Nest] 4604  - 2026/10/24 08:51:15    WARN [GetSystemStatusTool] 健康层探测失败：DB 连接超时
+[Nest] 4604  - 2026/10/24 08:51:15    WARN [GetSystemStatusTool] AI 层取配置失败：配置服务不可用
+[Nest] 4604  - 2026/10/24 08:51:15    WARN [GetSystemStatusTool] 治理层取容量失败：限流服务未初始化
+PASS src/tools/definitions/marketing-purchase-expense-p1.spec.ts
+[Nest] 17504  - 2026/10/24 08:51:16   ERROR [CreatePurchaseOrderTool] 创建采购单失败：供应商不存在
+[Nest] 17504  - 2026/10/24 08:51:16   ERROR [CreateDeliveryTool] 创建配送任务失败：订单不存在或状态不允许开始配送
+PASS src/tools/definitions/purchase-delivery-tools.spec.ts
+PASS src/brain/graph/checkpointer.service.spec.ts
+PASS src/tools/definitions/platform-tools.spec.ts
+[Nest] 12008  - 2026/10/24 08:51:16    WARN [ReadinessService] 就绪探针 degraded：缺表 0 张、缺列 1 个
+[Nest] 12008  - 2026/10/24 08:51:16    WARN [ReadinessService] 就绪探针 degraded：缺表 1 张、缺列 2 个
+[Nest] 12008  - 2026/10/24 08:51:16    WARN [ReadinessService] 就绪探针 degraded：缺表 0 张、缺列 1 个
+[Nest] 12008  - 2026/10/24 08:51:16    WARN [ReadinessService] 就绪探针 degraded：缺表 0 张、缺列 0 个（存在不可达的库）
+[Nest] 12008  - 2026/10/24 08:51:16    WARN [ReadinessService] 就绪探针 degraded：缺表 0 张、缺列 0 个（存在不可达的库）
+[Nest] 12008  - 2026/10/24 08:51:16    WARN [ReadinessService] 就绪探针 degraded：缺表 0 张、缺列 0 个（存在不可达的库）
+[Nest] 12008  - 2026/10/24 08:51:16    WARN [ReadinessService] 就绪探针 degraded：缺表 1 张、缺列 1 个
+[Nest] 12008  - 2026/10/24 08:51:16    WARN [ReadinessService] 就绪探针 degraded：缺表 1 张、缺列 60 个
+[Nest] 12008  - 2026/10/24 08:51:16    WARN [ReadinessService] 就绪探针 degraded：缺表 1 张、缺列 2 个
+[Nest] 12008  - 2026/10/24 08:51:16    WARN [ReadinessService] 就绪探针 degraded：缺表 0 张、缺列 0 个（存在不可达的库）
+[Nest] 12008  - 2026/10/24 08:51:16    WARN [ReadinessService] 就绪探针 degraded：缺表 1 张、缺列 1 个
+PASS src/ops/readiness.service.spec.ts
+PASS src/providers/provider-isolation.spec.ts
+[Nest] 12008  - 2026/10/24 08:51:16    WARN [ReadinessService] 就绪探针 degraded：缺表 1 张、缺列 1 个
+[Nest] 12008  - 2026/10/24 08:51:16    WARN [ReadinessService] 就绪探针 degraded：缺表 1 张、缺列 1 个
+[Nest] 6860  - 2026/10/24 08:51:16   DEBUG [DeepSeekProvider] 非流式调用 DeepSeek：model=model-a, messages=1条
+[Nest] 6860  - 2026/10/24 08:51:16   DEBUG [DeepSeekProvider] 非流式调用 DeepSeek：model=model-b, messages=1条
+[Nest] 6860  - 2026/10/24 08:51:16   DEBUG [DeepSeekProvider] 非流式调用 DeepSeek：model=deepseek-chat, messages=1条
+[Nest] 6860  - 2026/10/24 08:51:16   DEBUG [GlmProvider] 非流式调用 GLM：model=glm-4-flash, messages=1条
+[Nest] 6860  - 2026/10/24 08:51:16   DEBUG [DeepSeekProvider] 非流式调用 DeepSeek：model=model-b, messages=1条
+[Nest] 4604  - 2026/10/24 08:51:16     LOG [EvolutionVersionService] 版本提案已生成（staged）：artifact=write_schema.customer_create v1→v2
+[Nest] 4604  - 2026/10/24 08:51:16     LOG [EvolutionVersionService] 版本已激活：id=1 artifact=write_schema.customer_create approver=admin
+[Nest] 4604  - 2026/10/24 08:51:16     LOG [EvolutionVersionService] 版本已激活：id=2 artifact=write_schema.customer_create approver=e5-auto
+[Nest] 4604  - 2026/10/24 08:51:16     LOG [EvolutionVersionService] 版本已激活：id=1 artifact=write_schema.customer_create approver=admin
+[Nest] 4604  - 2026/10/24 08:51:16    WARN [EvolutionVersionService] 版本已回滚：id=1 artifact=write_schema.customer_create 还原至 v1
+PASS src/evolution/evolution-version.service.spec.ts
+[Nest] 4604  - 2026/10/24 08:51:16    WARN [EvolutionVersionService] 版本已回滚：id=7 artifact=write_schema.customer_create 还原至 上一版本
+[Nest] 4604  - 2026/10/24 08:51:16     LOG [EvolutionVersionService] E5 回归评测：id=1 artifact=write_schema.customer_create baseline=0.80 new=1.00 (1/1) recommendation=keep
+[Nest] 4604  - 2026/10/24 08:51:16     LOG [EvolutionVersionService] 版本已激活：id=1 artifact=write_schema.customer_create approver=e5-auto
+[Nest] 4604  - 2026/10/24 08:51:16     LOG [EvolutionVersionService] E5 回归评测：id=1 artifact=write_schema.customer_create baseline=0.90 new=0.00 (0/1) recommendation=rollback
+[Nest] 4604  - 2026/10/24 08:51:16    WARN [EvolutionVersionService] E5 自动拦截：staged 提案未达标废弃 id=1 artifact=write_schema.customer_create
+[Nest] 4604  - 2026/10/24 08:51:16     LOG [EvolutionVersionService] E5 回归评测：id=1 artifact=write_schema.customer_create baseline=0.80 new=1.00 (1/1) recommendation=keep
+[Nest] 4604  - 2026/10/24 08:51:16     LOG [EvolutionVersionService] E5 回归评测：id=1 artifact=write_schema.customer_create baseline=无 new=1.00 (1/1) recommendation=staged_further
+[Nest] 4604  - 2026/10/24 08:51:17     LOG [EvolutionVersionService] E5 回归评测：id=1 artifact=write_schema.customer_create baseline=0.50 new=1.00 (1/1) recommendation=keep
+[Nest] 4604  - 2026/10/24 08:51:17     LOG [EvolutionVersionService] 版本已激活：id=1 artifact=write_schema.customer_create approver=e5-auto
+[Nest] 4604  - 2026/10/24 08:51:17     LOG [EvolutionVersionService] E5 回归评测：id=1 artifact=write_schema.customer_create baseline=1.00 new=0.00 (0/1) recommendation=rollback
+[Nest] 4604  - 2026/10/24 08:51:17     LOG [EvolutionVersionService] E5 回归评测：id=1 artifact=write_schema.customer_create baseline=0.00 new=0.00 (0/1) recommendation=staged_further
+[Nest] 4604  - 2026/10/24 08:51:17     LOG [EvolutionVersionService] E5 回归评测：id=1 artifact=write_schema.customer_create baseline=0.00 new=0.00 (0/1) recommendation=staged_further
+[Nest] 4604  - 2026/10/24 08:51:17     LOG [EvolutionVersionService] E5 回归评测：id=1 artifact=write_schema.customer_create baseline=0.80 new=1.00 (1/1) recommendation=keep
+[Nest] 4604  - 2026/10/24 08:51:17     LOG [EvolutionVersionService] E5 回归评测：id=1 artifact=write_schema.customer_create baseline=0.00 new=1.00 (1/1) recommendation=staged_further
+[Nest] 21976  - 2026/10/24 08:51:17   ERROR [AiDocGetTool] 取文档详情失败：DB down
+PASS src/tools/definitions/ai-doc-get.tool.spec.ts
+PASS src/common/rate-limiter.spec.ts
+[Nest] 9404  - 2026/10/24 08:51:17     LOG [RateLimiterService] Redis 限流计数连接成功：127.0.0.1:6379 db=1（每租户 60 次/分钟）
+[Nest] 9404  - 2026/10/24 08:51:17    WARN [RateLimiterService] Redis 限流连接失败，降级内存令牌桶：ECONNREFUSED
+[Nest] 9404  - 2026/10/24 08:51:17    WARN [RateLimiterService] Redis 限流连接失败，降级内存令牌桶：ECONNREFUSED
+[Nest] 9404  - 2026/10/24 08:51:17    WARN [RateLimiterService] Redis 重连次数超过 3 次，降级为内存令牌桶（限流计数不跨实例共享）
+[Nest] 9404  - 2026/10/24 08:51:17     LOG [RateLimiterService] Redis 限流计数连接成功：127.0.0.1:6379 db=1（每租户 1 次/分钟）
+[Nest] 9404  - 2026/10/24 08:51:17    WARN [RateLimiterService] Redis 限流错误（降级内存令牌桶）：connection lost
+[Nest] 9404  - 2026/10/24 08:51:17     LOG [RateLimiterService] Redis 限流计数连接成功：127.0.0.1:6379 db=1（每租户 60 次/分钟）
+[Nest] 9404  - 2026/10/24 08:51:17     LOG [RateLimiterService] Redis 限流计数连接成功：127.0.0.1:6379 db=1（每租户 60 次/分钟）
+[Nest] 9404  - 2026/10/24 08:51:17     LOG [RateLimiterService] Redis 限流计数连接成功：127.0.0.1:6379 db=1（每租户 1 次/分钟）
+[Nest] 9404  - 2026/10/24 08:51:17    WARN [RateLimiterService] Redis 限流执行失败，本次降级内存令牌桶：NOSCRIPT
+[Nest] 9404  - 2026/10/24 08:51:17    WARN [RateLimiterService] Redis 限流连接失败，降级内存令牌桶：ECONNREFUSED
+[Nest] 9404  - 2026/10/24 08:51:17    WARN [RateLimiterService] Redis 限流连接失败，降级内存令牌桶：ECONNREFUSED
+[Nest] 9404  - 2026/10/24 08:51:17    WARN [RateLimiterService] Redis 限流连接失败，降级内存令牌桶：ECONNREFUSED
+[Nest] 9404  - 2026/10/24 08:51:17    WARN [RateLimiterService] Redis 限流连接失败，降级内存令牌桶：ECONNREFUSED
+PASS src/tools/definitions/ai-doc-create.tool.spec.ts
+[Nest] 17504  - 2026/10/24 08:51:17     LOG [AiDocCreateTool] 文档已存在，回放：tenant=t1 doc=10
+PASS src/brain/employee/employee.service.spec.ts
+PASS src/tools/definitions/ai-todo-create.tool.spec.ts
+[Nest] 12008  - 2026/10/24 08:51:17    WARN [AiTodoCreateTool] 派单异常（已隔离，待办已建）：#77 数字员工服务不可用
+[Nest] 6860  - 2026/10/24 08:51:17   ERROR [CreateSalesReturnTool] 创建销售退货单失败：network error
+[Nest] 6860  - 2026/10/24 08:51:18   ERROR [CreateRefundTool] 退款失败：退货单不存在
+PASS src/tools/definitions/finance-report-tools.spec.ts
+PASS src/rag/retriever.service.spec.ts
+[Nest] 21976  - 2026/10/24 08:51:18   ERROR [ErrorSemantics] [bestEffort] 旁路失败已入死信 op=billing.consume tenant=t_001 detail=tokens=1000 chatCount=1 err=DB down
+Error: DB down
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\tenant\billing.service.spec.ts:243:46)
+    at Promise.finally.completed (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1561:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1501:10)
+    at _callCircusTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1011:40)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at _runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:951:3)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:853:7
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:866:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at run (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:765:3)
+    at runAndTransformResultsToJestFormat (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1993:21)
+    at jestAdapter (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\runner.js:111:19)
+    at runTestInternal (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:276:16)
+    at runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:344:7)
+    at Object.worker (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:498:12)
+[Nest] 21976  - 2026/10/24 08:51:18   ERROR [ErrorSemantics] [bestEffort] 无死信接收方，记录仅留存日志 op=billing.consume（请注册 setDefaultDeadLetterSink）
+PASS src/tenant/billing.service.spec.ts
+[Nest] 9404  - 2026/10/24 08:51:18    WARN [RetrieverService] RAG 向量检索已降级禁用（EMBEDDING_MODEL 未配置），跳过知识库增强
+[Nest] 9404  - 2026/10/24 08:51:18    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=rag.search tenant=tenant-A detail=五粮液多少钱 err=Ollama 未启动
+PASS src/evolution/aggregator.service.spec.ts
+PASS src/brain/memory/long-term-memory.service.spec.ts
+[Nest] 4604  - 2026/10/24 08:51:18     LOG [AggregatorService] 跨租户聚合完成：taskType=sales_order 样本=5 租户=2
+[Nest] 4604  - 2026/10/24 08:51:18     LOG [AggregatorService] 跨租户聚合完成：taskType=x 样本=1 租户=1
+[Nest] 17504  - 2026/10/24 08:51:18   DEBUG [LongTermMemoryService] 保存情节经验：tenant=t1 outcome=bad what=挂车被驳回：未填类目
+PASS src/brain/employee/employee-todo-sync.service.spec.ts
+[Nest] 21412  - 2026/10/24 08:51:18     LOG [EmployeeTodoSyncService] 待办回写 done：todo=99 tenant=t1（任务完成）
+[Nest] 21412  - 2026/10/24 08:51:18    WARN [EmployeeTodoSyncService] 待办回写失败（已隔离，不影响任务结果）：todo=99 tenant=t1 DB 连接丢失
+[Nest] 21412  - 2026/10/24 08:51:18    WARN [EmployeeTodoSyncService] 待办回写失败（已隔离，不影响任务结果）：todo=99 tenant=t1 DB 抖动
+[Nest] 12008  - 2026/10/24 08:51:18   ERROR [ErrorSemantics] [bestEffort] 旁路失败已入死信 op=capture.captureTask tenant=t_001 detail=domain=analysis intent=chat outcome=failed err=db down
+Error: db down
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\evolution\capture.service.spec.ts:109:55)
+    at Promise.finally.completed (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1561:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1501:10)
+    at _callCircusTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1011:40)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at _runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:951:3)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:853:7
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:866:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at run (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:765:3)
+    at runAndTransformResultsToJestFormat (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1993:21)
+    at jestAdapter (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\runner.js:111:19)
+    at runTestInternal (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:276:16)
+    at runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:344:7)
+    at Object.worker (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:498:12)
+[Nest] 12008  - 2026/10/24 08:51:18   ERROR [ErrorSemantics] [bestEffort] 无死信接收方，记录仅留存日志 op=capture.captureTask（请注册 setDefaultDeadLetterSink）
+[Nest] 12008  - 2026/10/24 08:51:18   ERROR [ErrorSemantics] [bestEffort] 旁路失败已入死信 op=capture.captureTask tenant=t_001 detail=domain=write intent=sales_order_create outcome=success err=ai_db 连接失败
+Error: ai_db 连接失败
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\evolution\capture.service.spec.ts:142:7)
+    at Promise.finally.completed (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1561:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1501:10)
+    at _callCircusTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1011:40)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at _runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:951:3)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:853:7
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:866:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at run (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:765:3)
+    at runAndTransformResultsToJestFormat (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1993:21)
+    at jestAdapter (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\runner.js:111:19)
+    at runTestInternal (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:276:16)
+    at runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:344:7)
+    at Object.worker (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:498:12)
+[Nest] 12008  - 2026/10/24 08:51:18   ERROR [ErrorSemantics] [bestEffort] 旁路失败已入死信 op=capture.captureCorrection tenant=t_002 detail=taskType=order err=ai_db 只读
+Error: ai_db 只读
+    at Object.<anonymous> (D:\Users\ZXQL\ZXQL-AI\src\evolution\capture.service.spec.ts:175:56)
+    at Promise.finally.completed (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1561:28)
+    at new Promise (<anonymous>)
+    at callAsyncCircusFn (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1501:10)
+    at _callCircusTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1011:40)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at _runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:951:3)
+    at D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:853:7
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:866:11)
+    at _runTestsForDescribeBlock (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:861:11)
+    at run (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:765:3)
+    at runAndTransformResultsToJestFormat (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\jestAdapterInit.js:1993:21)
+    at jestAdapter (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-circus\build\runner.js:111:19)
+    at runTestInternal (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:276:16)
+    at runTest (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:344:7)
+    at Object.worker (D:\Users\ZXQL\ZXQL-AI\node_modules\jest-runner\build\testWorker.js:498:12)
+PASS src/evolution/capture.service.spec.ts
+[Nest] 12008  - 2026/10/24 08:51:18   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=sales_order_create outcome=success
+[Nest] 12008  - 2026/10/24 08:51:18   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=write intent=sales_order_create outcome=failed
+[Nest] 12008  - 2026/10/24 08:51:18     LOG [CaptureService] 纠正样本采集：tenant=t_001 taskType=customer_create
+[Nest] 12008  - 2026/10/24 08:51:18   DEBUG [CaptureService] 任务采集落库：tenant=t_001 domain=analysis intent=chat outcome=success
+PASS src/common/rate-limiter.middleware.spec.ts
+[Nest] 6860  - 2026/10/24 08:51:19    WARN [RateLimiterMiddleware] 限流触发：key=tenant:tenant-001 remaining=0，返回 429（每租户 60 次/分钟）
+PASS src/tools/definitions/analyze-price-trend.tool.spec.ts
+[Nest] 9404  - 2026/10/24 08:51:19   ERROR [InventoryTransferTool] 创建调拨单失败：后端 HTTP 500：服务器内部错误
+[Nest] 9404  - 2026/10/24 08:51:19   ERROR [StockCheckTool] 创建盘点单失败：后端 HTTP 500：服务器内部错误
+PASS src/tools/definitions/inventory-tools.spec.ts
+PASS src/providers/ollama.provider.spec.ts
+[Nest] 17504  - 2026/10/24 08:51:19   ERROR [AiDocListTool] 列文档失败：DB down
+PASS src/tools/definitions/ai-doc-list.tool.spec.ts
+PASS src/tools/definitions/ai-todo-complete.tool.spec.ts
+PASS src/providers/provider-factory.spec.ts
+[Nest] 12008  - 2026/10/24 08:51:19     LOG [ProviderFactory] 外部模型已注册：custom_kimi（model=moonshot-v1-8k, baseUrl=https://api.moonshot.cn/v1）
+[Nest] 12008  - 2026/10/24 08:51:19     LOG [ProviderFactory] 外部模型已注册：custom_kimi（model=m1, baseUrl=https://a.example/v1）
+[Nest] 12008  - 2026/10/24 08:51:19     LOG [ProviderFactory] 外部模型已注册：custom_kimi（model=m2, baseUrl=https://b.example/v1）
+[Nest] 12008  - 2026/10/24 08:51:19     LOG [ProviderFactory] 外部模型已注册：custom_kimi（model=moonshot-v1-8k, baseUrl=https://api.moonshot.cn/v1）
+[Nest] 12008  - 2026/10/24 08:51:19     LOG [ProviderFactory] 外部模型已注销：custom_kimi
+[Nest] 12008  - 2026/10/24 08:51:19     LOG [ProviderFactory] 外部模型已注册：custom_kimi（model=moonshot-v1-8k, baseUrl=https://api.moonshot.cn/v1）
+[Nest] 12008  - 2026/10/24 08:51:19   DEBUG [GlmProvider] 非流式调用 GLM：model=glm-4-flash, messages=1条
+[Nest] 12008  - 2026/10/24 08:51:19   DEBUG [GlmProvider] 非流式调用 GLM：model=glm-4-plus, messages=1条
+[Nest] 12008  - 2026/10/24 08:51:19     LOG [ProviderFactory] 外部模型已注册：custom_kimi（model=moonshot-v1-8k, baseUrl=https://api.moonshot.cn/v1）
+[Nest] 12008  - 2026/10/24 08:51:19   DEBUG [OpenAICompat:custom_kimi] 非流式调用外部模型：model=moonshot-v1-8k, messages=1条
+[Nest] 12008  - 2026/10/24 08:51:19   DEBUG [OpenAICompat:custom_kimi] 非流式调用外部模型：model=moonshot-v1-8k, messages=1条
+PASS src/tools/definitions/dispatch-employee-task.tool.spec.ts
+PASS src/tools/definitions/ai-doc-archive.tool.spec.ts
+PASS src/tools/catalog/tool-generator.service.spec.ts
+PASS src/tools/definitions/ai-doc-update.tool.spec.ts
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_sale_bills（category=order, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_orders（category=order, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_products（category=product, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_members（category=customer, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_suppliers（category=purchase, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_purchase_orders（category=purchase, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_inventory（category=inventory, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_receivables（category=finance, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_reports（category=report, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_get_dashboard（category=report, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_coupon_templates（category=marketing, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_flash_sales（category=marketing, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_full_reductions（category=marketing, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_group_buys（category=marketing, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_marketing_overview（category=marketing, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_calculate_promotion（category=marketing, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_suggest_purchase_plan（category=purchase, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_purchase_plans（category=purchase, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_purchase_payments（category=purchase, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_purchase_returns（category=purchase, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_customer_segments（category=customer, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_care_rules（category=customer, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_customer_visits（category=customer, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_credit_list（category=customer, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_overdue_collections（category=customer, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_expenses（category=finance, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_reconciliation（category=finance, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_receivable_aging（category=finance, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_get_business_overview（category=report, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_get_sales_ranking（category=report, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_get_sales_trend（category=report, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_get_customer_rfm（category=report, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_get_inventory_turnover（category=report, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_get_dashboard_overview（category=report, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_inventory_batches（category=inventory, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_expiry_alerts（category=inventory, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_inventory_cost（category=inventory, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_inventory_loss_gains（category=inventory, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_inventory_profit_loss（category=inventory, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_stock_warnings（category=inventory, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_inventory_share_products（category=inventory, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_order_exceptions（category=order, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_order_timeouts（category=order, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_approval_tasks（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_approval_instances（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_query_operation_logs（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_platform_query_tenants（category=platform, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_platform_tenant_detail（category=platform, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_platform_query_announcements（category=platform, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_platform_query_subscription_applies（category=platform, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_platform_query_settlements（category=platform, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_platform_query_audit_logs（category=platform, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_platform_query_error_logs（category=platform, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_platform_query_monitor（category=platform, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20   DEBUG [ToolRegistry] 注册工具：api_platform_query_config（category=platform, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:20     LOG [ToolGeneratorService] API 目录工具已注册：55 个（共 55 条目录）
+[Nest] 9404  - 2026/10/24 08:51:20    WARN [AiDocUpdateTool] 乐观锁拒绝：doc=12 expected=3 actual=4
+PASS src/brain/review/review-task.service.spec.ts
+[Nest] 4604  - 2026/10/24 08:51:20     LOG [ReviewTaskService] 待审工单已创建：id=1 tenant=t1 tool=publishVideo node=n1
+[Nest] 4604  - 2026/10/24 08:51:20     LOG [ReviewTaskService] 待审工单已批准：id=1 reviewer=admin
+[Nest] 4604  - 2026/10/24 08:51:20     LOG [ReviewTaskService] 待审工单已驳回：id=1 reviewer=admin reason=缺少资质
+PASS src/tools/definitions/handle-approval.tool.spec.ts
+PASS src/brain/mcp/mcp-token.service.spec.ts
+[Nest] 21412  - 2026/10/24 08:51:21     LOG [McpTokenService] MCP Token 已生成：id=1 tenant=t_001 name=WorkBuddy对接 expiresAt=2027-01-22T00:51:21.156Z（库中存哈希）
+[Nest] 21412  - 2026/10/24 08:51:21     LOG [McpTokenService] MCP Token 已生成：id=1 tenant=t_001 name=未命名 expiresAt=2026-10-25T00:51:21.189Z（库中存哈希）
+[Nest] 21412  - 2026/10/24 08:51:21     LOG [McpTokenService] MCP Token 已停用：id=1 tenant=tenant-x
+[Nest] 21412  - 2026/10/24 08:51:21     LOG [McpTokenService] MCP Token 已启用：id=1
+[Nest] 21412  - 2026/10/24 08:51:21    WARN [McpTokenService] MCP Token 已删除：id=1
+[Nest] 21412  - 2026/10/24 08:51:21     LOG [McpTokenService] MCP Token 命中历史明文，已惰性升级为哈希存储：id=2
+PASS src/rag/vector-store.service.spec.ts
+[Nest] 6860  - 2026/10/24 08:51:21   DEBUG [VectorStoreService] 知识库新增文档：tenant=tenant-A doc=手册.pdf chunks=2
+[Nest] 6860  - 2026/10/24 08:51:21   DEBUG [VectorStoreService] 知识库新增文档：tenant=tenant-A doc=手册.pdf chunks=2
+[Nest] 6860  - 2026/10/24 08:51:21   DEBUG [VectorStoreService] 知识库新增文档：tenant=tenant-A doc=手册.pdf chunks=1
+[Nest] 6860  - 2026/10/24 08:51:21   DEBUG [VectorStoreService] 知识库新增文档：tenant=tenant-A doc=手册.pdf chunks=1
+[Nest] 6860  - 2026/10/24 08:51:21   DEBUG [VectorStoreService] 知识库新增文档：tenant=tenant-A doc=价目表.xlsx chunks=1
+[Nest] 6860  - 2026/10/24 08:51:21   DEBUG [VectorStoreService] 知识库新增文档：tenant=tenant-A doc=手册.pdf chunks=3
+[Nest] 6860  - 2026/10/24 08:51:21   DEBUG [VectorStoreService] 知识库新增文档：tenant=tenant-A doc=手册.pdf chunks=2
+[Nest] 6860  - 2026/10/24 08:51:21   DEBUG [VectorStoreService] 知识库新增文档：tenant=tenant-A doc=价目表.xlsx chunks=1
+[Nest] 6860  - 2026/10/24 08:51:21     LOG [VectorStoreService] 知识库已从数据库恢复：1 个租户，2 个分块
+[Nest] 6860  - 2026/10/24 08:51:21     LOG [VectorStoreService] 知识库已从数据库恢复：1 个租户，4 个分块
+[Nest] 6860  - 2026/10/24 08:51:21    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=rag.loadAllFromDb tenant=- detail=- err=DB down
+[Nest] 6860  - 2026/10/24 08:51:21     LOG [VectorStoreService] 知识库已从数据库恢复：1 个租户，2 个分块
+[Nest] 6860  - 2026/10/24 08:51:21     LOG [VectorStoreService] 知识库已从数据库恢复：2 个租户，2 个分块
+[Nest] 6860  - 2026/10/24 08:51:21     LOG [VectorStoreService] 知识库已从数据库恢复：2 个租户，2 个分块
+[Nest] 6860  - 2026/10/24 08:51:21   DEBUG [VectorStoreService] 知识库新增文档：tenant=tenant-A doc=手册.pdf chunks=1
+[Nest] 6860  - 2026/10/24 08:51:21    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=rag.removeDocFromDb tenant=tenant-A detail=手册.pdf err=disk full
+[Nest] 6860  - 2026/10/24 08:51:21    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=rag.persistChunks tenant=tenant-A detail=手册.pdf err=disk full
+[Nest] 6860  - 2026/10/24 08:51:21   DEBUG [VectorStoreService] 知识库新增文档：tenant=tenant-A doc=手册.pdf chunks=1
+[Nest] 6860  - 2026/10/24 08:51:21    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=rag.removeDocFromDb tenant=tenant-A detail=手册.pdf err=lock timeout
+[Nest] 6860  - 2026/10/24 08:51:21   DEBUG [VectorStoreService] 知识库新增文档：tenant=tenant-A doc=手册.pdf chunks=1
+[Nest] 6860  - 2026/10/24 08:51:21    WARN [ErrorSemantics] [degrade] 旁路失败已降级 op=rag.removeDocFromDb tenant=tenant-A detail=手册.pdf err=lock timeout
+PASS src/providers/provider-egress.spec.ts
+[Nest] 21976  - 2026/10/24 08:51:21   DEBUG [DeepSeekProvider] 非流式调用 DeepSeek：model=deepseek-chat, messages=1条
+[Nest] 21976  - 2026/10/24 08:51:21   DEBUG [GlmProvider] 非流式调用 GLM：model=glm-4-flash, messages=1条
+[Nest] 21976  - 2026/10/24 08:51:21   DEBUG [DeepSeekProvider] 非流式调用 DeepSeek：model=deepseek-chat, messages=1条
+[Nest] 21976  - 2026/10/24 08:51:21   DEBUG [GlmProvider] 非流式调用 GLM：model=glm-4-flash, messages=1条
+PASS src/tools/idempotency-key-fields.spec.ts
+PASS src/tenant/admin-tenant-scope.spec.ts
+PASS src/database/dialect.spec.ts
+PASS src/gateway/dto/execute-tool.dto.spec.ts
+PASS src/ops/usage-stats.service.spec.ts
+[Nest] 21412  - 2026/10/24 08:51:22   DEBUG [UsageStatsService] 查询用量明细：tenant=t1 range=2026-08-01-2026-08-15
+[Nest] 21412  - 2026/10/24 08:51:22   DEBUG [UsageStatsService] 查询跨租户用量概览：range=2026-08-01-2026-08-15
+[Nest] 9404  - 2026/10/24 08:51:22   DEBUG [DocumentLoaderService] 加载文档：doc.md（type=markdown）
+[Nest] 9404  - 2026/10/24 08:51:22   DEBUG [DocumentLoaderService] 加载文档：guide.md（type=markdown）
+[Nest] 9404  - 2026/10/24 08:51:22   DEBUG [DocumentLoaderService] 加载文档：guide.markdown（type=markdown）
+[Nest] 9404  - 2026/10/24 08:51:22   DEBUG [DocumentLoaderService] 加载文档：app.log（type=text）
+[Nest] 9404  - 2026/10/24 08:51:22   DEBUG [DocumentLoaderService] 加载文档：note.txt（type=text）
+[Nest] 9404  - 2026/10/24 08:51:22   DEBUG [DocumentLoaderService] 加载文档：a.pdf（type=pdf）
+[Nest] 9404  - 2026/10/24 08:51:22   DEBUG [DocumentLoaderService] 加载文档：a.pdf（type=pdf）
+[Nest] 9404  - 2026/10/24 08:51:22   DEBUG [DocumentLoaderService] 加载文档：a.docx（type=docx）
+[Nest] 9404  - 2026/10/24 08:51:22   DEBUG [DocumentLoaderService] 加载文档：a.docx（type=docx）
+[Nest] 9404  - 2026/10/24 08:51:22   DEBUG [DocumentLoaderService] 加载文档：data.xlsx（type=excel）
+[Nest] 9404  - 2026/10/24 08:51:22   DEBUG [DocumentLoaderService] 加载文档：a.xls（type=excel）
+[Nest] 9404  - 2026/10/24 08:51:22   DEBUG [DocumentLoaderService] 加载文档：a.csv（type=excel）
+[Nest] 9404  - 2026/10/24 08:51:22   DEBUG [DocumentLoaderService] 加载文档：a.xlsx（type=excel）
+[Nest] 9404  - 2026/10/24 08:51:22   DEBUG [DocumentLoaderService] 加载文档：a.xlsx（type=excel）
+[Nest] 9404  - 2026/10/24 08:51:22   DEBUG [DocumentLoaderService] 加载文档：a.xlsx（type=excel）
+[Nest] 17504  - 2026/10/24 08:51:22    WARN [EmbeddingService] embedding 服务调用失败（http://localhost:11434/v1）：ECONNREFUSED
+[Nest] 17504  - 2026/10/24 08:51:22    WARN [EmbeddingService] embedding 服务调用失败（http://localhost:11434/v1）：ECONNREFUSED
+[Nest] 6860  - 2026/10/24 08:51:22   ERROR [ForecastSalesTool] 销售序列取数失败：后端 HTTP 500：报表服务异常
+PASS src/rag/embedding.service.spec.ts
+PASS src/rag/document-loader.service.spec.ts
+PASS src/tools/definitions/forecast-sales.tool.spec.ts
+PASS src/tools/catalog/dynamic-api.tool.spec.ts
+[Nest] 21976  - 2026/10/24 08:51:22    WARN [DynamicApi:api_query_products] GET /api/admin/products 失败：网络错误
+[Nest] 4604  - 2026/10/24 08:51:22   ERROR [CancelSalesOrderTool] 取消销售单失败：后端 HTTP 400：已结清需走冲销流程（path=/api/admin/sale-bills/SO9/cancel）
+PASS src/tools/definitions/cancel-sales-order.tool.spec.ts
+PASS src/bridge/service-client.csrf.spec.ts
+PASS src/tenant/crypto.service.spec.ts
+[Nest] 21412  - 2026/10/24 08:51:22    WARN [CryptoService] API Key 解密失败：加密数据格式错误，应为 `<iv_hex>:<authTag_hex>:<ciphertext_hex>`
+PASS src/tools/price-engine-tools.spec.ts
+PASS src/tools/tool-registry.spec.ts
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：tool1（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：tool1（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：tool2（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：tool3（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：dup（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23    WARN [ToolRegistry] 工具 "dup" 已存在，将被覆盖注册。请检查是否重复注册（category=utility）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：dup（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：findable（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：order1（category=order, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：order2（category=order, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：inv1（category=inventory, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：order1（category=order, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：order2（category=order, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：inv1（category=inventory, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：queryOrder（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：echo（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：toolA（category=order, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：toolB（category=inventory, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：toolC（category=finance, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：toolA（category=order, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：toolB（category=inventory, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：toolC（category=finance, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 租户 tenant1 禁用工具：[toolB, toolC]
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：toolA（category=order, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：toolB（category=inventory, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：toolC（category=finance, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 租户 tenant1 禁用工具：[toolA]
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 租户 tenant2 禁用工具：[toolB]
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：toolA（category=order, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：toolB（category=inventory, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：toolC（category=finance, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 租户 tenant1 禁用工具：[toolA]
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：toolA（category=order, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：toolB（category=inventory, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：toolC（category=finance, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 租户 tenant1 禁用工具：[toolA]
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：t1（category=utility, isWriteOperation=false）
+[Nest] 6860  - 2026/10/24 08:51:23   DEBUG [ToolRegistry] 注册工具：t2（category=utility, isWriteOperation=false）
+PASS src/common/redis-memory.client.spec.ts
+PASS src/common/error-semantics.besteffort-contract.spec.ts
+PASS src/tools/circuit-breaker.service.spec.ts
+[Nest] 4604  - 2026/10/24 08:51:23    WARN [CircuitBreakerService] 工具熔断已打开：createSalesOrder（窗口内失败 3/3）
+[Nest] 4604  - 2026/10/24 08:51:23    WARN [CircuitBreakerService] 工具熔断已打开：queryInventory（窗口内失败 3/3）
+[Nest] 4604  - 2026/10/24 08:51:34     LOG [CircuitBreakerService] 工具熔断已恢复：queryInventory
+[Nest] 4604  - 2026/10/24 08:51:23    WARN [CircuitBreakerService] 工具熔断已打开：stockCheck（窗口内失败 3/3）
+[Nest] 4604  - 2026/10/24 08:51:34    WARN [CircuitBreakerService] 工具熔断半开测试失败，重新熔断：stockCheck
+[Nest] 4604  - 2026/10/24 08:51:23     LOG [CircuitBreakerService] 工具熔断已手动重置：a
+[Nest] 4604  - 2026/10/24 08:51:23     LOG [CircuitBreakerService] 全部工具熔断已手动重置（1 个）
+PASS src/common/error-semantics.spec.ts
+PASS src/tenant/tenant-context.spec.ts
+PASS src/tenant/admin-auth.guard.spec.ts
+PASS src/brain/answer-self-check.service.spec.ts
+PASS src/brain/knowledge-rules.service.spec.ts
+[Nest] 12008  - 2026/10/24 08:51:24   ERROR [TenantMiddleware] JWT_SECRET 未配置：所有需租户上下文的请求将返回 401（禁止降级为请求体身份模式）
+[Nest] 12008  - 2026/10/24 08:51:24   ERROR [TenantMiddleware] JWT_SECRET 未配置：所有需租户上下文的请求将返回 401（禁止降级为请求体身份模式）
+[Nest] 12008  - 2026/10/24 08:51:24   ERROR [TenantMiddleware] JWT_SECRET 未配置：所有需租户上下文的请求将返回 401（禁止降级为请求体身份模式）
+PASS src/tenant/tenant.middleware.spec.ts
+[Nest] 9404  - 2026/10/24 08:51:23    WARN [AnswerSelfCheckService] S2 自检发现数字失真：库存应为 12 瓶而非 120 瓶
+[Nest] 9404  - 2026/10/24 08:51:23    WARN [AnswerSelfCheckService] S2 回答自检失败（忽略）：llm down
+[Nest] 21976  - 2026/10/24 08:51:23     LOG [KnowledgeRulesService] 知识规则已加载：3 份（C:\Users\XIONG\AppData\Local\Temp\krules-EJezlH）
+[Nest] 21976  - 2026/10/24 08:51:23    WARN [KnowledgeRulesService] 知识规则目录不存在：C:\Users\XIONG\AppData\Local\Temp\krules-not-exist-xyz（规则注入降级为空）
+[Nest] 12008  - 2026/10/24 08:51:24    WARN [TenantMiddleware] AI_ALLOW_BODY_TENANT=true：身份伪造防护已关闭（应急回退模式），仅限临时排查，用完立即关闭！
+[Nest] 12008  - 2026/10/24 08:51:24    WARN [TenantMiddleware] AI_ALLOW_BODY_TENANT 应急模式：从请求体回退身份 tenant=t_legacy（POST /api/chat）
+PASS src/brain/chat-planning.spec.ts
+PASS src/brain/extraction/write-schema-registry.spec.ts
+PASS src/rag/text-splitter.service.spec.ts
+PASS src/nlp/param-coercer.spec.ts
+PASS src/brain/intent-detector.spec.ts
+PASS src/common/metrics.service.spec.ts
+PASS src/common/request-logging.middleware.spec.ts
+PASS src/brain/employee/employee-conversation.spec.ts
+PASS src/tools/tool-registry-scope.spec.ts
+PASS src/brain/write-summary.spec.ts
+PASS src/brain/agent/self-heal-loop.service.spec.ts
+PASS src/brain/clarify-event.spec.ts
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：querySaleBills（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：api_platform_query_tenants（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：api_platform_query_monitor（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：querySaleBills（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：api_platform_query_tenants（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：api_platform_query_monitor（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：querySaleBills（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：api_platform_query_tenants（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：api_platform_query_monitor（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：querySaleBills（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：api_platform_query_tenants（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：api_platform_query_monitor（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：querySaleBills（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：api_platform_query_tenants（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：api_platform_query_monitor（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：querySaleBills（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：api_platform_query_tenants（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：api_platform_query_monitor（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：queryInventory（category=inventory, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：querySaleBills（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：api_platform_query_tenants（category=system, isWriteOperation=false）
+[Nest] 17504  - 2026/10/24 08:51:24   DEBUG [ToolRegistry] 注册工具：api_platform_query_monitor（category=system, isWriteOperation=false）
+[Nest] 9404  - 2026/10/24 08:51:24     LOG [SelfHealLoopService] 自愈重试 1/2：step=创建销售单 action=retry
+[Nest] 9404  - 2026/10/24 08:51:24     LOG [SelfHealLoopService] 自愈重试 2/2：step=创建销售单 action=retry
+[Nest] 9404  - 2026/10/24 08:51:24     LOG [SelfHealLoopService] 自愈重试 1/2：step=创建销售单 action=retry
+[Nest] 9404  - 2026/10/24 08:51:24     LOG [SelfHealLoopService] 自愈重试 2/2：step=创建销售单 action=retry
+PASS src/common/ai-errors.spec.ts
+PASS src/nlp/tone-detector.spec.ts
+PASS src/tools/guard-tools-wiring.spec.ts
+PASS src/brain/api-summary.spec.ts
+PASS src/tools/customer-scope.guard.spec.ts
+PASS src/nlp/nl-parser.spec.ts
+PASS src/brain/inventory-format.spec.ts
+PASS src/nlp/reference-resolver.spec.ts
+PASS src/brain/proactive/proactive.utils.spec.ts
+PASS src/evolution/sanitize.spec.ts
+A worker process has failed to exit gracefully and has been force exited. This is likely caused by tests leaking due to improper teardown. Try running with --detectOpenHandles to find leaks. Active timers can also cause this, ensure that .unref() was called on them.
+
+Test Suites: 188 passed, 188 total
+Tests:       1980 passed, 1980 total
+Snapshots:   0 total
+Time:        46.376 s
