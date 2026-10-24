@@ -1,0 +1,5 @@
+命令：node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
+退出码：0
+为何零输出：tsc 类型检查通过时静默无输出（本仓既有口径：零输出=通过）。
+执行位置：D:\Users\ZXQL\wta-ai\AI-P1-3F1R1（AI-P1-3F1R1 隔离工作树，分支 feat/ai-p1-3f1-error-copy-redaction）
+执行时间：2026-10-25

@@ -1,0 +1,5 @@
+命令：node node_modules/eslint/bin/eslint.js "src/**/*.ts" --max-warnings=0
+退出码：0
+为何零输出：eslint 全仓通过（0 error / 0 warning）时静默无输出（本仓既有口径）。
+执行位置：D:\Users\ZXQL\wta-ai\AI-P1-3F1R1（AI-P1-3F1R1 隔离工作树）
+执行时间：2026-10-25

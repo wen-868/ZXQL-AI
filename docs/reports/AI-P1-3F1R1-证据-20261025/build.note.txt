@@ -1,0 +1,5 @@
+命令：node node_modules/typescript/bin/tsc -p tsconfig.build.json
+退出码：0
+为何零输出：Nest 生产构建成功时无 stdout/stderr（产物落 dist/，不打印摘要）。
+执行位置：D:\Users\ZXQL\wta-ai\AI-P1-3F1R1（AI-P1-3F1R1 隔离工作树）
+执行时间：2026-10-25
