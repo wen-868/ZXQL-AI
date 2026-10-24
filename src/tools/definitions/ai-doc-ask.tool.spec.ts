@@ -13,6 +13,11 @@
  * ⑦ runner 收到的 payload 完整（docTitle/question/passages 带文本）——
  *    这是"模型只见授权内容"的链路铁证
  *
+ * AI-P1-3F1 增补（P0 驳回：DB 内部表名泄漏给商户）：
+ * ⑧⑨ 断言 **ToolResult 整体序列化**后不含内部词：
+ *    t_ai_knowledge_chunks / chunk / table / SQL / DB / provider / embedding / Runner
+ * ⑨ 为**点名用例**：mutation 把 error 恢复成 raw message ⇒ 本用例红。
+ *
  * 负责人: 阿澈 | 创建日期: 2026-10-24
  */
 import { AiDocEntity } from '../../database/entities/ai-doc.entity';
@@ -22,6 +27,32 @@ import { ToolContext } from '../tool.interface';
 import { AiDocAskTool } from './ai-doc-ask.tool';
 
 const CTX: ToolContext = { tenantId: 't1', userId: 'u-1' };
+
+/**
+ * AI-P1-3F1 泄漏探针：商户可见的整个 ToolResult（error/suggestion/data 全部）
+ * 序列化后，不得出现任何内部实现词。
+ *
+ * 为什么断言"整个结果"而不只断言 error：卡内红线是
+ * 「不把数据库错误细节写入商户可见字段」——任何字段泄漏都算违约。
+ * 词表按派单卡 §二.3 逐项落实（大小写不敏感，因 DB→db、SQL→sql 都可能变体）。
+ */
+const INTERNAL_TERMS = [
+  't_ai_knowledge_chunks',
+  'chunk',
+  'table',
+  'sql',
+  'db',
+  'provider',
+  'embedding',
+  'runner',
+] as const;
+
+function assertNoInternalLeak(result: unknown): void {
+  const serialized = JSON.stringify(result).toLowerCase();
+  for (const term of INTERNAL_TERMS) {
+    expect(serialized).not.toContain(term);
+  }
+}
 
 function docOf(over: Partial<AiDocEntity>): AiDocEntity {
   return {
@@ -222,7 +253,7 @@ describe('AiDocAskTool（AI-P1-3 · 文档问答）', () => {
     expect(input.passages[0].index).toBe(1);
   });
 
-  it('⑧ DB 查询失败 ⇒ 不崩，失败透明（error 收敛 + 建议）', async () => {
+  it('⑧ DB 查询失败 ⇒ 不崩，失败透明（error 收敛 + 建议 + 内部词零泄漏）', async () => {
     const getVisible = jest.fn(() =>
       Promise.resolve({ doc: docOf({}), access: 'read' as const }),
     );
@@ -236,7 +267,39 @@ describe('AiDocAskTool（AI-P1-3 · 文档问答）', () => {
     );
     const r = await tool.execute({ docId: '12', question: 'q' }, CTX);
     expect(r.success).toBe(false);
-    expect(r.error).toContain('文档问答失败');
+    // AI-P1-3F1：旧断言只查"文档问答失败"，未防泄漏 ⇒ 改为固定文案 + 内部词零命中
+    expect(r.error).toContain('暂时无法读取这份文档');
+    expect(askSpy).not.toHaveBeenCalled();
+    assertNoInternalLeak(r);
+  });
+
+  // ── AI-P1-3F1 新增反向用例（点名：mutation 恢复 raw error ⇒ 本用例必须红）──
+  it('⑨【脱敏探针】真实 MySQL 表不存在错误 ⇒ 商户文案内部词命中 0（点名用例）', async () => {
+    // 复刻生产事故原文：表名 + schema 名都在 message 里
+    const mysqlErr = new Error(
+      "Table 'liquor_inventory.t_ai_knowledge_chunks' doesn't exist",
+    );
+    const getVisible = jest.fn(() =>
+      Promise.resolve({ doc: docOf({}), access: 'read' as const }),
+    );
+    const runner = new DocAskRunner();
+    const askSpy = jest.fn();
+    runner.setRunner(askSpy);
+    const tool = new AiDocAskTool(
+      { getVisible } as unknown as OfficeAclService,
+      runner,
+      { query: jest.fn(() => Promise.reject(mysqlErr)) } as never,
+    );
+
+    const r = await tool.execute({ docId: '12', question: '条款？' }, CTX);
+
+    // 1) 仍如实失败（不吞错、不假成功）
+    expect(r.success).toBe(false);
+    // 2) 固定商户文案
+    expect(r.error).toBe('当前暂时无法读取这份文档，请稍后重试');
+    // 3) 🔴 承重断言：整个 ToolResult 序列化后内部词零命中
+    assertNoInternalLeak(r);
+    // 4) 异常在可控路径上被拦下，未进 LLM
     expect(askSpy).not.toHaveBeenCalled();
   });
 });
