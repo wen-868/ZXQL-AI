@@ -14,12 +14,19 @@
 --   唯一身份 = `(tenant_id, schedule_id, occurrence_at)`：
 --     - schedule_id  = t_ai_schedule.id（同名不同 id 不会互相冒充）；
 --     - occurrence_at = 该次提醒的 remind_at（同一日程有多次提醒时区分 occurrence）。
---   `kind` 区分投递维度：'notice'（逐条入箱）/ 'push'（单条即时推）/ 'digest'（聚合摘要）。
+--   `kind` 区分投递维度（AI-P2-3F2 定稿）：
+--     - 'notice' = 逐条入通知中心；
+--     - 'push'   = 逐条即时推送（含摘要覆盖收口——摘要成功后给本批每条写 push=success）。
+--   摘要批次自身的幂等**不在本表**，走下方 t_ai_reminder_digest_sent（粒度不同，混表会丢单条幂等）。
 --
--- 四、幂等（承重）
+-- 四、幂等与终态（承重）
 --   唯一键 `(tenant_id, schedule_id, occurrence_at, kind)`
 --   ⇒ 同一提醒同一维度**只成功一次**；cron 每分钟重跑不会重复插入。
---   摘要（kind='digest'）也走同一键 ⇒ 连续 100 次扫描只成功 1 次。
+--   `status` 语义（F2）：
+--     - notice：success=已入箱（重试只补 failed 的）；
+--     - push：success=已推送；skipped=owner 不可定向（禁止广播收口，属**终态**不再重扫）；
+--       failed=渠道失败（下轮重试）。
+--   扫描"未送达"= notice 无 success **或** push 无 (success/skipped) ⇒ 两维都闭合才退出。
 --
 -- 五、执行
 --   - `CREATE TABLE IF NOT EXISTS`（可重复执行）；注释内不得出现分号（部署器按分号拆分）
@@ -32,8 +39,8 @@ CREATE TABLE IF NOT EXISTS t_ai_reminder_delivery (
   tenant_id      VARCHAR(36)   NOT NULL COMMENT '租户ID',
   schedule_id    VARCHAR(64)   NOT NULL COMMENT '日程ID（t_ai_schedule.id）',
   occurrence_at  DATETIME(3)   NOT NULL COMMENT '本次提醒的 occurrence（remind_at）',
-  kind           VARCHAR(16)   NOT NULL COMMENT '投递维度：notice/push/digest',
-  status         VARCHAR(16)   NOT NULL COMMENT '状态：success/failed',
+  kind           VARCHAR(16)   NOT NULL COMMENT '投递维度：notice=入通知中心 / push=即时推送（摘要覆盖也记此维度）',
+  status         VARCHAR(16)   NOT NULL COMMENT '状态：success / failed=待重试 / skipped=不可定向已收口（push 终态）',
   dedupe_key     VARCHAR(191)  NULL COMMENT '去重键（tenant:schedule:occurrence:kind）',
   error_msg      VARCHAR(500)  NULL COMMENT '失败原因（仅失败时写）',
   attempts       INT UNSIGNED  NOT NULL DEFAULT 1 COMMENT '尝试次数（重试累加）',
