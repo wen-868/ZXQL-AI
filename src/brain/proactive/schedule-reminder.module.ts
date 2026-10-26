@@ -11,6 +11,9 @@
  */
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
+// AI-P2-3F3 §四.3：role 参与者成员须经 MS 公共 sys-users 接口解析 ⇒ 引入 BridgeModule(ServiceClient)
+// 无环校验：BridgeModule → { DatabaseModule, TenantModule }，其闭包不引用本模块 ⇒ 不成环
+import { BridgeModule } from '../../bridge/bridge.module';
 import { ProactiveModule } from './proactive.module';
 import { ScheduleReminderService } from './schedule-reminder.service';
 // R101-AI-40：站内通知落库 + 旁路组合（推送 + 通知）
@@ -20,7 +23,7 @@ import { NoticeBridgeService } from './notice-bridge.service';
 import { ReminderCatchupService } from './reminder-catchup.service';
 
 @Module({
-  imports: [ProactiveModule, DatabaseModule],
+  imports: [ProactiveModule, DatabaseModule, BridgeModule],
   providers: [
     ScheduleReminderService,
     NoticeService,

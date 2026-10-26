@@ -36,9 +36,12 @@
  */
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
+import jwt from 'jsonwebtoken';
 import { ProactivePushService } from './proactive-push.service';
 import { NoticeBridgeService } from './notice-bridge.service';
+import { ServiceClient } from '../../bridge/service-client';
 import { parseParticipants } from '../../tools/definitions/schedule-participants.util';
 
 /** 单批扫描上限：只限制**单次查询**规模，不是丢弃上限 */
@@ -48,6 +51,25 @@ const DIGEST_THRESHOLD = 3;
 /** 安静时段（Asia/Shanghai 小时，左闭右开：22:00–08:00） */
 const QUIET_START_HOUR = 22;
 const QUIET_END_HOUR = 8;
+/** F3 §四.3b：租户服务 JWT TTL（秒）—— 卡面上限 15 分钟，取 10 分钟留余量 */
+const SERVICE_JWT_TTL_SECONDS = 600;
+/** F3 §四.3：sys-users 分页大小（MS 侧 pageSize 上限 100） */
+const SYS_USERS_PAGE_SIZE = 100;
+/** 分页防御上限（total 异常时的收敛保险；达到即视为"分页失败"而非"无成员"） */
+const SYS_USERS_MAX_PAGES = 50;
+
+/** MS `sys-users` 返回的用户精简形状（roles[].id / roles[].roleCode 用于精确匹配） */
+interface SysUserLite {
+  id: number;
+  roles?: Array<{ id: number; roleCode?: string; roleName?: string }>;
+}
+/** MS `sys-users` 分页信封（ServiceClient 已解包 data） */
+interface SysUsersPage {
+  total: number;
+  page: number;
+  pageSize: number;
+  records: SysUserLite[];
+}
 
 interface DueRow {
   id: string | number;
@@ -69,8 +91,12 @@ export interface CatchupResult {
   noticeFailed: number;
   /** 单条即时推送成功条数 */
   pushed: number;
-  /** 摘要推送成功条数（0 或 1） */
+  /** 逐接收人摘要**投递成功**的接收人数（F3 起按人计，不再按日程计） */
   digests: number;
+  /** 逐接收人摘要投递**失败**的接收人数（下轮只重试这些） */
+  recipientFailed: number;
+  /** 无法解析（role/employee/未知形态）的**未投递**接收人数（明确未投递，非成功） */
+  unresolvedRecipients: number;
   /** 是否处于安静时段 */
   quiet: boolean;
   /** 是否因安静时段推迟了即时推送 */
@@ -87,16 +113,25 @@ export class ReminderCatchupService {
     private readonly pushService: ProactivePushService,
     @Optional()
     private readonly noticeBridge?: NoticeBridgeService,
+    // F3 §四.3：role 参与者经 ServiceClient 调 MS 公共 sys-users 接口解析成员
+    @Optional()
+    private readonly serviceClient?: ServiceClient,
+    @Optional()
+    private readonly configService?: ConfigService,
   ) {}
 
   /** 补偿所有到期未送达的提醒（供 cron 调用；绝不外抛） */
   async catchup(now: Date = new Date()): Promise<CatchupResult> {
+    // F3 §四.3d：同轮缓存每次 catchup 重建 ⇒ 下一轮重新读取 sys-users 快照
+    this.clearRecipientCaches();
     const result: CatchupResult = {
       scanned: 0,
       recorded: 0,
       noticeFailed: 0,
       pushed: 0,
       digests: 0,
+      recipientFailed: 0,
+      unresolvedRecipients: 0,
       quiet: this.isQuietHours(now),
       deferred: false,
     };
@@ -140,11 +175,11 @@ export class ReminderCatchupService {
       }
       result.recorded = newlyRecorded;
 
-      // ══ 阶段 2：分层推送（只针对"通知已成功"的条目）══
-      // F2 分流口径（返工点 3）：
-      // - **quiet 后积压（pending）与非 quiet 新入箱超过阈值（fresh>3）一律"汇总"**：
-      //   按 owner 分组、每组一条定向摘要，1/3/4 条也不逐条推；
-      // - **fresh ≤3** 保留 F1 的逐条即时推送（B1/B2 已验证行为不回归）。
+      // ══ 阶段 2：逐接收人定向投递（只针对"通知已成功"的条目）══
+      // F3 统一口径（返工点 2/红线「禁止 owner 单推代替参与者触达」）：
+      // 无论 pending 还是 fresh、无论条数，一律 expandRecipients ⇒ **每个可解析
+      // 接收人一份定向摘要**（F2 的"≤3 逐条广播"路径整条移除：不带 targetUserId
+      // 的 push 在共享 WebSocket 下即租户广播，正是 M2 驳回形态）。
       if (result.quiet) {
         // 安静时段：通知已入箱，**推送严格 0**（B1 行为保留）
         const n = freshRows.length + pendingRows.length;
@@ -152,25 +187,14 @@ export class ReminderCatchupService {
           result.deferred = true;
           this.logger.log(`补偿：安静时段，入箱 ${n} 条，即时推送 0 条`);
         }
-      } else {
-        // 2a. pending 存在 ⇒ 本轮**一律汇总**（pending+fresh 合并成组，每 owner 一条）。
-        //     不允许"逐条 + 摘要"并存（那正是 F1 被驳回的 B2 = N+1 形态）。
-        // 2b. 无 pending ⇒ fresh ≤3 逐条推（B1/B2 保留）；fresh >3 每 owner 一条汇总。
-        if (pendingRows.length > 0) {
-          const d = await this.pushDigestByOwner(
-            [...pendingRows, ...freshRows],
-            now,
-          );
-          result.digests += d;
-        } else if (freshRows.length <= DIGEST_THRESHOLD) {
-          for (const row of freshRows) {
-            const ok = await this.pushSingle(row);
-            if (ok) result.pushed += 1;
-          }
-        } else {
-          const d = await this.pushDigestByOwner(freshRows, now);
-          result.digests += d;
-        }
+      } else if (pendingRows.length > 0 || freshRows.length > 0) {
+        const st = await this.pushDigestByRecipient(
+          [...pendingRows, ...freshRows],
+          now,
+        );
+        result.digests += st.delivered;
+        result.recipientFailed += st.failed;
+        result.unresolvedRecipients += st.unresolved;
       }
 
       if (noticeFailed.length > 0) {
@@ -354,100 +378,91 @@ export class ReminderCatchupService {
     }
   }
 
-  /** 阶段 2a：单条即时推送（独立幂等；已 success 过则跳过） */
-  private async pushSingle(row: DueRow): Promise<boolean> {
-    const scheduleId = String(row.id);
-    const occurrence = toDate(row.remind_at);
-    try {
-      if (await this.deliveryDone(row, occurrence, 'push')) {
-        return true;
-      }
-      const ok = await this.pushService.push(
-        row.tenant_id,
-        'schedule_reminder',
-        this.buildPush(row),
-      );
-      await this.markDelivery(
-        row,
-        occurrence,
-        'push',
-        ok ? 'success' : 'failed',
-      );
-      return ok;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`补偿：单推失败：schedule=${scheduleId} ${message}`);
-      try {
-        await this.markDelivery(row, occurrence, 'push', 'failed', message);
-      } catch {
-        /* 忽略 */
-      }
-      return false;
-    }
-  }
-
   /**
-   * 阶段 2b（F2）：**按 owner/接收人分组**，每组**至多一条**定向摘要。
+   * 阶段 2b（F3）：**逐接收人定向摘要**。
    *
-   * 三条驳回对应关系：
-   * - 返工点 2「禁止租户广播泄露他人日程标题」⇒ 摘要必须带 `targetUserId`，
-   *   走 `sendToUser` 只投该用户（AI-45 语义：不在线不回落广播）；
-   *   owner 不是 `user:{数字}`（如 `employee:{id}` 或缺失）⇒ **无法定向 ⇒ 不推送**
-   *   （宁可只留站内通知，也不把个人日程标题广播给全租户），投递记 `skipped`。
-   * - 返工点 1「摘要成功后给本批每条幂等写 push=success」⇒ 组内每条都写
-   *   `kind='push', status='success'` ⇒ 下轮不再被选中（硬验收 1）。
-   * - 返工点 4「1/3/4 条均只发一条汇总」⇒ 本函数不看条数阈值，每组恒定一条。
+   * 与 F2 的本质区别：F2 按 owner 一组、一条 push 代表整条日程；
+   * F3 要求 owner 与每个可解析参与者**各收一份只含本人相关日程的摘要**，
+   * 且**不得用 owner 单推代替参与者触达**（卡面红线）。
    *
-   * 幂等：`batch_key = digest:{owner}:{成员指纹}`（按组而非整批）⇒
-   * 同组连续 cron 只发一次；新批不含旧条目（成员变了 ⇒ 指纹变了）。
+   * 三类结局，逐接收人独立判定：
+   * - delivered / failed：可定向（user:{id}）⇒ 真实推送 + 写 025 逐接收人状态；
+   * - unresolved_*：无可靠映射 ⇒ 写登记表，**明确未投递**（不冒充 success）。
+   *
+   * 部分失败只重试失败接收人（§五.5）：delivered 的键进缓存，本轮/下轮不再重复；
+   * failed 留 failed ⇒ 下轮 collectAllDue 仍会选中该日程并只补失败者。
    */
-  private async pushDigestByOwner(rows: DueRow[], now: Date): Promise<number> {
-    // 按 **(租户, owner)** 分组：
-    // 🔴 只按 owner 分组会把**不同租户**的同名 owner 合进一组 ⇒ B 租户标题
-    //    随摘要进了 A 租户的定向推送（跨租户泄漏）。租户必须参与分组键。
-    const groups = new Map<string, DueRow[]>();
-    for (const r of rows) {
-      const key = `${r.tenant_id}|${r.owner ?? '(none)'}`;
-      const g = groups.get(key);
-      if (g) g.push(r);
-      else groups.set(key, [r]);
+  private async pushDigestByRecipient(
+    rows: DueRow[],
+    now: Date,
+  ): Promise<{ delivered: number; failed: number; unresolved: number }> {
+    const stat = { delivered: 0, failed: 0, unresolved: 0 };
+
+    // ① 逐日程展开接收人 ⇒ 反查：接收人 → 本人相关日程行（内容隔离的基础）
+    const byRecipient = new Map<
+      string,
+      { tenantId: string; userId: number; principal: string; rows: DueRow[] }
+    >();
+    for (const row of rows) {
+      const ex = await this.expandRecipients(row);
+      for (const r of ex.resolved) {
+        const key = `${row.tenant_id}|${r.userId}`;
+        const hit = byRecipient.get(key);
+        if (hit) hit.rows.push(row);
+        else
+          byRecipient.set(key, {
+            tenantId: row.tenant_id,
+            userId: r.userId,
+            principal: r.principal,
+            rows: [row],
+          });
+      }
+      for (const u of ex.unresolved) {
+        await this.markUnresolvedPrincipal(row, u);
+        stat.unresolved += 1;
+      }
+      // 🔴 F2 收口保留：全部接收人均不可解析 ⇒ 该日程写 push=skipped 退出重扫
+      //    （站内通知已入箱可见；否则该行会以 pending 态被每分钟无限重扫）
+      if (ex.resolved.length === 0) {
+        const occurrence = toDate(row.remind_at);
+        if (!(await this.deliveryDone(row, occurrence, 'push'))) {
+          await this.markDelivery(
+            row,
+            occurrence,
+            'push',
+            'skipped',
+            `全部接收人不可解析（${ex.unresolved
+              .map((u) => u.principal)
+              .join(', ')}），已登记未投递`,
+            now,
+          );
+        }
+      }
     }
 
-    let sent = 0;
-    for (const [groupKey, groupRows] of groups) {
-      const tenantId = groupRows[0].tenant_id;
-      const owner = groupKey.slice(groupKey.indexOf('|') + 1);
-      const batchKey = this.batchKeyOf(owner, groupRows);
+    // ② 逐接收人一份摘要（只含本人相关行）
+    for (const [, grp] of byRecipient) {
+      const { tenantId, userId, principal, rows: mine } = grp;
+      const batchKey = this.recipientBatchKey(tenantId, userId, mine);
 
-      // 幂等：该组已发过 ⇒ 仍要确保单条 push 状态补齐（返工点 2：不得继续被扫描）
+      // 幂等：该接收人该批已发过 ⇒ 补齐状态即收口（不重复发送）
       if (await this.digestDone(tenantId, batchKey)) {
-        await this.markGroupPushDone(groupRows, now);
+        await this.markRecipientRows(mine, userId, principal, 'delivered', now);
         continue;
       }
 
-      const targetUserId = this.userIdOf(owner);
-      if (targetUserId === null) {
-        // 🔴 不可定向 ⇒ 不广播（防他人标题泄漏），标记 skipped 退出重扫
-        this.logger.warn(
-          `补偿：owner=${owner} 无法定向到用户，跳过即时推送（站内通知已入箱）`,
-        );
-        await this.markGroupPushSkipped(groupRows, now);
-        await this.writeDigestSuccess(tenantId, batchKey, now);
-        continue;
-      }
-
-      const urgent = groupRows.slice(0, DIGEST_THRESHOLD);
+      const urgent = mine.slice(0, DIGEST_THRESHOLD);
       const lines = urgent
         .map((r) => `· ${r.title}（${toIso(r.remind_at)}）`)
         .join('\n');
       const digest = {
         type: 'system' as const,
-        title: `您有 ${groupRows.length} 条漏提醒待查看`,
+        title: `您有 ${mine.length} 条漏提醒待查看`,
         content:
-          `系统恢复后发现您有 ${groupRows.length} 条到期提醒未及时送达：\n${lines}\n` +
+          `系统恢复后发现您有 ${mine.length} 条到期提醒未及时送达：\n${lines}\n` +
           `以上为最紧急 ${urgent.length} 条，完整列表请打开通知中心查看。`,
         priority: 'reminder' as const,
-        targetUserId,
+        targetUserId: userId,
       };
 
       let ok = false;
@@ -459,27 +474,365 @@ export class ReminderCatchupService {
         );
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        this.logger.warn(`补偿：摘要推送失败（owner=${owner}）：${message}`);
-        ok = false;
+        this.logger.warn(
+          `补偿：摘要推送失败（recipient=user:${userId}）：${message}`,
+        );
       }
 
       if (ok) {
-        // 🔴 返工点 1：摘要成功后**每条**幂等写 push=success ⇒ 下轮扫不到
-        await this.markGroupPushDone(groupRows, now);
+        await this.markRecipientRows(mine, userId, principal, 'delivered', now);
         await this.writeDigestSuccess(tenantId, batchKey, now);
-        sent += 1;
+        stat.delivered += 1;
+      } else {
+        // 只标该接收人 failed ⇒ 下轮只重试他（成功者不重复）
+        await this.markRecipientRows(
+          mine,
+          userId,
+          principal,
+          'failed',
+          now,
+          '摘要推送失败',
+        );
+        stat.failed += 1;
       }
-      // 摘要失败 ⇒ 不写 push=success、不写 digest 记录 ⇒ 下轮重试（不假成功）
     }
-    return sent;
+    return stat;
   }
 
-  /** owner `user:{数字}` ⇒ targetUserId；否则 null（不可定向） */
+  /** 逐接收人批指纹：tenant + recipient + 成员集合 ⇒ 新批不撞旧批（旧条目不进新摘要） */
+  private recipientBatchKey(
+    tenantId: string,
+    userId: number,
+    rows: DueRow[],
+  ): string {
+    const parts = rows
+      .map((r) => `${String(r.id)}@${toIso(r.remind_at)}`)
+      .sort()
+      .join('|');
+    let h = 0;
+    for (let i = 0; i < parts.length; i += 1) {
+      h = (h * 31 + parts.charCodeAt(i)) | 0;
+    }
+    return `rdigest:${tenantId}:${userId}:${Math.abs(h).toString(36)}`;
+  }
+
+  /**
+   * 写逐接收人投递状态（025 表），并在该日程**全部可解析接收人**达 delivered 时
+   * 同步 024 的 push 闭合（保持 F2 硬验收 1 不回退：摘要后本批不再被扫描）。
+   */
+  private async markRecipientRows(
+    rows: DueRow[],
+    userId: number,
+    principal: string,
+    state: 'delivered' | 'failed',
+    now: Date,
+    errorMsg?: string,
+  ): Promise<void> {
+    for (const row of rows) {
+      const occurrence = toDate(row.remind_at);
+      try {
+        await this.dataSource.query(
+          `INSERT INTO t_ai_reminder_recipient_delivery
+             (tenant_id, schedule_id, occurrence_at, recipient_user_id, principal, state, dedupe_key, error_msg, attempts, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             state = VALUES(state),
+             error_msg = VALUES(error_msg),
+             attempts = attempts + 1,
+             updated_at = VALUES(updated_at)`,
+          [
+            row.tenant_id,
+            String(row.id),
+            occurrence,
+            userId,
+            principal,
+            state,
+            `${row.tenant_id}:${String(row.id)}:${toIso(row.remind_at)}:${userId}`,
+            errorMsg ?? null,
+            now,
+            now,
+          ],
+        );
+        if (state === 'delivered' && (await this.allRecipientsDelivered(row))) {
+          await this.markGroupPushDone([row], now);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.warn(
+          `补偿：逐接收人状态写入失败：schedule=${String(row.id)} user=${userId} ${message}`,
+        );
+      }
+    }
+  }
+
+  /** 该日程的全部可解析接收人是否都已 delivered（决定 024 是否闭合） */
+  private async allRecipientsDelivered(row: DueRow): Promise<boolean> {
+    // 同轮 (tenant, role) 成员快照缓存 ⇒ 这里不会重复全量扫描 MS 接口（§四.3d）
+    const ex = await this.expandRecipients(row);
+    if (ex.resolved.length === 0) return false;
+    const occurrence = toDate(row.remind_at);
+    const got = await this.dataSource.query<Array<{ c: unknown }>>(
+      `SELECT COUNT(DISTINCT recipient_user_id) AS c FROM t_ai_reminder_recipient_delivery
+        WHERE tenant_id = ? AND schedule_id = ? AND occurrence_at = ? AND state = 'delivered'`,
+      [row.tenant_id, String(row.id), occurrence],
+    );
+    return Number(got[0]?.c ?? 0) >= ex.resolved.length;
+  }
+
+  /** 登记不可解析 principal（明确未投递，不冒充 success） */
+  private async markUnresolvedPrincipal(
+    row: DueRow,
+    u: { principal: string; reason: string; detail: string },
+  ): Promise<void> {
+    const occurrence = toDate(row.remind_at);
+    const at = new Date();
+    try {
+      await this.dataSource.query(
+        `INSERT INTO t_ai_reminder_unresolved_principal
+           (tenant_id, schedule_id, occurrence_at, principal, reason, detail, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           reason = VALUES(reason),
+           detail = VALUES(detail),
+           updated_at = VALUES(updated_at)`,
+        [
+          row.tenant_id,
+          String(row.id),
+          occurrence,
+          u.principal,
+          u.reason,
+          u.detail,
+          at,
+          at,
+        ],
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `补偿：不可解析 principal 登记失败：schedule=${String(row.id)} ${message}`,
+      );
+    }
+  }
+
+  /**
+   * 经 **MS 公共接口**解析 `role:` 成员（卡面 §四.3 / §四.3b~3d / §五.3）。
+   *
+   * 口径：
+   * - `GET /api/admin/sys-users?status=ACTIVE&page=N&pageSize=100`（公开接口，不直读
+   *   `t_sys_user_role` —— 红线）；分页按返回 `total` 收敛，空页/越界即止；
+   * - 匹配按 `roles[].roleCode`（principal 为数字时按 `roles[].id`）**精确等值**，
+   *   不做模糊/子串匹配；
+   * - 鉴权用**短期租户服务 JWT**（`id=0`、`issuer=zhixiang-system`、
+   *   `audience=zhixiang-client`、TTL ≤ 15 分钟），密钥取 `JWT_SECRET`；
+   *   🔴 令牌与密钥**绝不写日志/证据**（红线）；
+   * - 接口/鉴权/分页任一失败 ⇒ 返回 `{ok:false,error}` ⇒ 调用方登记 `unresolved_role`
+   *   （明确未投递），其他 owner/user 照常投递（§四.3c）；
+   * - 同轮按 `(tenant, role)` 缓存成员快照（§四.3d）⇒ 多个日程引用同角色不重复全量扫描；
+   *   缓存在每次 catchup 开始时清空 ⇒ 下一轮重新读取。
+   */
+  private readonly roleMemberCache = new Map<string, number[]>();
+  private readonly tenantUserCache = new Map<string, SysUserLite[]>();
+
+  private async resolveRoleMembers(
+    tenantId: string,
+    roleKey: string,
+  ): Promise<{ ok: boolean; userIds: number[]; error?: string }> {
+    if (roleKey.length === 0) {
+      return { ok: false, userIds: [], error: 'role principal 缺少角色标识' };
+    }
+    const cacheKey = `${tenantId}|${roleKey}`;
+    const hit = this.roleMemberCache.get(cacheKey);
+    if (hit) return { ok: true, userIds: hit };
+
+    const byRole = (u: SysUserLite): boolean =>
+      (u.roles ?? []).some((r) =>
+        /^\d+$/.test(roleKey)
+          ? String(r.id) === roleKey
+          : String(r.roleCode ?? '') === roleKey,
+      );
+    const users = await this.listTenantUsers(tenantId);
+    if (!users.ok) {
+      return { ok: false, userIds: [], error: users.error };
+    }
+    const ids = users.records.filter(byRole).map((u) => u.id);
+    this.roleMemberCache.set(cacheKey, ids);
+    return { ok: true, userIds: ids };
+  }
+
+  /** 分页枚举 ACTIVE 用户（同轮按租户缓存原始快照） */
+  private async listTenantUsers(
+    tenantId: string,
+  ): Promise<
+    { ok: true; records: SysUserLite[] } | { ok: false; error: string }
+  > {
+    const cached = this.tenantUserCache.get(tenantId);
+    if (cached) return { ok: true, records: cached };
+
+    if (!this.serviceClient) {
+      return { ok: false, error: 'ServiceClient 未注入（role 成员不可解析）' };
+    }
+    const token = this.signServiceToken(tenantId);
+    if (!token) {
+      return { ok: false, error: '服务 JWT 签发失败（JWT_SECRET 未配置）' };
+    }
+
+    const records: SysUserLite[] = [];
+    try {
+      for (let page = 1; page <= SYS_USERS_MAX_PAGES; page += 1) {
+        const data = await this.serviceClient.get<SysUsersPage>(
+          `/api/admin/sys-users?status=ACTIVE&page=${page}&pageSize=${SYS_USERS_PAGE_SIZE}`,
+          { tenantId, userId: '0', authToken: token },
+        );
+        const list = data?.records ?? [];
+        records.push(...list);
+        const total = Number(data?.total ?? 0);
+        // 收敛条件：本页空 或 已集齐 total（§四.3c：分页失败不得静默当成"无成员"）
+        if (list.length === 0 || records.length >= total) break;
+        if (page === SYS_USERS_MAX_PAGES) {
+          return {
+            ok: false,
+            error: `sys-users 分页未收敛（total=${total} 已取 ${records.length}）`,
+          };
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        ok: false,
+        error: `sys-users 接口失败：${message}`.slice(0, 300),
+      };
+    }
+    this.tenantUserCache.set(tenantId, records);
+    return { ok: true, records };
+  }
+
+  /**
+   * 短期租户服务 JWT（§四.3b）。
+   * 🔴 返回值只用于请求头，禁止进入任何日志/异常信息/证据。
+   */
+  private signServiceToken(tenantId: string): string | null {
+    const secret = this.configService?.get<string>('JWT_SECRET');
+    if (!secret) return null;
+    try {
+      return jwt.sign(
+        {
+          id: 0,
+          username: 'ai-reminder-service',
+          realName: 'AI 提醒服务',
+          roles: [],
+          tenantId,
+        },
+        secret,
+        {
+          algorithm: 'HS256',
+          // 10 分钟 < 卡面上限 15 分钟
+          expiresIn: SERVICE_JWT_TTL_SECONDS,
+          issuer: 'zhixiang-system',
+          audience: 'zhixiang-client',
+        },
+      );
+    } catch {
+      // 异常信息可能含 payload ⇒ 只回固定文案
+      return null;
+    }
+  }
+
+  /** 每次 catchup 开始清空同轮缓存（下一轮必须重新读取，§四.3d） */
+  private clearRecipientCaches(): void {
+    this.roleMemberCache.clear();
+    this.tenantUserCache.clear();
+  }
+
   private userIdOf(owner: string): number | null {
     const m = /^user:(\d+)$/.exec(owner.trim());
     if (!m) return null;
     const id = Number.parseInt(m[1], 10);
     return Number.isFinite(id) && id > 0 ? id : null;
+  }
+
+  /**
+   * 展开一条日程的**接收人集合**（F3 返工点 1）：owner + participants，按 principal 去重。
+   *
+   * 三类结局（卡面 §四.1~4 / §五.1/3/4）：
+   * - `user:{数字}` ⇒ 直接定向（owner 与参与者同等对待）；
+   * - `role:{code|id}` ⇒ 经 **MS 公共接口** `GET /api/admin/sys-users?status=ACTIVE&page&pageSize`
+   *   分页枚举，按返回 `roles[].roleCode`（数字形态则按 `roles[].id`）**精确匹配**展开成员；
+   *   接口/鉴权/分页任一失败 ⇒ 该 role 明确未投递，**不影响其他 owner/user 继续投递**（§四.3c）；
+   *   禁止直读 MS `t_sys_user_role`（红线）。
+   * - `employee:{id}` ⇒ `t_ai_employee` 无到用户的绑定字段 ⇒ 明确未投递（§四.4）。
+   *
+   * 同一用户兼 owner 与 participant ⇒ 只保留一次（§四.7）。
+   */
+  private async expandRecipients(row: DueRow): Promise<{
+    resolved: Array<{ userId: number; principal: string }>;
+    unresolved: Array<{ principal: string; reason: string; detail: string }>;
+  }> {
+    const principals: string[] = [];
+    const push = (p: string | null | undefined): void => {
+      const v = (p ?? '').trim();
+      if (v.length > 0 && !principals.includes(v)) principals.push(v);
+    };
+    push(row.owner);
+    for (const p of parseParticipants(row.participants)) push(p);
+
+    const resolved: Array<{ userId: number; principal: string }> = [];
+    const unresolved: Array<{
+      principal: string;
+      reason: string;
+      detail: string;
+    }> = [];
+    const seenUsers = new Set<number>();
+    const take = (userId: number, principal: string): void => {
+      if (seenUsers.has(userId)) {
+        // 同一用户以不同 principal 出现（owner=user:7 且 participants 亦含 user:7、
+        // 或同时命中多个角色）⇒ 只投递一次（§四.4/§四.7）
+        return;
+      }
+      seenUsers.add(userId);
+      resolved.push({ userId, principal });
+    };
+
+    for (const principal of principals) {
+      const uid = this.userIdOf(principal);
+      if (uid !== null) {
+        take(uid, principal);
+        continue;
+      }
+      if (principal.startsWith('role:')) {
+        const members = await this.resolveRoleMembers(
+          row.tenant_id,
+          principal.slice('role:'.length),
+        );
+        if (members.ok) {
+          for (const id of members.userIds) take(id, principal);
+        } else {
+          unresolved.push({
+            principal,
+            reason: 'unresolved_role',
+            detail: `sys-users 解析失败 ⇒ 未投递：${members.error}`.slice(
+              0,
+              480,
+            ),
+          });
+        }
+        continue;
+      }
+      if (principal.startsWith('employee:')) {
+        unresolved.push({
+          principal,
+          reason: 'unresolved_employee',
+          detail:
+            't_ai_employee 无到用户的绑定字段，MS 亦无员工↔账号映射 ⇒ 无可靠映射，未投递',
+        });
+      } else {
+        unresolved.push({
+          principal,
+          reason: 'unresolved_principal',
+          detail: 'principal 形态无法识别（期望 user:/role:/employee:）',
+        });
+      }
+    }
+    return { resolved, unresolved };
   }
 
   /** 组内每条写 push=success（幂等，摘要已发或不可定向后的收口） */
@@ -493,20 +846,6 @@ export class ReminderCatchupService {
         'push',
         'success',
         undefined,
-        now,
-      );
-    }
-  }
-
-  /** 组内每条写 push=skipped（不可定向 ⇒ 退出重扫，但没推送出去） */
-  private async markGroupPushSkipped(rows: DueRow[], now: Date): Promise<void> {
-    for (const row of rows) {
-      await this.markDelivery(
-        row,
-        toDate(row.remind_at),
-        'push',
-        'skipped',
-        'owner 非用户身份，不可定向推送（站内通知已入箱）',
         now,
       );
     }
@@ -668,26 +1007,6 @@ export class ReminderCatchupService {
         at,
       ],
     );
-  }
-
-  /**
-   * 本组摘要的稳定标识：**owner + 组内成员指纹**（排序后 scheduleId@occurrenceAt 哈希）。
-   *
-   * F2 关键变化（相对 F1 的整批指纹）：
-   * - 按组 ⇒ 同租户两 owner 各自一条摘要、互不含对方标题（硬验收 2）；
-   * - 成员变了 ⇒ 指纹变了 ⇒ 新批不撞旧记录（硬验收 3：新摘要不含旧条目）；
-   * - 同组同批连续 cron ⇒ 指纹相同 ⇒ 只成功发一次。
-   */
-  private batchKeyOf(owner: string, rows: DueRow[]): string {
-    const parts = rows
-      .map((r) => `${String(r.id)}@${toIso(r.remind_at)}`)
-      .sort()
-      .join('|');
-    let h = 0;
-    for (let i = 0; i < parts.length; i += 1) {
-      h = (h * 31 + parts.charCodeAt(i)) | 0;
-    }
-    return `digest:${owner}:${Math.abs(h).toString(36)}`;
   }
 
   /** 该批摘要是否已发过 */
