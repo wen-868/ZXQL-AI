@@ -10,6 +10,11 @@
 const { resolveAdminToken } = require('./lib/bench-auth');
 
 const AI_BASE = process.argv[2] || 'http://127.0.0.1:3016';
+// SSRF 守卫（Mimosa L3）：本脚本为本地种子工具，目标地址限定本机回环
+if (!/^https?:\/\/(127\.0\.0\.1|\[::1\]|localhost)(:\d+)?$/.test(AI_BASE)) {
+  console.error('拒绝：AI_BASE 仅允许本机回环地址（本地种子工具，不向远端发请求）');
+  process.exit(1);
+}
 const AUTH_BASE = process.argv[3] || 'http://127.0.0.1:8080';
 
 async function adminToken() {

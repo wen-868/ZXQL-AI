@@ -26,7 +26,7 @@ export class AiNoticeUnreadCountTool implements ITool {
   readonly description =
     '未读通知数（只读）：返回当前用户的未读且未归档通知数量（供前端角标/红点使用）。' +
     '示例参数：{}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = false;
 
   readonly parameters = { type: 'object' as const, properties: {} };

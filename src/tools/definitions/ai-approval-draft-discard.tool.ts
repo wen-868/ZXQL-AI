@@ -33,7 +33,7 @@ export class AiApprovalDraftDiscardTool implements ITool {
     '重复丢弃不会重复改（回放）。' +
     '⚠️ 边界：AI 底座原生轻量审批；不替代 MS 审批。' +
     '示例参数：{"approvalId":"12","confirm":false}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = true;
   readonly risk = 'medium' as const;
   /** 生命周期标记型幂等键：同一草稿重复丢弃 = 同一操作 ⇒ 回放 */

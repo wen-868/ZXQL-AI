@@ -28,7 +28,7 @@ export class AiApprovalUpdateTool implements ITool {
     '**不接受状态修改**（请用 aiApprovalApprove/aiApprovalReject/aiApprovalCancel）；已提交的实例不可改内容。' +
     '⚠️ 边界：AI 底座原生轻量审批；不替代 MS 审批。' +
     '示例参数：{"approvalId":"12","title":"差旅报销 3500 元","confirm":false}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = true;
   readonly risk = 'medium' as const;
 

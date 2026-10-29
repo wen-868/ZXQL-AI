@@ -39,7 +39,7 @@ export abstract class ScheduleStateBase implements ITool {
 
   abstract readonly name: string;
   abstract readonly description: string;
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = true;
   readonly risk = 'medium' as const;
   /** 状态迁移型幂等键（同一日程重复同一操作 = 同一操作 ⇒ 回放） */

@@ -29,7 +29,7 @@ export class AiScheduleUpdateTool implements ITool {
     '修改日程（**写操作**，需确认）：改标题/时间/参与者/提醒时间。**仅未完成（planned）的日程可改**；' +
     '**不接受状态修改**（完成用 aiScheduleComplete、取消用 aiScheduleCancel）。' +
     '示例参数：{"scheduleId":"12","startAt":"2026-10-21T10:00:00+08:00","confirm":false}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = true;
   readonly risk = 'medium' as const;
 

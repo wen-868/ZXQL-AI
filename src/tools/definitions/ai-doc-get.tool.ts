@@ -24,7 +24,7 @@ export class AiDocGetTool implements ITool {
     '文档中心-查看文档详情（只读）：按文档 ID 返回元数据与访问级别（read/write/admin）。' +
     '**无权限时统一返回"文档不存在"**（不透露"存在但无权"）。' +
     '适合"打开那份合同""文档 12 是什么"等场景。示例参数：{"docId":"12"}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = false;
 
   readonly parameters = {

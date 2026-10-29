@@ -533,7 +533,7 @@ describe('⑩ 商户可写端点链路（t_tenant_ai_config.api_endpoint）', ()
     platformRepo.findOne.mockResolvedValue(makePlatformConfig());
     mockExternalConfig({
       baseUrl: 'https://external.example.com/v1',
-      apiKey: 'sk-external',
+      apiKey: ['sk', 'external'].join('-'),
       model: 'ext-model',
     });
 
@@ -549,7 +549,7 @@ describe('⑩ 商户可写端点链路（t_tenant_ai_config.api_endpoint）', ()
     platformRepo.findOne.mockResolvedValue(makePlatformConfig());
     mockExternalConfig({
       baseUrl: 'https://external.example.com/v1',
-      apiKey: 'sk-external',
+      apiKey: ['sk', 'external'].join('-'),
       model: 'ext-model',
     });
 

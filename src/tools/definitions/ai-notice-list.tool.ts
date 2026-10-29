@@ -34,7 +34,7 @@ export class AiNoticeListTool implements ITool {
     '站内通知列表（只读）：列出**发给当前用户**的通知（含被 ACL 授权的），可按未读/未归档筛选。' +
     '用于补"错过实时推送"的场景（离线也能看到）。' +
     '示例参数：{"unreadOnly":true,"limit":20}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = false;
 
   readonly parameters = {

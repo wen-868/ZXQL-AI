@@ -60,7 +60,7 @@ export class AiDocAskTool implements ITool {
     '适合"这份合同的关键付款条款是什么""这个制度里请假流程怎么走"等场景。' +
     '若文档尚未建立内容索引，会明确告知而不是瞎答。' +
     '示例参数：{"docId":"12","question":"关键付款条款是什么？"}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = false;
 
   readonly parameters = {

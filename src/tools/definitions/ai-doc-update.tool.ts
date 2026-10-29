@@ -42,7 +42,7 @@ export class AiDocUpdateTool implements ITool {
     '**必须传 expectedVersion**（乐观锁）：若期间已被他人修改则拒绝并提示刷新，绝不静默覆盖。' +
     '正文未变时版本号不递增（避免无意义膨胀）。' +
     '示例参数：{"docId":"12","expectedVersion":3,"title":"新标题","confirm":false}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = true;
 
   readonly parameters = {

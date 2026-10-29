@@ -26,7 +26,7 @@ export class AiNoticeArchiveTool implements ITool {
   readonly description =
     '归档通知（**写操作**，需确认）：把通知移出默认列表（仍可查，非删除）。重复归档不会重复改（回放）；' +
     '本批**不支持取消归档**。示例参数：{"noticeId":"12","confirm":false}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = true;
   readonly risk = 'low' as const;
   readonly idempotencyKeyFields = ['noticeId'] as const;

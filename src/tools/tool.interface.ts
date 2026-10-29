@@ -33,6 +33,7 @@ export type ToolCategory =
   | 'delivery' // 配送管理
   | 'finance' // 财务管理
   | 'report' // 报表分析
+  | 'office' // AI 办公（日程/待办/审批/文档/公告）
   | 'marketing' // 营销管理
   | 'platform' // 总台/平台管理
   | 'system' // 系统管理

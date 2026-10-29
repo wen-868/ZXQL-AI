@@ -25,7 +25,7 @@ export class AiNoticeMarkReadTool implements ITool {
   readonly description =
     '标记通知已读（**写操作**，需确认）：把一条未读通知置为已读。重复标记不会重复改（回放）。' +
     '示例参数：{"noticeId":"12","confirm":false}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = true;
   readonly risk = 'low' as const;
   /** 状态迁移型幂等键：同一通知重复标记 = 同一操作 ⇒ 回放 */

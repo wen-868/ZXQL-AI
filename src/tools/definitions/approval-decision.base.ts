@@ -40,7 +40,7 @@ export abstract class ApprovalDecisionBase implements ITool {
   /** 工具基本属性（子类可覆盖 name/description） */
   abstract readonly name: string;
   abstract readonly description: string;
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = true;
   readonly risk = 'high' as const;
   /** 状态迁移型幂等键：同一实例重复决策 = 同一操作 */

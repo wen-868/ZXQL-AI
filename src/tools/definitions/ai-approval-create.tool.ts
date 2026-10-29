@@ -30,7 +30,7 @@ export class AiApprovalCreateTool implements ITool {
     '不会重复创建（自动回放既有实例）。可传 submit=false 存为草稿（草稿可用 aiApprovalUpdate 修改）。' +
     '⚠️ 边界：本工具是 **AI 底座原生轻量审批**（AI 辅助填单 + 人审批，单级），**不替代 MS 审批系统**。' +
     '示例参数：{"title":"差旅报销 3200 元","type":"expense","approver":"user:u-1","relatedBiz":"BILL-2026-001","confirm":false}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = true;
   readonly risk = 'high' as const;
   /** 业务幂等键（承重：related_biz 可空 ⇒ DB 唯一键挡不住 NULL） */

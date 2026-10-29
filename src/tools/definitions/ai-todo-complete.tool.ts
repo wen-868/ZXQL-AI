@@ -29,7 +29,7 @@ export class AiTodoCompleteTool implements ITool {
     '完成待办（**写操作**，需确认）：把待办标记为已完成（done）。' +
     '**重复完成不会重复改状态**（自动回放既有结果）。' +
     '示例参数：{"todoId":"12","confirm":false}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = true;
   readonly risk = 'medium' as const;
   /** 状态迁移型幂等键：同一待办重复完成 = 同一操作 */

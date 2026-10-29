@@ -32,7 +32,7 @@ export class AiScheduleCreateTool implements ITool {
     '同归属人、同标题、同开始时间的未完成日程不会重复创建（自动回放）；' +
     '若时间与既有日程冲突**只提示不阻止**。本批不支持重复日程（recurrence）。' +
     '示例参数：{"title":"季度复盘会","startAt":"2026-10-20T14:00:00+08:00","participants":"user:u-2","confirm":false}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = true;
   readonly risk = 'medium' as const;
   /** 幂等键（DB 层四列全 NOT NULL ⇒ 有效；业务层再前置一层） */

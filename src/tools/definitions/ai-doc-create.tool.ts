@@ -42,7 +42,7 @@ export class AiDocCreateTool implements ITool {
     '示例参数：{"title":"2026 采购合同要点","content":"...","category":"contract","confirm":false}';
   // 归入既有分类体系的"报表分析"桶（办公域第一批；ToolCategory 暂无 office 值，
   // 若后续新增 'office' 分类，此处一行切换即可）
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = true;
 
   readonly parameters = {

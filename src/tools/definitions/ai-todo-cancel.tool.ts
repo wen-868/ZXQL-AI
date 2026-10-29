@@ -32,7 +32,7 @@ export class AiTodoCancelTool implements ITool {
     '取消待办（**写操作**，需确认）：把**未完成**（pending/in_progress）的待办置为 cancelled（终态）。' +
     '**已完成的待办不可取消**（会明确失败）；重复取消不会重复改状态（回放）。' +
     '示例参数：{"todoId":"12","confirm":false}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = true;
   readonly risk = 'medium' as const;
   /** 状态迁移型幂等键：同一待办重复取消 = 同一操作 ⇒ 回放 */

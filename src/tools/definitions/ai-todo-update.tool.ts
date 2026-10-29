@@ -45,7 +45,7 @@ export class AiTodoUpdateTool implements ITool {
     '**不接受状态修改**——要标记完成请用 aiTodoComplete。' +
     '注意：修改负责人**不会自动重新派单**（派单只发生在创建时）。' +
     '示例参数：{"todoId":"12","priority":"high","dueAt":"2026-10-22","confirm":false}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = true;
   readonly risk = 'medium' as const;
 

@@ -31,7 +31,7 @@ export class AiDocArchiveTool implements ITool {
     '文档中心-归档文档（**写操作**，需确认）：将文档置为已归档（只读，不再参与后续修改）。' +
     '仅文档 owner 或具备 admin 权限者可操作；**重复归档不会重复操作**（直接回放既有结果）。' +
     '示例参数：{"docId":"12","confirm":false}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = true;
   readonly risk = 'medium' as const;
   /** 幂等业务键（AI-25）：同一文档重复归档 = 同一操作 ⇒ 回放 */

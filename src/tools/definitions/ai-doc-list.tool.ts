@@ -44,7 +44,7 @@ export class AiDocListTool implements ITool {
     '可按目录（category）与状态（active|archived）筛选。无权文档不会出现在结果中。' +
     '适合"我有哪些文档""合同目录下有什么"等场景。' +
     '示例参数：{"category":"contract"}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = false;
 
   readonly parameters = {

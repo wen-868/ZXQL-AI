@@ -37,7 +37,7 @@ export class AiApprovalListTool implements ITool {
     '可按 view（to_approve|mine）、status、applicant、approver 筛选。' +
     '⚠️ 边界：AI 底座原生轻量审批；不替代 MS 审批。' +
     '示例参数：{"view":"to_approve","status":"pending"}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = false;
 
   readonly parameters = {

@@ -45,7 +45,7 @@ export class AiTodoListTool implements ITool {
     '待办清单（只读）：列出当前用户**有权查看**的待办（自己创建的、指派给自己的、或被 ACL 授权的），' +
     '可按负责人（assignee）、状态（pending|in_progress|done|cancelled）、截止时间（dueBefore）筛选。' +
     '示例参数：{"status":"pending","dueBefore":"2026-10-20"}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = false;
 
   readonly parameters = {

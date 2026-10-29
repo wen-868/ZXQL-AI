@@ -46,7 +46,7 @@ export class AiTodoCreateTool implements ITool {
     '截止时间与优先级。**指派给数字员工（employee:）会自动派单**给该员工执行。' +
     '同一负责人同名未完结待办不会重复创建（自动回放既有待办）。' +
     '示例参数：{"title":"准备季度汇报","assignee":"employee:e-1","dueAt":"2026-10-20","confirm":false}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = true;
   readonly risk = 'medium' as const;
   /** 幂等业务键（业务层挡"日常重复提交"；DB 唯一键另有一层挡并发） */

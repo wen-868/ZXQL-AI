@@ -36,7 +36,7 @@ export class AiScheduleListTool implements ITool {
     '日程清单（只读）：列出当前用户**有权查看**的日程（我创建的 / 我参与的 / 被 ACL 授权的），' +
     '可按时间范围（from/to）、状态（planned|done|cancelled）筛选。' +
     '示例参数：{"from":"2026-10-16","status":"planned"}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = false;
 
   readonly parameters = {

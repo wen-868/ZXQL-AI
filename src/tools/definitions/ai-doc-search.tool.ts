@@ -43,7 +43,7 @@ export class AiDocSearchTool implements ITool {
     '（大小写不敏感），并自动进行语义向量检索增强。' +
     '适合"有没有关于采购的文档""合同目录里有哪些""采购合同关键条款""带【酒】标签的文档"等场景。' +
     '示例参数：{"keyword":"采购","category":"contract"}';
-  readonly category = 'report' as const;
+  readonly category = 'office' as const;
   readonly isWriteOperation = false;
 
   readonly parameters = {
