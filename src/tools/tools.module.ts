@@ -125,6 +125,8 @@ import { DatabaseModule } from '../database/database.module';
 import { TenantModule } from '../tenant/tenant.module';
 // R101-AI-35 S3：文档 ↔ RAG 贯通（DocRagService 由 RagModule 导出；RagModule 不依赖 ToolsModule，无环）
 import { RagModule } from '../rag/rag.module';
+// AI-P2-2：日程领域服务（唯一实现，人工与 AI 共用）
+import { ScheduleModule } from '../brain/schedule/schedule.module';
 // R101-AI-35 S3：文档↔RAG 贯通。RagModule 的 providers/exports 是 R70-21 精确契约（其 spec 断言精确列表）
 // ⇒ **不改 RagModule**：在本模块提供 DocRagService；Embedding/VectorStore 复用 RagModule 导出单例
 //（VectorStore 持有内存态，必须共用！），TextSplitterService 无状态 ⇒ 本模块独立实例无害
@@ -166,6 +168,8 @@ import { IdempotencyGateService } from './idempotency-gate.service';
     DatabaseModule,
     TenantModule,
     RagModule,
+    // AI-P2-2 §五.7：日程领域服务（人工 gateway 与本模块工具**共用同一 Singleton**）
+    ScheduleModule,
     // R101-AI-47：ReadinessModule（ReadinessService 归位后可被本模块工具注入；
     //   get-system-status 切换到 readiness.check() 属后续单，先打通依赖且无环）
     ReadinessModule,

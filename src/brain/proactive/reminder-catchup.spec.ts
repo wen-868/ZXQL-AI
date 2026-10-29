@@ -675,14 +675,33 @@ describe('ReminderCatchupService（AI-P2-3F3 · 逐接收人定向摘要）', ()
     expect(sqls[0]).not.toContain('INSERT');
   });
 
-  it('⑮ recurrence 继续 BLOCKED（实体无字段，不自造）', () => {
+  it('⑮ AI-P2-2：实体已带 recurrence 字段；派单身份 (tenant, scheduleId, occurrence) ⇒ 同一 occurrence 绝不重发', async () => {
     const src = readFileSync(
       join(process.cwd(), 'src/database/entities/ai-schedule.entity.ts'),
       'utf8',
     );
-    expect(
-      /@Column\([^)]*\)[\s\S]{0,200}?\brecurrence\w*\s*!?\s*:/.test(src),
-    ).toBe(false);
+    // P2-2 交付：系列/规则/occurrence 三列必须存在（此前 F3 时点断言"无字段不自造"已过期）
+    expect(src).toMatch(/recurrenceRule/);
+    expect(src).toMatch(/seriesId/);
+    expect(src).toMatch(/occurrenceAt/);
+
+    // 兼容性核心：重复系列 = 每 occurrence 一行（独立 id + 独立 remind_at）
+    // ⇒ 两条"同系列不同次"的行各自派单一次；第二轮被 delivery=success 的 NOT EXISTS 过滤挡住
+    const rows = [
+      rowOf({ id: 101, title: '晨会', remind_at: '2026-11-02T01:00:00.000Z' }),
+      rowOf({ id: 102, title: '晨会', remind_at: '2026-11-03T01:00:00.000Z' }),
+    ];
+    const h = createHarness({ rows, pushOk: true });
+    const now = new Date('2026-11-04T02:00:00.000Z');
+    const r1 = await h.service.catchup(now);
+    expect(r1.scanned).toBe(2); // 两个 occurrence 都被扫到
+    expect(h.noticeRecord).toHaveBeenCalledTimes(2);
+
+    // 第二轮（同一 cron 再次触发）：delivery 幂等 ⇒ 0 重发（反测靶点：同一 occurrence 不重复派单）
+    h.noticeRecord.mockClear();
+    const r2 = await h.service.catchup(now);
+    expect(r2.scanned).toBe(0);
+    expect(h.noticeRecord).not.toHaveBeenCalled();
   });
 
   it('⑯ 结构禁 pushWithNotice（B5 保留）+ 复用既有通道', () => {

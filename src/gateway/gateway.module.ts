@@ -31,6 +31,7 @@ import { ApiCatalogController } from './api-catalog.controller';
 import { LearningController } from './learning.controller';
 import { EvolutionController } from './evolution.controller';
 import { LtmController } from './ltm.controller';
+import { ScheduleController } from './schedule.controller';
 import { ProvidersModule } from '../providers/providers.module';
 import { ToolsModule } from '../tools/tools.module';
 import { BridgeModule } from '../bridge/bridge.module';
@@ -40,6 +41,8 @@ import { DatabaseModule } from '../database/database.module';
 import { AiDbModule } from '../database/ai-db.module';
 import { EvolutionModule } from '../evolution/evolution.module';
 import { CommonModule } from '../common/common.module';
+// AI-P2-2 §五.7：日程领域服务（与 ToolsModule 拿到**同一个** Singleton ⇒ 人工/AI 同源）
+import { ScheduleModule } from '../brain/schedule/schedule.module';
 import { PushGatewayService } from './push-gateway.service';
 import { VisionService } from '../providers/vision.service';
 import { VoiceService } from '../providers/voice.service';
@@ -74,6 +77,7 @@ import { VoiceController } from './voice.controller';
     ProvidersModule,
     ToolsModule,
     BridgeModule,
+    ScheduleModule,
   ],
   controllers: [
     ChatController,
@@ -93,6 +97,7 @@ import { VoiceController } from './voice.controller';
     EvolutionController,
     LtmController,
     VoiceController,
+    ScheduleController,
   ],
   providers: [PushGatewayService, VisionService, VoiceService],
   exports: [PushGatewayService],

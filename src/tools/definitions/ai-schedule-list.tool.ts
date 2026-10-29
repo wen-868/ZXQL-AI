@@ -17,7 +17,7 @@
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { AiScheduleEntity } from '../../database/entities/ai-schedule.entity';
 import {
   OfficeAclService,
@@ -25,10 +25,7 @@ import {
 } from '../../rag/office-acl.service';
 import { ITool, ToolContext, ToolResult } from '../tool.interface';
 import { principalOf } from './ai-doc-list.tool';
-import {
-  matchesParticipant,
-  participantsLike,
-} from './schedule-participants.util';
+import { ScheduleDomainService } from '../../brain/schedule/schedule-domain.service';
 
 @Injectable()
 export class AiScheduleListTool implements ITool {
@@ -57,8 +54,13 @@ export class AiScheduleListTool implements ITool {
 
   constructor(
     @InjectRepository(AiScheduleEntity)
-    private readonly scheduleRepo: Repository<AiScheduleEntity>,
-    private readonly officeAcl: OfficeAclService,
+    readonly scheduleRepo: Repository<AiScheduleEntity>,
+    /**
+     * AI-P2-2：可见性判定与库层过滤**已上收领域服务**。
+     * 保留注入位以维持既有构造签名（spec / DI 兼容）。
+     */
+    readonly officeAcl: OfficeAclService,
+    private readonly domain: ScheduleDomainService,
   ) {}
 
   async execute(
@@ -66,7 +68,6 @@ export class AiScheduleListTool implements ITool {
     context: ToolContext,
   ): Promise<ToolResult> {
     const principal: OfficePrincipal = principalOf(context);
-    const me = `${principal.type === 'employee' ? 'employee' : 'user'}:${principal.id}`;
     const status =
       args.status === 'planned' ||
       args.status === 'done' ||
@@ -83,65 +84,41 @@ export class AiScheduleListTool implements ITool {
         : undefined;
 
     try {
-      // ① ACL 可见集（库层隔离输入）
-      const grantedIds = principal.isPlatform
-        ? []
-        : await this.officeAcl.aclGrantedIds('schedule', {
-            tenantId: context.tenantId,
-            principal,
-          });
+      // AI-P2-2 §五.7：可见性**统一走领域服务**（租户 + owner/代管/参与者/共享角色∪人员/ACL）
+      // 领域服务内部即为**库层条件**（非先查全量再过滤），并含共享范围并集
+      const rows = await this.domain.listVisible(
+        { tenantId: context.tenantId, principal },
+        { from: from ?? null, to: to ?? null, status: status ?? null },
+      );
 
-      const base: Record<string, unknown> = {};
-      if (!principal.isPlatform) base.tenantId = context.tenantId;
-      if (status !== undefined) base.status = status;
-      if (from !== undefined && !Number.isNaN(from.getTime())) {
-        base.startAt = MoreThanOrEqual(from);
-      }
-      if (to !== undefined && !Number.isNaN(to.getTime())) {
-        base.startAt = LessThanOrEqual(to); // 同时给 from/to 时以 to 为准（简单策略，注释留痕）
-      }
-
-      // ② 库层条件：租户 + (ACL 授予 OR 我是 owner OR 我在 participants)
-      const visibility = principal.isPlatform
-        ? [base]
-        : [
-            { ...base, id: In(grantedIds.length > 0 ? grantedIds : ['-1']) },
-            { ...base, owner: me },
-            { ...base, participants: participantsLike(me) },
-          ];
-
-      const rows = await this.scheduleRepo.find({ where: visibility });
-
-      // ③ 纵深防御：逐行确认
+      // 纵深防御：逐行再走一次同一判定（领域服务唯一口径）
       const visible: Array<Record<string, unknown>> = [];
       for (const s of rows) {
-        const access = await this.officeAcl.resolveResource(
-          {
-            resourceType: 'schedule',
-            resourceId: s.id,
-            tenantId: s.tenantId,
-            owner: s.owner,
-          },
-          { tenantId: context.tenantId, principal },
-        );
-        const isOwner = s.owner === me;
-        const isParticipant =
-          matchesParticipant(s.participants, me) ||
-          (principal.roles ?? []).some((r) =>
-            matchesParticipant(s.participants, `role:${r}`),
-          );
-        if (access !== 'none' || isOwner || isParticipant) {
-          visible.push({
-            scheduleId: s.id,
-            title: s.title,
-            startAt: new Date(s.startAt).toISOString(),
-            endAt: s.endAt ? new Date(s.endAt).toISOString() : null,
-            owner: s.owner,
-            participants: s.participants,
-            status: s.status,
-            remindAt: s.remindAt ? new Date(s.remindAt).toISOString() : null,
-          });
-        }
+        const access = await this.domain.resolveAccess(s, {
+          tenantId: context.tenantId,
+          principal,
+        });
+        if (access === 'none') continue;
+        visible.push({
+          scheduleId: s.id,
+          title: s.title,
+          startAt: new Date(s.startAt).toISOString(),
+          endAt: s.endAt ? new Date(s.endAt).toISOString() : null,
+          owner: s.owner,
+          participants: s.participants,
+          status: s.status,
+          remindAt: s.remindAt ? new Date(s.remindAt).toISOString() : null,
+          // AI-P2-2：共享/代管/重复系列可见（与人工入口同字段）
+          viewerRoles: s.viewerRoles ?? null,
+          viewerUserIds: s.viewerUserIds ?? null,
+          managerUserIds: s.managerUserIds ?? null,
+          access,
+          seriesId: s.seriesId ?? null,
+          occurrenceAt: s.occurrenceAt
+            ? new Date(s.occurrenceAt).toISOString()
+            : null,
+          recurrenceRule: s.recurrenceRule ?? null,
+        });
       }
 
       return {
@@ -151,7 +128,7 @@ export class AiScheduleListTool implements ITool {
           list: visible,
           aclBucket: {
             resourceType: 'schedule',
-            grantedCount: grantedIds.length,
+            grantedCount: 0,
             scope: principal.isPlatform
               ? 'platform(跨租户)'
               : 'tenant+owner+participants',

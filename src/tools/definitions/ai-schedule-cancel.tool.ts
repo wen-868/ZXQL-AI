@@ -17,6 +17,7 @@ import {
 } from '../../database/entities/ai-schedule.entity';
 import { OfficeAclService } from '../../rag/office-acl.service';
 import { ScheduleStateBase } from './schedule-state.base';
+import { ScheduleDomainService } from '../../brain/schedule/schedule-domain.service';
 
 @Injectable()
 export class AiScheduleCancelTool extends ScheduleStateBase {
@@ -32,7 +33,8 @@ export class AiScheduleCancelTool extends ScheduleStateBase {
     @InjectRepository(AiScheduleEntity)
     scheduleRepo: Repository<AiScheduleEntity>,
     injectAcl: OfficeAclService,
+    domain: ScheduleDomainService,
   ) {
-    super(scheduleRepo, injectAcl);
+    super(scheduleRepo, injectAcl, domain);
   }
 }

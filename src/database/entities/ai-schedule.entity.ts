@@ -75,6 +75,87 @@ export class AiScheduleEntity {
   })
   participants!: string | null;
 
+  /**
+   * 共享角色（AI-P2-2 §四.3）—— 逗号分隔 role id，首尾逗号归一化
+   *
+   * 与 `participants` 的语义分工（**不重叠**，避免破坏 P2-3 已交付的提醒/摘要接收面）：
+   * - `participants`：参与人 = 可读 + **提醒/定向摘要接收**（P2-3 已交付，语义不变）
+   * - `viewerRoles` / `viewerUserIds`：**显式共享** = 只读（viewer），取并集
+   * ⇒ NULL/NULL = `PRIVATE`（默认）；两者任一非空 = 已共享
+   */
+  @Column({
+    name: 'viewer_roles',
+    type: 'varchar',
+    length: 1000,
+    nullable: true,
+    comment: '共享角色（逗号分隔 role id，首尾逗号归一化；NULL=PRIVATE）',
+  })
+  viewerRoles!: string | null;
+
+  /** 共享指定人员（userId 列表，与 viewerRoles **取并集**；只读） */
+  @Column({
+    name: 'viewer_user_ids',
+    type: 'varchar',
+    length: 1000,
+    nullable: true,
+    comment: '共享指定人员（逗号分隔 user id，首尾逗号归一化；NULL=PRIVATE）',
+  })
+  viewerUserIds!: string | null;
+
+  /**
+   * 代管人员（AI-P2-2 §四.3）—— **独立**于 viewer 的编辑权
+   *
+   * 语义：列入者在上面的只读之上**额外**可编辑/完成/取消
+   * （不得把 viewer 当 manager —— 卡面反测 2）
+   */
+  @Column({
+    name: 'manager_user_ids',
+    type: 'varchar',
+    length: 1000,
+    nullable: true,
+    comment: '代管人员（逗号分隔 user id，独立于 viewer 的编辑权）',
+  })
+  managerUserIds!: string | null;
+
+  /** 重复日程系列ID（单次日程为 NULL；同系列各 occurrence 共享） */
+  @Column({
+    name: 'series_id',
+    type: 'bigint',
+    nullable: true,
+    comment: '重复日程系列ID（单次日程为 NULL）',
+  })
+  seriesId!: string | null;
+
+  /** 重复规则原文（JSON 安全子集；时区固定 Asia/Shanghai） */
+  @Column({
+    name: 'recurrence_rule',
+    type: 'varchar',
+    length: 1000,
+    nullable: true,
+    comment: '重复规则原文（JSON，安全子集，时区固定 Asia/Shanghai）',
+  })
+  recurrenceRule!: string | null;
+
+  /** 该 occurrence 的基准时刻（展开器唯一身份维度） */
+  @Column({
+    name: 'occurrence_at',
+    type: 'datetime',
+    precision: 3,
+    nullable: true,
+    comment: '该 occurrence 的基准时刻（展开器唯一身份维度）',
+  })
+  occurrenceAt!: Date | null;
+
+  /** 该 occurrence 的例外（JSON；NULL=无例外） */
+  @Column({
+    name: 'exception',
+    type: 'varchar',
+    length: 1000,
+    nullable: true,
+    comment: '该 occurrence 的例外（JSON，如单次改动/取消）',
+  })
+  exception!: string | null;
+
   @Column({
     name: 'status',
     type: dialectColumnType('enum', 'varchar'),

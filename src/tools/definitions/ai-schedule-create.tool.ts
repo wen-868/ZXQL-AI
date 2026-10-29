@@ -20,6 +20,7 @@ import { AiScheduleEntity } from '../../database/entities/ai-schedule.entity';
 import { ITool, ToolContext, ToolResult } from '../tool.interface';
 import { principalOf } from './ai-doc-list.tool';
 import { normalizeParticipants } from './schedule-participants.util';
+import { ScheduleDomainService } from '../../brain/schedule/schedule-domain.service';
 
 @Injectable()
 export class AiScheduleCreateTool implements ITool {
@@ -59,6 +60,25 @@ export class AiScheduleCreateTool implements ITool {
         type: 'string',
         description: '提醒时间（可选，ISO；到期由系统推送提醒）',
       },
+      recurrenceRule: {
+        type: 'string',
+        description:
+          '重复规则（可选，JSON 字符串）：{"freq":"DAILY|WEEKLY|MONTHLY|YEARLY","interval":1,"byDay":["MO"],"byMonthDay":[31],"count":10} —— byDay 仅 WEEKLY、byMonthDay 仅 MONTHLY，count 与 until 二选一，时区固定 Asia/Shanghai；29/30/31 在短月落当月最后一天',
+      },
+      viewerRoles: {
+        type: 'string',
+        description:
+          '共享角色（可选，逗号分隔 role id；与 viewerUserIds 取并集，只读）',
+      },
+      viewerUserIds: {
+        type: 'string',
+        description: '共享指定人员（可选，逗号分隔 user id；只读）',
+      },
+      managerUserIds: {
+        type: 'string',
+        description:
+          '代管人员（可选，逗号分隔 user id；在只读之上额外可编辑/完成/取消）',
+      },
       confirm: {
         type: 'boolean',
         description: '是否确认执行（缺省 false ⇒ 仅返回预览，不落库）',
@@ -69,6 +89,8 @@ export class AiScheduleCreateTool implements ITool {
   constructor(
     @InjectRepository(AiScheduleEntity)
     private readonly scheduleRepo: Repository<AiScheduleEntity>,
+    // AI-P2-2 §五.7：预览与落库均走**唯一领域服务**（人工入口共用同一实例）
+    private readonly domain: ScheduleDomainService,
   ) {}
 
   async execute(
@@ -131,13 +153,49 @@ export class AiScheduleCreateTool implements ITool {
     }
     const confirm = args.confirm === true;
 
-    // ── 预览：零副作用（不查库不落库）──
+    // AI-P2-2：重复规则 + 共享范围（与人工入口同名同义；非法规则由领域服务抛错）
+    const recurrenceRule =
+      typeof args.recurrenceRule === 'string' &&
+      args.recurrenceRule.trim().length > 0
+        ? args.recurrenceRule.trim()
+        : null;
+    const share = {
+      viewerRoles: parseCsv(args.viewerRoles),
+      viewerUserIds: parseCsv(args.viewerUserIds),
+      managerUserIds: parseCsv(args.managerUserIds),
+    };
+
+    // ── 预览：零副作用；**预览由领域服务计算** ⇒ AI 与人工对同一输入得到相同结果（硬验收 6）──
+    let domainPreview;
+    try {
+      domainPreview = this.domain.buildPreview({
+        title,
+        startAt,
+        endAt,
+        remindAt,
+        participants,
+        recurrenceRule,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        error: `重复规则非法：${message}`,
+        suggestion:
+          'DAILY/WEEKLY/MONTHLY/YEARLY + INTERVAL/BYDAY/BYMONTHDAY + COUNT 或 UNTIL',
+      };
+    }
+
     if (!confirm) {
       return {
         success: true,
         preview: {
           operation: '新建日程',
-          summary: `将创建日程「${title}」（${startAt.toISOString()}${endAt ? ` → ${endAt.toISOString()}` : ''}），归属人 ${owner}`,
+          summary:
+            `将创建日程「${title}」（${startAt.toISOString()}${endAt ? ` → ${endAt.toISOString()}` : ''}），归属人 ${owner}` +
+            (domainPreview.recurring
+              ? `，重复规则 ${JSON.stringify(domainPreview.rule)}`
+              : ''),
           details: {
             title,
             startAt: startAt.toISOString(),
@@ -146,9 +204,16 @@ export class AiScheduleCreateTool implements ITool {
             participants,
             remindAt: remindAt ? remindAt.toISOString() : null,
             source: 'ai',
-            note: '冲突检测只提示不阻止；重复日程（recurrence）本批不支持',
+            // 卡面 §五.6：保存前**恰为未来 5 次**预览（与人工入口同一实现）
+            nextOccurrences: domainPreview.occurrences,
+            recurring: domainPreview.recurring,
+            recurrenceRule: domainPreview.rule,
+            viewerRoles: share.viewerRoles,
+            viewerUserIds: share.viewerUserIds,
+            managerUserIds: share.managerUserIds,
+            note: '冲突检测只提示不阻止；共享范围默认 PRIVATE',
             idempotency:
-              '唯一键 (tenant,title,owner,start_at) 四列全 NOT NULL ⇒ DB 层有效；业务层再前置一层',
+              '唯一键 (tenant,title,owner,start_at) 四列全 NOT NULL ⇒ DB 层有效；业务层再前置一层；重复系列另有 (tenant,series,occurrence) 唯一键',
           },
         },
       };
@@ -198,23 +263,28 @@ export class AiScheduleCreateTool implements ITool {
         ],
       });
 
-      // ── 落库（DB 唯一键挡并发）──
-      let saved: AiScheduleEntity;
+      // ── 落库：**唯一领域服务**（禁止工具层直写表 ⇒ 反测 6 同源结构断言）──
+      // 领域服务负责：重复系列展开、seriesId/occurrenceAt/exception、共享范围与审计
+      let result: {
+        created: AiScheduleEntity[];
+        preview: { occurrences: string[] };
+      };
       try {
-        saved = await this.scheduleRepo.save(
-          this.scheduleRepo.create({
+        result = await this.domain.create(
+          {
             tenantId: context.tenantId,
+            principal: principalOf(context),
+          },
+          {
             title,
             startAt,
             endAt: endAt ?? null,
-            owner,
-            participants,
-            status: 'planned',
             remindAt: remindAt ?? null,
-            remindedAt: null,
-            source: 'ai',
-            createdBy: context.userId,
-          }),
+            participants,
+            recurrenceRule,
+            share,
+          },
+          { source: 'ai', createdBy: context.userId ?? null },
         );
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -238,17 +308,26 @@ export class AiScheduleCreateTool implements ITool {
         throw err;
       }
 
+      const first = result.created[0];
       return {
         success: true,
         data: {
-          scheduleId: saved.id,
-          title: saved.title,
-          startAt: new Date(saved.startAt).toISOString(),
-          owner: saved.owner,
-          status: saved.status,
-          remindAt: saved.remindAt
-            ? new Date(saved.remindAt).toISOString()
+          scheduleId: first.id,
+          title: first.title,
+          startAt: new Date(first.startAt).toISOString(),
+          owner: first.owner,
+          status: first.status,
+          remindAt: first.remindAt
+            ? new Date(first.remindAt).toISOString()
             : null,
+          // AI-P2-2：重复系列一次性落库的全部 occurrence + 预览（与人工入口同源）
+          seriesId: first.seriesId ?? null,
+          createdCount: result.created.length,
+          occurrenceIds: result.created.map((r) => r.id),
+          nextOccurrences: result.preview.occurrences,
+          viewerRoles: share.viewerRoles,
+          viewerUserIds: share.viewerUserIds,
+          managerUserIds: share.managerUserIds,
           conflicts: conflicts.slice(0, 5).map((c) => ({
             scheduleId: c.id,
             title: c.title,
@@ -259,7 +338,10 @@ export class AiScheduleCreateTool implements ITool {
                 warning: `该时段与 ${conflicts.length} 条既有日程重叠（仅提示，未阻止）`,
               }
             : {}),
-          message: `日程「${title}」已创建（#${saved.id}）`,
+          message:
+            result.created.length > 1
+              ? `重复日程「${title}」已创建（#${first.id} 起，共 ${result.created.length} 次）`
+              : `日程「${title}」已创建（#${first.id}）`,
         },
       };
     } catch (err) {
@@ -272,6 +354,16 @@ export class AiScheduleCreateTool implements ITool {
       };
     }
   }
+}
+
+/** 逗号分隔串 ⇒ 数组（去空、trim；空 ⇒ undefined，交由领域服务保持 PRIVATE） */
+function parseCsv(v: unknown): string[] | undefined {
+  if (typeof v !== 'string' || v.trim().length === 0) return undefined;
+  const list = v
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  return list.length > 0 ? list : undefined;
 }
 
 /** 解析 ISO 日期（非法 ⇒ null） */

@@ -15,12 +15,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AiScheduleEntity } from '../../database/entities/ai-schedule.entity';
 import { OfficeAclService } from '../../rag/office-acl.service';
+import { ScheduleDomainService } from '../../brain/schedule/schedule-domain.service';
 import { ITool, ToolContext, ToolResult } from '../tool.interface';
 import { principalOf } from './ai-doc-list.tool';
-import {
-  matchesParticipant,
-  normalizeParticipants,
-} from './schedule-participants.util';
+import { normalizeParticipants } from './schedule-participants.util';
 
 @Injectable()
 export class AiScheduleUpdateTool implements ITool {
@@ -51,13 +49,25 @@ export class AiScheduleUpdateTool implements ITool {
         type: 'boolean',
         description: '是否确认执行（缺省 false ⇒ 仅预览，不落库）',
       },
+      scope: {
+        type: 'string',
+        enum: ['single', 'following', 'all'],
+        description:
+          '作用域（重复日程专用；缺省 single）：single=仅本次、following=本次及以后、all=整系列',
+      },
     },
   };
 
   constructor(
     @InjectRepository(AiScheduleEntity)
     private readonly scheduleRepo: Repository<AiScheduleEntity>,
-    private readonly officeAcl: OfficeAclService,
+    /**
+     * AI-P2-2：ACL 判定已**上收领域服务**（同一判定只保留一份）。
+     * 保留该注入位以维持既有构造签名（spec 与 DI 兼容），标记 public readonly
+     * 而非私有 ⇒ 既不断言"仍在此使用"，也不破坏调用方。
+     */
+    readonly officeAcl: OfficeAclService,
+    private readonly domain: ScheduleDomainService,
   ) {}
 
   async execute(
@@ -98,30 +108,20 @@ export class AiScheduleUpdateTool implements ITool {
       }
 
       const principal = principalOf(context);
-      const me = `${principal.type === 'employee' ? 'employee' : 'user'}:${principal.id}`;
-      const isOwner = schedule.owner === me;
-      const isParticipant =
-        matchesParticipant(schedule.participants, me) ||
-        (principal.roles ?? []).some((r) =>
-          matchesParticipant(schedule.participants, `role:${r}`),
-        );
-      const aclAllowed =
-        isOwner || isParticipant
-          ? true
-          : await this.officeAcl.canWriteResource(
-              {
-                resourceType: 'schedule',
-                resourceId: schedule.id,
-                tenantId: schedule.tenantId,
-                owner: schedule.owner,
-              },
-              { tenantId: context.tenantId, principal },
-            );
-      if (!aclAllowed) {
+      // AI-P2-2 §五.7：权限判定统一走**唯一领域服务**（不再在此复制一套 me/participant/ACL 判定）
+      // ⇒ viewer 只读用户在此被拒绝（卡面反测 2），manager 获准，owner/admin 获准
+      try {
+        await this.domain.assertCanWrite(schedule, {
+          tenantId: context.tenantId,
+          principal,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
         return {
           success: false,
-          error: `无权修改该日程：${scheduleId}`,
-          suggestion: '需归属人、参与者或被授予 write/admin 权限',
+          error: `无权修改该日程：${scheduleId}（${message}）`,
+          suggestion:
+            '需归属人、代管人员或被授予 write/admin 权限（参与者/共享仅只读）',
         };
       }
 
@@ -184,14 +184,39 @@ export class AiScheduleUpdateTool implements ITool {
         changes.remindedAt = null;
       }
 
+      // AI-P2-2 §四.6：作用域（单次/后续/整系列）——缺省 single，避免"整系列修改伪装成单次"
+      const scopeRaw = String(
+        (args.scope as string | undefined) ?? 'single',
+      ).toLowerCase();
+      if (!['single', 'following', 'all'].includes(scopeRaw)) {
+        return {
+          success: false,
+          error: `scope 非法：${String(args.scope)}`,
+          suggestion:
+            '可选 single（仅本次）/ following（本次及以后）/ all（整系列）',
+        };
+      }
+      const scope = scopeRaw as 'single' | 'following' | 'all';
+      if (scope !== 'single' && !schedule.seriesId) {
+        return {
+          success: false,
+          error: '该日程不是重复日程，scope 只能为 single',
+          suggestion: '单次日程没有"后续/整系列"语义',
+        };
+      }
+
       if (!confirm) {
         return {
           success: true,
           preview: {
             operation: '修改日程',
-            summary: `将修改日程「${schedule.title}」的 ${Object.keys(changes).join('、') || '（无字段变化）'}`,
+            summary:
+              `将修改日程「${schedule.title}」的 ${Object.keys(changes).join('、') || '（无字段变化）'}` +
+              `（作用域 ${scope}${scope === 'all' ? '，整系列' : scope === 'following' ? '，本次及以后' : '，仅本次'}）`,
             details: {
               scheduleId,
+              seriesId: schedule.seriesId ?? null,
+              scope,
               currentStatus: schedule.status,
               changes: {
                 ...changes,
@@ -211,17 +236,57 @@ export class AiScheduleUpdateTool implements ITool {
         };
       }
 
-      Object.assign(schedule, changes);
-      schedule.updatedAt = new Date();
-      const saved = await this.scheduleRepo.save(schedule);
+      // ── 落库：**唯一领域服务**（三作用域语义由它实现；工具层不写 SQL）──
+      const { remindedAt, ...patchForDomain } = changes;
+      void remindedAt;
+      const res = await this.domain.update(
+        { tenantId: context.tenantId, principal },
+        scheduleId,
+        {
+          ...(patchForDomain.title !== undefined
+            ? { title: patchForDomain.title as string }
+            : {}),
+          ...(patchForDomain.startAt !== undefined
+            ? { startAt: patchForDomain.startAt as Date }
+            : {}),
+          ...(patchForDomain.endAt !== undefined
+            ? { endAt: patchForDomain.endAt as Date }
+            : {}),
+          ...(patchForDomain.remindAt !== undefined
+            ? { remindAt: patchForDomain.remindAt as Date }
+            : {}),
+          ...(patchForDomain.participants !== undefined
+            ? { participants: patchForDomain.participants as string | null }
+            : {}),
+        },
+        scope,
+      );
+
+      // 提醒时间被改 ⇒ 重置提醒幂等标记（可再次提醒）——按作用域同步
+      if (newRemindAt) {
+        if (scope === 'single' || !schedule.seriesId) {
+          await this.scheduleRepo.update(
+            { id: schedule.id, tenantId: context.tenantId },
+            { remindedAt: null },
+          );
+        } else {
+          await this.scheduleRepo.update(
+            { seriesId: schedule.seriesId, tenantId: context.tenantId },
+            { remindedAt: null },
+          );
+        }
+      }
 
       return {
         success: true,
         data: {
-          scheduleId: saved.id,
-          status: saved.status,
+          scheduleId,
+          seriesId: schedule.seriesId ?? null,
+          scope,
+          updated: res.updated,
+          status: schedule.status,
           changed: Object.keys(changes),
-          message: `日程 #${saved.id} 已更新（状态仍为 ${saved.status}）`,
+          message: `日程 #${schedule.id} 已更新（作用域 ${scope}，影响 ${res.updated} 条，状态仍为 ${schedule.status}）`,
         },
       };
     } catch (err) {

@@ -30,6 +30,7 @@ import {
 import { ITool, ToolContext, ToolResult } from '../tool.interface';
 import { principalOf } from './ai-doc-list.tool';
 import { matchesParticipant } from './schedule-participants.util';
+import { ScheduleDomainService } from '../../brain/schedule/schedule-domain.service';
 
 export abstract class ScheduleStateBase implements ITool {
   protected readonly logger: Logger;
@@ -52,6 +53,12 @@ export abstract class ScheduleStateBase implements ITool {
         type: 'boolean',
         description: '是否确认执行（缺省 false ⇒ 仅返回预览，不落库）',
       },
+      scope: {
+        type: 'string',
+        enum: ['single', 'following', 'all'],
+        description:
+          '作用域（重复日程专用；缺省 single）：single=仅本次、following=本次及以后、all=整系列',
+      },
     },
   };
 
@@ -59,6 +66,8 @@ export abstract class ScheduleStateBase implements ITool {
     @InjectRepository(AiScheduleEntity)
     protected readonly scheduleRepo: Repository<AiScheduleEntity>,
     protected readonly officeAcl: OfficeAclService,
+    // AI-P2-2 §五.7：权限判定 + 三作用域状态迁移统一走**唯一领域服务**
+    protected readonly domain: ScheduleDomainService,
   ) {
     this.logger = new Logger(this.constructor.name);
   }
@@ -93,12 +102,41 @@ export abstract class ScheduleStateBase implements ITool {
       }
 
       const principal = principalOf(context);
-      const allowed = await this.canOperate(schedule, context, principal);
-      if (!allowed) {
+      // AI-P2-2 §五.7：可操作性判定统一走**唯一领域服务**
+      // ⇒ viewer（共享只读）在此被拒；manager/owner/admin 获准（卡面反测 2）
+      const domainActor = {
+        tenantId: context.tenantId,
+        principal,
+      };
+      try {
+        await this.domain.assertCanWrite(schedule, domainActor);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
         return {
           success: false,
-          error: `无权${this.actionName}该日程：${scheduleId}`,
-          suggestion: '需归属人（owner）、参与者或被授予 write/admin 权限',
+          error: `无权${this.actionName}该日程：${scheduleId}（${message}）`,
+          suggestion:
+            '需归属人（owner）、代管人员或被授予 write/admin 权限（参与者/共享仅只读）',
+        };
+      }
+
+      // 作用域（AI-P2-2 §四.6）：单次 / 后续 / 整系列；缺省 single 避免"整系列伪装成单次"
+      const scopeRaw = String(
+        (args.scope as string | undefined) ?? 'single',
+      ).toLowerCase();
+      if (!['single', 'following', 'all'].includes(scopeRaw)) {
+        return {
+          success: false,
+          error: `scope 非法：${String(args.scope)}`,
+          suggestion: '可选 single / following / all',
+        };
+      }
+      const scope = scopeRaw as 'single' | 'following' | 'all';
+      if (scope !== 'single' && !schedule.seriesId) {
+        return {
+          success: false,
+          error: '该日程不是重复日程，scope 只能为 single',
+          suggestion: '单次日程没有"后续/整系列"语义',
         };
       }
 
@@ -129,9 +167,13 @@ export abstract class ScheduleStateBase implements ITool {
           success: true,
           preview: {
             operation: `${this.actionName}日程`,
-            summary: `将把日程「${schedule.title}」置为 ${this.targetStatus}`,
+            summary:
+              `将把日程「${schedule.title}」置为 ${this.targetStatus}` +
+              `（作用域 ${scope}${scope === 'all' ? '，整系列' : scope === 'following' ? '，本次及以后' : '，仅本次'}）`,
             details: {
               scheduleId,
+              seriesId: schedule.seriesId ?? null,
+              scope,
               title: schedule.title,
               startAt: new Date(schedule.startAt).toISOString(),
               currentStatus: schedule.status,
@@ -141,13 +183,15 @@ export abstract class ScheduleStateBase implements ITool {
         };
       }
 
-      // ── 原子迁移 ──
-      const res = await this.scheduleRepo.update(
-        { id: scheduleId, tenantId: schedule.tenantId, status: 'planned' },
-        { status: this.targetStatus, updatedAt: new Date() },
+      // ── 原子迁移：**唯一领域服务**（作用域语义由它实现；工具层不写 SQL）──
+      const res = await this.domain.changeStatus(
+        domainActor,
+        scheduleId,
+        this.targetStatus as 'done' | 'cancelled',
+        scope,
       );
 
-      if (res.affected === 0) {
+      if (res.updated === 0) {
         const after = await this.scheduleRepo.findOne({
           where: { id: scheduleId, tenantId: schedule.tenantId },
         });
@@ -177,8 +221,12 @@ export abstract class ScheduleStateBase implements ITool {
         success: true,
         data: {
           scheduleId,
+          seriesId: schedule.seriesId ?? null,
+          scope,
+          affected: res.updated,
+          affectedIds: res.rows,
           status: this.targetStatus,
-          message: `日程「${schedule.title}」已${this.actionName}`,
+          message: `日程「${schedule.title}」已${this.actionName}（作用域 ${scope}，影响 ${res.updated} 条）`,
         },
       };
     } catch (err) {

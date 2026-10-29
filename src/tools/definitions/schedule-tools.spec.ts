@@ -21,6 +21,7 @@ import { AiScheduleCompleteTool } from './ai-schedule-complete.tool';
 import { AiScheduleCreateTool } from './ai-schedule-create.tool';
 import { AiScheduleListTool } from './ai-schedule-list.tool';
 import { AiScheduleUpdateTool } from './ai-schedule-update.tool';
+import { ScheduleDomainService } from '../../brain/schedule/schedule-domain.service';
 import {
   matchesParticipant,
   normalizeParticipants,
@@ -44,6 +45,14 @@ function scheduleOf(over: Partial<AiScheduleEntity> = {}): AiScheduleEntity {
     createdBy: 'u-1',
     createdAt: new Date(),
     updatedAt: new Date(),
+    // AI-P2-2 新增字段的默认值（PRIVATE：共享与代管为空；单次日程无系列）
+    viewerRoles: null,
+    viewerUserIds: null,
+    managerUserIds: null,
+    seriesId: null,
+    recurrenceRule: null,
+    occurrenceAt: null,
+    exception: null,
     ...over,
   };
 }
@@ -56,15 +65,6 @@ function aclStub(
     resolveResource: jest.fn(() => Promise.resolve(o.access ?? 'admin')),
     canWriteResource: jest.fn(() => Promise.resolve(o.write ?? true)),
   } as unknown as OfficeAclService;
-}
-
-function opValue(v: unknown): unknown[] | null {
-  if (v && typeof v === 'object') {
-    const o = v as { value?: unknown; _value?: unknown; type?: string };
-    const raw = o.value ?? o._value;
-    if (o.type === 'in' && Array.isArray(raw)) return raw as unknown[];
-  }
-  return null;
 }
 
 describe('participants 边界匹配（双形态坑）', () => {
@@ -82,37 +82,97 @@ describe('participants 边界匹配（双形态坑）', () => {
 
 // ══════════ List ══════════
 describe('AiScheduleListTool', () => {
-  it('② 库层三支 OR + 授予支内容', async () => {
-    const find = jest.fn(() => Promise.resolve([scheduleOf()]));
-    const tool = new AiScheduleListTool(
-      { find } as never,
-      aclStub({ granted: ['7'] }),
+  /** AI-P2-2：list 的可见性由领域服务统一负责（find/query 都在领域层） */
+  function listHarness(
+    o: {
+      rows?: AiScheduleEntity[];
+      access?: string;
+      granted?: string[];
+    } = {},
+  ) {
+    const rows = o.rows ?? [scheduleOf()];
+    // 领域服务用 query() 做库层过滤（listVisible）⇒ 这里给 raw 形状
+    const query = jest.fn(() =>
+      Promise.resolve(
+        rows.map((r) => ({
+          id: r.id,
+          tenant_id: r.tenantId,
+          title: r.title,
+          start_at: r.startAt,
+          end_at: r.endAt,
+          owner: r.owner,
+          participants: r.participants,
+          status: r.status,
+          remind_at: r.remindAt,
+          reminded_at: r.remindedAt,
+          source: r.source,
+          created_by: r.createdBy,
+          created_at: r.createdAt,
+          updated_at: r.updatedAt,
+          viewer_roles: r.viewerRoles,
+          viewer_user_ids: r.viewerUserIds,
+          manager_user_ids: r.managerUserIds,
+          series_id: r.seriesId,
+          recurrence_rule: r.recurrenceRule,
+          occurrence_at: r.occurrenceAt,
+          exception: r.exception,
+        })),
+      ),
     );
-    const result = await tool.execute({}, CTX);
+    const acl = aclStub({ access: o.access ?? 'admin', granted: o.granted });
+    const domain = new ScheduleDomainService(
+      {
+        query,
+        find: jest.fn(() => Promise.resolve(rows)),
+        findOne: jest.fn(),
+        save: jest.fn(),
+        update: jest.fn(),
+        create: jest.fn(),
+      } as never,
+      acl,
+    );
+    const tool = new AiScheduleListTool(
+      { find: jest.fn() } as never,
+      acl,
+      domain,
+    );
+    return { tool, query, acl, domain };
+  }
+
+  it('② 库层三支 OR + 授予支内容', async () => {
+    const h = listHarness({ rows: [scheduleOf()], access: 'admin' });
+    const result = await h.tool.execute({}, CTX);
     expect(result.success).toBe(true);
-    const where = (find.mock.calls[0] as unknown as [{ where: unknown }])[0]
-      .where;
-    const branches = where as Array<Record<string, unknown>>;
-    expect(Array.isArray(where)).toBe(true);
-    expect(branches).toHaveLength(3);
-    expect(branches.every((b) => b.tenantId === 't1')).toBe(true);
-    expect(opValue(branches[0].id)).toEqual(['7']); // 授予支内容（不只断言"有三支"）
-    expect(branches[1].owner).toBe('user:u-1');
-    expect(branches[2].participants).toBeDefined(); // LIKE 模式
+    // AI-P2-2：库层条件由领域服务构造（SQL 断言 ⇒ 仍验证"库层收窄 + 租户"）
+    const sql = (h.query.mock.calls[0] as unknown as [string])[0];
+    expect(sql).toContain('s.tenant_id = ?');
+    expect(sql).toContain('s.owner = ?');
+    expect(sql).toContain('s.participants LIKE ?');
+    expect(sql).toContain('s.viewer_user_ids LIKE ?'); // AI-P2-2 新增共享人员支
+    expect(sql).toContain('s.manager_user_ids LIKE ?'); // 代管支
+    // 参数里含我的 principal（证明收窄以我为锚）
+    const params = (h.query.mock.calls[0] as unknown as [string, unknown[]])[1];
+    expect(params).toContain('user:u-1');
+  });
+
+  it('②b 有角色时追加 viewer_roles 支（共享角色取并集）', async () => {
+    const h = listHarness({ rows: [scheduleOf()], access: 'admin' });
+    // 带 role 的上下文 ⇒ SQL 必须含共享角色支
+    await h.tool.execute({}, { ...CTX, role: 'fin' });
+    const sql = (h.query.mock.calls[0] as unknown as [string])[0];
+    expect(sql).toContain('s.viewer_roles LIKE ?');
+    const params = (h.query.mock.calls[0] as unknown as [string, unknown[]])[1];
+    expect(params).toContain('%,fin,%');
   });
 
   it('③ 纵深防御：桩注入越权行 ⇒ 逐行确认丢弃', async () => {
-    const find = jest.fn(() =>
-      Promise.resolve([
-        scheduleOf(),
-        scheduleOf({ id: '999', owner: 'user:other', participants: null }),
-      ]),
-    );
-    const tool = new AiScheduleListTool(
-      { find } as never,
-      aclStub({ access: 'none' }),
-    );
-    const result = await tool.execute({}, CTX);
+    const rows = [
+      scheduleOf(),
+      scheduleOf({ id: '999', owner: 'user:other', participants: null }),
+    ];
+    // access=none ⇒ 领域服务 resolveAccess 返回 none，但 owner 规则仍会放行本人行
+    const h = listHarness({ rows, access: 'none' });
+    const result = await h.tool.execute({}, CTX);
     const ids = (
       result.data as { list: Array<{ scheduleId: string }> }
     ).list.map((x) => x.scheduleId);
@@ -136,13 +196,23 @@ describe('AiScheduleCreateTool', () => {
       Promise.resolve({ ...e, id: '77' } as AiScheduleEntity),
     );
     const create = jest.fn((e: Partial<AiScheduleEntity>) => e);
-    const tool = new AiScheduleCreateTool({
-      findOne,
-      find,
-      save,
-      create,
-    } as never);
-    return { tool, findOne, find, save };
+    // AI-P2-2：领域服务为**真实实例**（同源承重：预览/落库都由它算）
+    const domain = new ScheduleDomainService(
+      {
+        create,
+        save,
+        findOne,
+        find,
+        update: jest.fn(),
+        query: jest.fn(() => Promise.resolve([])),
+      } as never,
+      aclStub(),
+    );
+    const tool = new AiScheduleCreateTool(
+      { findOne, find, save, create } as never,
+      domain,
+    );
+    return { tool, findOne, find, save, domain };
   }
 
   it('④ preview 零副作用', async () => {
@@ -189,7 +259,7 @@ describe('AiScheduleCreateTool', () => {
 
 // ══════════ Complete / Cancel ══════════
 function stateHarness(
-  tool: AiScheduleCompleteTool | AiScheduleCancelTool,
+  kind: 'complete' | 'cancel',
   o: {
     schedule?: AiScheduleEntity | null;
     affected?: number;
@@ -199,20 +269,37 @@ function stateHarness(
   let finds = 0;
   const findOne = jest.fn(() => {
     finds += 1;
-    return Promise.resolve(
-      finds === 1 ? (o.schedule ?? scheduleOf()) : (o.after ?? null),
-    );
+    // AI-P2-2：领域服务 getById 也会 findOne ⇒ 前两次必须都返回目标日程，
+    // 之后（affected=0 的 after 探测）才返回 o.after
+    if (finds <= 2) return Promise.resolve(o.schedule ?? scheduleOf());
+    return Promise.resolve(o.after ?? null);
   });
-  const update = jest.fn(() => Promise.resolve({ affected: o.affected ?? 1 }));
-  const t = new (
-    tool.constructor as new (r: unknown, a: unknown) => typeof tool
-  )({ findOne, update }, aclStub({ write: false }));
-  return { tool: t, findOne, update };
+  const update = jest.fn((_w?: unknown, _s?: unknown) =>
+    Promise.resolve({ affected: o.affected ?? 1 }),
+  );
+  // AI-P2-2：状态迁移经**领域服务**（权限判定 + 三作用域都在领域层）
+  // AI-P2-2：判定上收领域服务后，owner 场景等价于 ACL 放行（access=admin）
+  const acl = aclStub({ write: false, access: 'admin' });
+  const domain = new ScheduleDomainService(
+    {
+      findOne,
+      update,
+      find: jest.fn(() => Promise.resolve([])),
+      query: jest.fn(() => Promise.resolve([])),
+      save: jest.fn(),
+      create: jest.fn(),
+    } as never,
+    acl,
+  );
+  const Ctor =
+    kind === 'complete' ? AiScheduleCompleteTool : AiScheduleCancelTool;
+  const t = new Ctor({ findOne, update } as never, acl, domain);
+  return { tool: t, findOne, update, domain };
 }
 
 describe('AiScheduleComplete / Cancel（原子迁移 + 终态语义）', () => {
   it('⑥ Complete：原子条件 status=planned；已 done ⇒ 回放（无歧义终态）', async () => {
-    const h = stateHarness(new AiScheduleCompleteTool({} as never, aclStub()));
+    const h = stateHarness('complete');
     const r = await h.tool.execute({ scheduleId: '12', confirm: true }, CTX);
     expect(r.success).toBe(true);
     const call = h.update.mock.calls[0] as unknown as [
@@ -222,12 +309,9 @@ describe('AiScheduleComplete / Cancel（原子迁移 + 终态语义）', () => {
     expect(call[0].status).toBe('planned'); // ← 承重：原子条件
     expect(call[1].status).toBe('done');
 
-    const already = stateHarness(
-      new AiScheduleCompleteTool({} as never, aclStub()),
-      {
-        schedule: scheduleOf({ status: 'done' }),
-      },
-    );
+    const already = stateHarness('complete', {
+      schedule: scheduleOf({ status: 'done' }),
+    });
     const r2 = await already.tool.execute(
       { scheduleId: '12', confirm: true },
       CTX,
@@ -238,7 +322,7 @@ describe('AiScheduleComplete / Cancel（原子迁移 + 终态语义）', () => {
   });
 
   it('⑦ Cancel：已 done ⇒ **明确失败**（两终态互斥，不回放）', async () => {
-    const h = stateHarness(new AiScheduleCancelTool({} as never, aclStub()), {
+    const h = stateHarness('cancel', {
       schedule: scheduleOf({ status: 'done' }),
     });
     const r = await h.tool.execute({ scheduleId: '12', confirm: true }, CTX);
@@ -256,11 +340,27 @@ describe('AiScheduleUpdateTool', () => {
   ) {
     const findOne = jest.fn(() => Promise.resolve(o.schedule ?? scheduleOf()));
     const save = jest.fn((e: AiScheduleEntity) => Promise.resolve(e));
-    const tool = new AiScheduleUpdateTool(
-      { findOne, save } as never,
-      aclStub({ write: o.write ?? true }),
+    const update = jest.fn((_where: unknown, _set: unknown) =>
+      Promise.resolve({ affected: 1 }),
     );
-    return { tool, findOne, save };
+    const acl = aclStub({ write: o.write ?? true });
+    // AI-P2-2：领域服务真实实例（承载权限判定 + 三作用域写入）
+    const domain = new ScheduleDomainService(
+      {
+        findOne,
+        save,
+        update,
+        find: jest.fn(() => Promise.resolve([])),
+        query: jest.fn(() => Promise.resolve([])),
+      } as never,
+      acl,
+    );
+    const tool = new AiScheduleUpdateTool(
+      { findOne, save, update } as never,
+      acl,
+      domain,
+    );
+    return { tool, findOne, save, update, domain };
   }
 
   it('⑧ 拒 status（先于一切）；仅 planned 可改', async () => {
@@ -288,7 +388,8 @@ describe('AiScheduleUpdateTool', () => {
       CTX,
     );
     expect(r3.success).toBe(true);
-    const saved = ok.save.mock.calls[0][0];
-    expect(saved.participants).toBe(',u1,u12,'); // 归一化 + 去重
+    // AI-P2-2：写入经**领域服务**（不再由工具层 save）⇒ 断言领域层的 update 调用参数
+    const patch = ok.update.mock.calls[0][1] as { participants?: string };
+    expect(patch.participants).toBe(',u1,u12,'); // 归一化 + 去重
   });
 });
