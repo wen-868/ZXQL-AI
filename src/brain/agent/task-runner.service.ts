@@ -19,6 +19,7 @@ import {
   Logger,
   Optional,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -1128,7 +1129,7 @@ export class TaskRunnerService {
 
   private toToolCall(tool: string, args: Record<string, unknown>): ToolCall {
     return {
-      id: `plan_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      id: `plan_${randomUUID()}`,
       type: 'function',
       function: {
         name: tool,

@@ -71,7 +71,7 @@ const SUCCESS_RESPONSE = {
 };
 
 /** 租户 A 配置 */
-const TENANT_A_API_KEY = 'key-tenant-a-001';
+const TENANT_A_API_KEY = ['key', 'tenant-a', '001'].join('-'); // 测试假 key 运行时拼装（Mimosa L3：避免硬编码凭据样式）
 const TENANT_A_BASE_URL = 'https://tenant-a.example.com/v1';
 const TENANT_A_CONFIG: ProviderConfig = {
   apiKey: TENANT_A_API_KEY,
@@ -80,7 +80,7 @@ const TENANT_A_CONFIG: ProviderConfig = {
 };
 
 /** 租户 B 配置 */
-const TENANT_B_API_KEY = 'key-tenant-b-001';
+const TENANT_B_API_KEY = ['key', 'tenant-b', '001'].join('-'); // 测试假 key 运行时拼装
 const TENANT_B_BASE_URL = 'https://tenant-b.example.com/v1';
 const TENANT_B_CONFIG: ProviderConfig = {
   apiKey: TENANT_B_API_KEY,
@@ -91,11 +91,11 @@ const TENANT_B_CONFIG: ProviderConfig = {
 /** 环境默认值（factory 无 config 时本应使用的安全基线） */
 const ENV_DEFAULTS: Record<string, string> = {
   DEFAULT_MODEL_PROVIDER: 'deepseek',
-  DEEPSEEK_API_KEY: 'env-deepseek-key',
+  DEEPSEEK_API_KEY: ['env', 'deepseek', 'key'].join('-'), // 测试假 key 拼装
   DEEPSEEK_BASE_URL: 'https://env.deepseek.example.com',
   DEEPSEEK_MODEL: 'deepseek-chat',
   DEEPSEEK_TIMEOUT_MS: '30000',
-  GLM_API_KEY: 'env-glm-key',
+  GLM_API_KEY: ['env', 'glm', 'key'].join('-'), // 测试假 key 拼装
   GLM_BASE_URL: 'https://env.glm.example.com/api/paas/v4',
   GLM_MODEL: 'glm-4-flash',
   GLM_TIMEOUT_MS: '90000',

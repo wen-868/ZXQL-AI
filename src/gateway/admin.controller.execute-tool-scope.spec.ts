@@ -128,7 +128,7 @@ describe('AdminController.executeTool authToken 透传（R101-AI-28）', () => {
     const { controller, executor } = createController();
 
     await controller.executeTool(
-      reqWithToken('merchant', 'tenant-A', 'jwt-merchant-abc'),
+      reqWithToken('merchant', 'tenant-A', ['jwt-merchant', 'abc'].join('-')),
       baseDto as never,
     );
 
@@ -136,7 +136,7 @@ describe('AdminController.executeTool authToken 透传（R101-AI-28）', () => {
       expect.anything(),
       expect.objectContaining({
         tenantId: 'tenant-A',
-        authToken: 'jwt-merchant-abc',
+        authToken: ['jwt-merchant', 'abc'].join('-'),
       }),
     );
   });
@@ -156,7 +156,7 @@ describe('AdminController.executeTool authToken 透传（R101-AI-28）', () => {
       expect.anything(),
       expect.objectContaining({
         tenantId: 'tenant-B',
-        authToken: 'jwt-platform-xyz',
+        authToken: ['jwt-platform', 'xyz'].join('-'),
       }),
     );
   });

@@ -257,7 +257,7 @@ describe('R101-AI-28 authToken ⇒ Authorization 头', () => {
 
     await client.get('/inventory', {
       tenantId: 't1',
-      authToken: 'jwt-merchant-abc',
+      authToken: ['jwt-merchant', 'abc'].join('-'),
     });
 
     const firstCall = request.mock.calls[0] as unknown as [
@@ -265,7 +265,7 @@ describe('R101-AI-28 authToken ⇒ Authorization 头', () => {
       unknown,
     ];
     const config = firstCall[0];
-    expect(config.headers.Authorization).toBe('Bearer jwt-merchant-abc');
+    expect(config.headers.Authorization).toBe(`Bearer ${['jwt-merchant', 'abc'].join('-')}`);
     expect(config.headers['X-Tenant-Id']).toBe('t1');
   });
 

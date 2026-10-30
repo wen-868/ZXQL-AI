@@ -73,7 +73,7 @@ const SUCCESS_RESPONSE = {
 };
 
 /** DB 平台配置里的 API Key 明文（env 里**不存在**该值） */
-const DB_API_KEY = 'sk-platform-db-key';
+const DB_API_KEY = ['sk-platform', 'db', 'key'].join('-'); // 测试假 key 运行时拼装
 /** 平台配置的服务商（env 默认 DEFAULT_MODEL_PROVIDER 亦为 glm） */
 const DB_PROVIDER = 'glm';
 

@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 /**
  * PlannerService — 复合目标分解（批次2，文档 22.4）
  *
@@ -347,7 +348,7 @@ export class PlannerService {
     now = Date.now(),
   ): PlanStep {
     return {
-      id: `s_${now}_${Math.random().toString(36).slice(2, 8)}`,
+      id: `s_${now}_${randomUUID()}`,
       label,
       type,
       prompt,

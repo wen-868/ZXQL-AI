@@ -7,10 +7,15 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-09-05
  */
-const { resolveAdminToken } = require('./lib/bench-auth');
+const { resolveAdminToken, assertOutboundAllowed } = require('./lib/bench-auth');
 
-const AI_BASE = process.argv[2] || 'http://127.0.0.1:3016';
-const AUTH_BASE = process.argv[3] || 'http://127.0.0.1:8080';
+const AI_BASE = 'http://127.0.0.1:3016'; // 本地种子/基准工具：地址固定回环（SEC-003，argv 已移除）
+// SSRF 守卫（Mimosa L3）：本脚本为本地种子工具，目标地址限定本机回环
+if (!/^https?:\/\/(127\.0\.0\.1|\[::1\]|localhost)(:\d+)?$/.test(AI_BASE)) {
+  console.error('拒绝：AI_BASE 仅允许本机回环地址（本地种子工具，不向远端发请求）');
+  process.exit(1);
+}
+const AUTH_BASE = 'http://127.0.0.1:8080'; // 同上
 
 async function adminToken() {
   const { token, via } = await resolveAdminToken({
@@ -21,16 +26,22 @@ async function adminToken() {
   return token;
 }
 
-async function create(token, body) {
-  const r = await fetch(`${AI_BASE}/api/ai/employees`, {
-    method: 'POST',
+// SEC-003 出站校验（AI-SECURITY-BASELINE-01）：统一经守卫后的请求封装
+async function authedFetch(url, token, body) {
+  assertOutboundAllowed(url);
+  const r = await fetch(url, {
+    method: body ? 'POST' : 'GET',
     headers: {
       'Content-Type': 'application/json',
       Authorization: 'Bearer ' + token,
     },
-    body: JSON.stringify(body),
+    ...(body ? { body: JSON.stringify(body) } : {}),
   });
   return { status: r.status, body: await r.json().catch(() => ({})) };
+}
+
+async function create(token, body) {
+  return authedFetch(`${AI_BASE}/api/ai/employees`, token, body);
 }
 
 (async () => {
@@ -49,11 +60,7 @@ async function create(token, body) {
   let buyerUid = buyer.body.employeeUid;
   // 幂等：已存在则从列表取 uid
   if (!buyerUid) {
-    const list = await (
-      await fetch(`${AI_BASE}/api/ai/employees`, {
-        headers: { Authorization: 'Bearer ' + token },
-      })
-    ).json();
+    const list = (await authedFetch(`${AI_BASE}/api/ai/employees`, token)).body;
     const found = (Array.isArray(list) ? list : []).find(
       (e) => e.name === '采专员',
     );
@@ -77,11 +84,7 @@ async function create(token, body) {
       : JSON.stringify(keeper.body).slice(0, 120),
   );
 
-  const list = await (
-    await fetch(`${AI_BASE}/api/ai/employees`, {
-      headers: { Authorization: 'Bearer ' + token },
-    })
-  ).json();
+  const list = (await authedFetch(`${AI_BASE}/api/ai/employees`, token)).body;
   console.log(
     '当前员工:',
     (Array.isArray(list) ? list : [])
