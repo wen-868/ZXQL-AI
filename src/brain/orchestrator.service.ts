@@ -60,7 +60,7 @@ import type { PlanStep } from './agent/agent.types';
 import { LongTermMemoryService } from './memory/long-term-memory.service';
 import { ContextBuilder } from './context-builder.service';
 import { MemoryManager } from './memory-manager.service';
-import { ConfirmationService } from './confirmation.service';
+import { WriteConfirmPipelineService } from './write-confirm-pipeline.service';
 import { StructuredExtractor } from './extraction/structured-extractor';
 import { CaptureService } from '../evolution/capture.service';
 import { MetricsService } from '../common/metrics.service';
@@ -287,7 +287,7 @@ export class Orchestrator {
     private readonly tenantContext: TenantContext,
     private readonly contextBuilder: ContextBuilder,
     private readonly memoryManager: MemoryManager,
-    private readonly confirmationService: ConfirmationService,
+    private readonly writeConfirmPipeline: WriteConfirmPipelineService,
     private readonly graphExecutor: GraphExecutorService,
     private readonly router: ProviderRouterService,
     private readonly learning: LearningService,
@@ -957,11 +957,14 @@ export class Orchestrator {
           // 中携带，供前端渲染确认卡片。risk/needsReview 取自工具注册元信息，
           // 高危写（资金/删除/批量）触发二次确认。
           let confirmationId: string | undefined;
+          let writeConfirmExpireAt: number | undefined;
           if (toolResult.preview) {
             try {
               const tool = this.registry.get(tc.function.name);
               const risk = tool?.risk ?? 'medium';
-              const confirmation = await this.confirmationService.create({
+              // AI-P2-4 切片 1：写确认挂起统一经 WriteConfirmPipeline
+              // （令牌生成与 expireAt 计算单源，三边不再各自拼装）
+              const suspended = await this.writeConfirmPipeline.suspend({
                 tenantId,
                 conversationId,
                 customerId,
@@ -974,7 +977,8 @@ export class Orchestrator {
                 operationLabel:
                   toolResult.preview.operation ?? tc.function.name,
               });
-              confirmationId = confirmation.confirmationId;
+              confirmationId = suspended.token;
+              writeConfirmExpireAt = suspended.expireAt;
             } catch (err) {
               this.logger.warn(
                 `注册待确认操作失败：${err instanceof Error ? err.message : String(err)}`,
@@ -995,7 +999,8 @@ export class Orchestrator {
           // A7 文档 12.1：写意图挂起补充 pending_write + await_confirm 事件
           // （与 tool_result.preview 并存，兼容现有前端确认卡）
           if (confirmationId) {
-            const expireAt = Date.now() + WRITE_TOKEN_TTL_MS;
+            const expireAt =
+              writeConfirmExpireAt ?? Date.now() + WRITE_TOKEN_TTL_MS;
             yield {
               type: 'pending_write',
               token: confirmationId,

@@ -13,20 +13,14 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
-import {
-  ConflictException,
-  Injectable,
-  Logger,
-  Optional,
-} from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AiExecutionPlanEntity } from '../../database/entities/ai-execution-plan.entity';
 import { ToolExecutor } from '../../tools/tool-executor';
 import { ToolRegistry } from '../../tools/tool-registry';
-import { ConfirmationService } from '../confirmation.service';
+import { WriteConfirmPipelineService } from '../write-confirm-pipeline.service';
 import { SelfHealLoopService } from './self-heal-loop.service';
 import { PlannerService } from './planner.service';
 import { CaptureService } from '../../evolution/capture.service';
@@ -37,10 +31,7 @@ import { detectIntentCategories } from '../intent-detector';
 import { KnowledgeRulesService } from '../knowledge-rules.service';
 import { AiConfigService } from '../../tenant/ai-config.service';
 import { ProviderRouterService } from '../router/provider-router.service';
-import {
-  resolveWriteTokenTtlMs,
-  WRITE_TOKEN_TTL_HOURS_KEY,
-} from '../write-guard.service';
+import {} from '../write-guard.service';
 import type { ToolContext, ToolResult } from '../../tools/tool.interface';
 import type { ChatMessage, ToolCall } from '../../providers/provider.interface';
 import {
@@ -79,7 +70,7 @@ export class TaskRunnerService {
     private readonly planRepo: Repository<AiExecutionPlanEntity>,
     private readonly executor: ToolExecutor,
     private readonly registry: ToolRegistry,
-    private readonly confirmationService: ConfirmationService,
+    private readonly writeConfirmPipeline: WriteConfirmPipelineService,
     private readonly selfHeal: SelfHealLoopService,
     private readonly planner: PlannerService,
     private readonly capture: CaptureService,
@@ -88,7 +79,6 @@ export class TaskRunnerService {
     private readonly router: ProviderRouterService,
     private readonly aiConfigService: AiConfigService,
     private readonly knowledgeRules: KnowledgeRulesService,
-    @Optional() private readonly configService?: ConfigService,
   ) {}
 
   /**
@@ -99,9 +89,8 @@ export class TaskRunnerService {
    * 前端显示"还有 23 小时"而令牌实际已过期，用户点了确认却被判失效。
    */
   private get writeTokenTtlMs(): number {
-    return resolveWriteTokenTtlMs(
-      this.configService?.get<string>(WRITE_TOKEN_TTL_HOURS_KEY),
-    );
+    // AI-P2-4 切片 1：TTL 经 WriteConfirmPipeline 单源（WriteGuard 同口径）
+    return this.writeConfirmPipeline.getTokenTtlMs();
   }
 
   // ──────────────────────────────────────────────────────────
@@ -879,7 +868,9 @@ export class TaskRunnerService {
     const tool = this.registry.get(toolName);
     const risk = tool?.risk ?? 'medium';
     try {
-      const confirmation = await this.confirmationService.create({
+      // AI-P2-4 切片 1：写确认挂起统一经 WriteConfirmPipeline
+      // （令牌生成与 expireAt 计算单源，三边不再各自拼装）
+      const suspended = await this.writeConfirmPipeline.suspend({
         tenantId: plan.tenantId,
         conversationId: context.sessionId,
         customerId: context.customerId,
@@ -895,14 +886,14 @@ export class TaskRunnerService {
         planId: plan.id,
         planStepId: step.id,
       });
-      step.pendingToken = confirmation.confirmationId;
+      step.pendingToken = suspended.token;
       step.preview = result.preview;
       step.status = 'suspended';
       step.updatedAt = Date.now();
       plan.state = 'suspended';
       await this.savePlan(plan);
 
-      const expireAt = Date.now() + this.writeTokenTtlMs;
+      const expireAt = suspended.expireAt;
       const events: AgentRunEvent[] = [
         {
           type: 'tool_result',
@@ -910,18 +901,18 @@ export class TaskRunnerService {
           success: result.success,
           data: result.data,
           preview: result.preview,
-          confirmationId: confirmation.confirmationId,
+          confirmationId: suspended.token,
         },
         {
           type: 'pending_write',
-          token: confirmation.confirmationId,
+          token: suspended.token,
           preview: result.preview,
           writeType: toolName,
           expireAt,
         },
         {
           type: 'await_confirm',
-          token: confirmation.confirmationId,
+          token: suspended.token,
           expireAt,
         },
         {
@@ -934,7 +925,7 @@ export class TaskRunnerService {
         },
       ];
       this.logger.log(
-        `计划写步骤挂起：plan=${plan.id} step=${step.id} tool=${toolName} token=${confirmation.confirmationId.slice(0, 12)}…`,
+        `计划写步骤挂起：plan=${plan.id} step=${step.id} tool=${toolName} token=${suspended.token.slice(0, 12)}…`,
       );
       return { suspended: true, events };
     } catch (err) {

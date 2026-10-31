@@ -29,6 +29,7 @@ import { CheckpointerService } from './checkpointer.service';
 import { ReviewTaskService } from '../review/review-task.service';
 import { EvidenceLedgerService } from '../evidence/evidence-ledger.service';
 import { ConfirmationService } from '../confirmation.service';
+import { WriteConfirmPipelineService } from '../write-confirm-pipeline.service';
 import { KnowledgeRulesService } from '../knowledge-rules.service';
 import {
   BUILTIN_GRAPHS,
@@ -82,6 +83,7 @@ export class GraphExecutorService implements OnModuleInit {
     private readonly evidence: EvidenceLedgerService,
     private readonly knowledgeRules: KnowledgeRulesService,
     private readonly confirmationService: ConfirmationService,
+    private readonly writeConfirmPipeline: WriteConfirmPipelineService,
   ) {}
 
   /**
@@ -354,7 +356,10 @@ export class GraphExecutorService implements OnModuleInit {
             // 未真执行）→ 挂 WriteGuard 确认并暂停图——此前 preview 被当作
             // "节点成功"继续跑到 graph_done，业务单据根本没创建且无确认入口
             if (tool?.isWriteOperation && result.success && result.preview) {
-              const write = await this.confirmationService.create({
+              // AI-P2-4 切片 1：挂起统一经 WriteConfirmPipeline（令牌生成与
+              // expireAt 单源）——修复 D1：此前 expireAt 硬编码 24h，
+              // 与 WRITE_TOKEN_TTL_HOURS 配置脱钩
+              const suspended = await this.writeConfirmPipeline.suspend({
                 tenantId: toolContext.tenantId,
                 conversationId: sessionId,
                 toolName: node.tool,
@@ -364,21 +369,21 @@ export class GraphExecutorService implements OnModuleInit {
                 operationLabel: `图「${graph.name}」节点「${node.label}」`,
               });
               state.status = 'paused';
-              state.pendingWriteToken = write.confirmationId;
+              state.pendingWriteToken = suspended.token;
               // P2 顺手改（验收意见）：挂起不写 history——awaiting 状态既非
               // 成功也非失败，节点结果由确认续跑回填后再入史
               await this.checkpointer.save(state);
-              const expireAt = Date.now() + 24 * 60 * 60 * 1000;
+              const expireAt = suspended.expireAt;
               yield {
                 type: 'pending_write',
-                token: write.confirmationId,
+                token: suspended.token,
                 preview: result.preview,
                 writeType: node.tool,
                 expireAt,
               };
               yield {
                 type: 'await_confirm',
-                token: write.confirmationId,
+                token: suspended.token,
                 expireAt,
               };
               return;

@@ -177,6 +177,16 @@ function makeExecutor(
     getByTenant: jest.fn().mockResolvedValue(null),
     getExecutedByConfirmation: jest.fn().mockReturnValue(null),
   };
+  const writeConfirmPipelineMock = {
+    suspend: jest.fn().mockImplementation((input: Record<string, unknown>) =>
+      Promise.resolve({
+        token: 'wg_tok1',
+        expireAt: Date.now() + 24 * 60 * 60 * 1000,
+        confirmation: { confirmationId: 'wg_tok1', ...input },
+      }),
+    ),
+    getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
+  };
   return new GraphExecutorService(
     executorMock as unknown as ToolExecutor,
     checkpointer as unknown as CheckpointerService,
@@ -185,6 +195,7 @@ function makeExecutor(
     evidence as unknown as EvidenceLedgerService,
     knowledgeRulesMock as unknown as KnowledgeRulesService,
     confirmationServiceMock as never,
+    writeConfirmPipelineMock as never,
   );
 }
 
@@ -429,6 +440,10 @@ describe('GraphExecutorService', () => {
         getByTenant: jest.fn().mockResolvedValue(null),
         getExecutedByConfirmation: jest.fn().mockReturnValue(null),
       } as never,
+      {
+        suspend: jest.fn().mockResolvedValue({ token: 'wg_x', expireAt: 0 }),
+        getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
+      } as never,
     );
 
     const events: Array<{ type: string; [k: string]: unknown }> = [];
@@ -605,7 +620,6 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
   }) {
     const checkpointer = makeCheckpointer();
     const confirmation = {
-      create: jest.fn().mockResolvedValue({ confirmationId: 'wg_tok1' }),
       getByTenant: jest
         .fn()
         .mockResolvedValue(
@@ -618,6 +632,15 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
           ? { result: opts.executedResult }
           : null,
       ),
+    };
+    // AI-P2-4 切片 1：挂起经 WriteConfirmPipeline（suspend 委托 create）
+    const writeConfirmPipeline = {
+      suspend: jest.fn().mockResolvedValue({
+        token: 'wg_tok1',
+        expireAt: Date.now() + 24 * 60 * 60 * 1000,
+        confirmation: { confirmationId: 'wg_tok1' },
+      }),
+      getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
     };
     const executorMock = {
       executeToolCall: jest
@@ -649,8 +672,16 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
       evidence as never,
       { getRulesContext: jest.fn(() => undefined) } as never,
       confirmation as never,
+      writeConfirmPipeline as never,
     );
-    return { service, checkpointer, confirmation, executorMock, evidence };
+    return {
+      service,
+      checkpointer,
+      confirmation,
+      writeConfirmPipeline,
+      executorMock,
+      evidence,
+    };
   }
 
   async function collect(
@@ -662,13 +693,15 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
   }
 
   it('写工具返回 preview → 挂 WriteGuard 确认并暂停（节点不标成功、不记台账、不推到 end）', async () => {
-    const { service, checkpointer, confirmation, evidence } = makeWired({
-      preview: { operation: '创建销售单', summary: '预览', details: {} },
-    });
+    const { service, checkpointer, writeConfirmPipeline, evidence } = makeWired(
+      {
+        preview: { operation: '创建销售单', summary: '预览', details: {} },
+      },
+    );
 
     const events = await collect(service.execute(WRITE_GRAPH, 's1', makeCtx()));
 
-    expect(confirmation.create).toHaveBeenCalledWith(
+    expect(writeConfirmPipeline.suspend).toHaveBeenCalledWith(
       expect.objectContaining({
         toolName: 'createSalesOrder',
         tenantId: 't1',
@@ -733,6 +766,61 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
     expect(events.some((e) => e.type === 'graph_done')).toBe(false);
   });
 
+  // AI-P2-4 硬验收 5：graph expireAt 改用 WriteConfirmPipeline 统一 TTL 源——
+  // 修复 D1：此前硬编码 24h，与 WRITE_TOKEN_TTL_HOURS 配置脱钩
+  it('graph expireAt 可配置：TTL=2h 时挂起事件 expireAt 跟随（不再固定 24h）', async () => {
+    const ttl = 2 * 60 * 60 * 1000;
+    const start = Date.now();
+    const checkpointer = makeCheckpointer();
+    const executorMock = {
+      executeToolCall: jest.fn().mockResolvedValue({
+        success: true,
+        preview: { operation: '创建销售单', summary: '预览', details: {} },
+      }),
+    };
+    const service = new GraphExecutorService(
+      executorMock as never,
+      checkpointer as never,
+      {
+        toToolDefinitions: jest.fn(() => []),
+        has: jest.fn(() => true),
+        get: jest.fn(() => ({
+          name: 'createSalesOrder',
+          isWriteOperation: true,
+          risk: 'medium',
+          needsReview: false,
+        })),
+      } as never,
+      { create: jest.fn(), get: jest.fn().mockResolvedValue(null) } as never,
+      {
+        recordWrite: jest.fn(),
+        verify: jest.fn(() => ({ ok: true, issues: [] })),
+      } as never,
+      { getRulesContext: jest.fn(() => undefined) } as never,
+      { getByTenant: jest.fn().mockResolvedValue(null) } as never,
+      {
+        suspend: jest.fn().mockResolvedValue({
+          token: 'wg_cfg',
+          expireAt: start + ttl,
+          confirmation: { confirmationId: 'wg_cfg' },
+        }),
+        getTokenTtlMs: jest.fn(() => ttl),
+      } as never,
+    );
+
+    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    for await (const e of service.execute(WRITE_GRAPH, 's1', makeCtx())) {
+      events.push(e);
+    }
+
+    const pw = events.find((e) => e.type === 'pending_write');
+    expect(pw).toBeDefined();
+    // expireAt ≈ start + 2h（允许时钟毫秒误差），绝非 start + 24h
+    const drift = Math.abs((pw!.expireAt as number) - (start + ttl));
+    expect(drift).toBeLessThan(5000);
+    expect(pw!.expireAt as number).toBeLessThan(start + 23 * 60 * 60 * 1000);
+  });
+
   it('needsReview 审核通过续跑：不再重复建单且带 allowConfirm 真执行（死循环封堵）', async () => {
     const reviewMock = {
       create: jest.fn().mockResolvedValue({ id: 7, payload: null }),
@@ -767,6 +855,10 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
         create: jest.fn(),
         getByTenant: jest.fn().mockResolvedValue(null),
         getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+      } as never,
+      {
+        suspend: jest.fn().mockResolvedValue({ token: 'wg_s', expireAt: 0 }),
+        getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
       } as never,
     );
 
@@ -858,6 +950,10 @@ describe('TOOL_TIMEOUT_MS env 防护', () => {
         create: jest.fn(),
         getByTenant: jest.fn().mockResolvedValue(null),
         getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+      } as never,
+      {
+        suspend: jest.fn().mockResolvedValue({ token: 'wg_s', expireAt: 0 }),
+        getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
       } as never,
     );
 

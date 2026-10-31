@@ -24,6 +24,7 @@ import { ContextBuilder } from './context-builder.service';
 import { MemoryManager } from './memory-manager.service';
 import { Orchestrator } from './orchestrator.service';
 import { ConfirmationService } from './confirmation.service';
+import { WriteConfirmPipelineService } from './write-confirm-pipeline.service';
 import { WriteGuardService } from './write-guard.service';
 import { StructuredExtractor } from './extraction/structured-extractor';
 import { McpTokenService } from './mcp/mcp-token.service';
@@ -96,6 +97,7 @@ import { ReportService } from './v2/report.service';
     MemoryManager,
     Orchestrator,
     ConfirmationService,
+    WriteConfirmPipelineService,
     WriteGuardService,
     StructuredExtractor,
     McpTokenService,

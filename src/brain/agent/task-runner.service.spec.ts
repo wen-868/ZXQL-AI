@@ -77,7 +77,7 @@ function makeRunner(
   overrides: {
     executor?: Partial<ExecutorMock>;
     selfHeal?: { heal: jest.Mock };
-    confirmation?: { create: jest.Mock };
+    writeConfirmPipeline?: { suspend: jest.Mock; getTokenTtlMs: jest.Mock };
     registry?: { get: jest.Mock };
   } = {},
 ) {
@@ -98,11 +98,16 @@ function makeRunner(
     toToolDefinitionsForCategories: jest.fn().mockReturnValue([]),
     ...overrides.registry,
   };
-  const confirmation = {
-    create: jest.fn().mockResolvedValue({
-      confirmationId: 'wg_test_token',
-    }),
-    ...overrides.confirmation,
+  const writeConfirmPipeline = {
+    suspend: jest.fn().mockImplementation(() =>
+      Promise.resolve({
+        token: 'wg_test_token',
+        expireAt: Date.now() + 24 * 60 * 60 * 1000,
+        confirmation: { confirmationId: 'wg_test_token' },
+      }),
+    ),
+    getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
+    ...overrides.writeConfirmPipeline,
   };
   const selfHeal = {
     heal: jest.fn().mockResolvedValue({
@@ -152,7 +157,7 @@ function makeRunner(
     repo as never,
     executor as never,
     registry as never,
-    confirmation as never,
+    writeConfirmPipeline as never,
     selfHeal as never,
     planner as never,
     capture as never,
@@ -167,7 +172,7 @@ function makeRunner(
     repo,
     executor,
     registry,
-    confirmation,
+    writeConfirmPipeline,
     selfHeal,
     planner,
     capture,
@@ -291,7 +296,7 @@ describe('TaskRunnerService', () => {
   });
 
   it('run：写步骤返回预览 → 挂起令牌，流结束且计划 suspended', async () => {
-    const { runner, confirmation } = makeRunner({
+    const { runner, writeConfirmPipeline } = makeRunner({
       executor: {
         executeToolCall: jest.fn().mockResolvedValue({
           success: true,
@@ -312,7 +317,7 @@ describe('TaskRunnerService', () => {
     expect(events.some((e) => e.type === 'pending_write')).toBe(true);
     expect(events.some((e) => e.type === 'await_confirm')).toBe(true);
     expect(events.some((e) => e.type === 'done')).toBe(false);
-    expect(confirmation.create).toHaveBeenCalledWith(
+    expect(writeConfirmPipeline.suspend).toHaveBeenCalledWith(
       expect.objectContaining({
         planId: plan.id,
         planStepId: 's1',
@@ -334,8 +339,9 @@ describe('TaskRunnerService', () => {
           preview: { operation: '创建销售单', summary: '红星商行 20 件五粮液' },
         }),
       },
-      confirmation: {
-        create: jest.fn().mockRejectedValue(new Error('Redis down')),
+      writeConfirmPipeline: {
+        suspend: jest.fn().mockRejectedValue(new Error('Redis down')),
+        getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
       },
     });
     const plan = await runner.createPlan({

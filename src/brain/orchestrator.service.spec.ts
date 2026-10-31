@@ -123,13 +123,20 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
       saveHistory: jest.fn().mockResolvedValue(undefined),
       archiveSession: jest.fn().mockResolvedValue(undefined),
     },
-    confirmationService: {
-      create: jest.fn().mockResolvedValue({
-        confirmationId: 'wg_orch_token',
-        docType: 'createSalesOrder',
-        risk: 'medium',
-        operationLabel: '创建销售单',
-      }),
+    writeConfirmPipeline: {
+      suspend: jest.fn().mockImplementation((input: Record<string, unknown>) =>
+        Promise.resolve({
+          token: 'wg_orch_token',
+          expireAt: Date.now() + 24 * 60 * 60 * 1000,
+          confirmation: {
+            confirmationId: 'wg_orch_token',
+            toolName: input.toolName,
+            docType: input.docType,
+            risk: 'medium',
+            operationLabel: input.operationLabel,
+          },
+        }),
+      ),
     },
     graphExecutor: { getGraph: jest.fn(), execute: jest.fn() },
     router: {
@@ -200,7 +207,7 @@ function makeOrchestrator(overrides: Record<string, unknown> = {}): Harness {
     deps.tenantContext as never,
     deps.contextBuilder as never,
     deps.memoryManager as never,
-    deps.confirmationService as never,
+    deps.writeConfirmPipeline as never,
     deps.graphExecutor as never,
     deps.router as never,
     deps.learning as never,
@@ -331,9 +338,9 @@ describe('Orchestrator（Agent Loop 核心）', () => {
 
     const events = await collect(h.orchestrator);
 
-    // 写工具预览 ⇒ 经确认服务挂起并下发令牌（后续 confirm → 3 分钟撤销窗口的入口）
-    expect(h.deps.confirmationService.create).toHaveBeenCalledTimes(1);
-    expect(h.deps.confirmationService.create).toHaveBeenCalledWith(
+    // 写工具预览 ⇒ 经写确认管线挂起并下发令牌（后续 confirm → 3 分钟撤销窗口的入口）
+    expect(h.deps.writeConfirmPipeline.suspend).toHaveBeenCalledTimes(1);
+    expect(h.deps.writeConfirmPipeline.suspend).toHaveBeenCalledWith(
       expect.objectContaining({ toolName: 'createSalesOrder' }),
     );
     const confirmEvent = events.find(
