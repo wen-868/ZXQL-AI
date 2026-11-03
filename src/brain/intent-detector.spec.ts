@@ -193,4 +193,107 @@ describe('resolveIntentCategories（意图分诊双通道）', () => {
     expect(result.categories!.every((c) => valid.has(c))).toBe(true);
     expect(result.categories!.length).toBeLessThanOrEqual(4);
   });
+
+  it('兜底 timer 生命周期：完成与重复触发后均不残留（回归：3500ms 悬空 timer 致 Jest worker force-exit）', async () => {
+    const created: Array<ReturnType<typeof setTimeout>> = [];
+    const cleared: Array<unknown> = [];
+    const realSetTimeout = global.setTimeout as unknown as (
+      handler: TimerHandler,
+      ms?: number,
+    ) => ReturnType<typeof setTimeout>;
+    const realClearTimeout = global.clearTimeout;
+    const setTimeoutSpy = jest
+      .spyOn(global, 'setTimeout')
+      .mockImplementation((handler: TimerHandler, ms?: number) => {
+        const handle = realSetTimeout(handler, ms);
+        created.push(handle);
+        return handle;
+      });
+    const clearTimeoutSpy = jest
+      .spyOn(global, 'clearTimeout')
+      .mockImplementation((handle?: Parameters<typeof realClearTimeout>[0]) => {
+        cleared.push(handle);
+        return realClearTimeout(handle);
+      });
+
+    try {
+      // 分诊缓存是模块级共享：两条不同消息各触发一次 LLM 通道（重复调用路径）
+      const classifier = jest.fn().mockResolvedValue(['none']);
+      const first = await resolveIntentCategories(
+        '陪我聊聊天解解闷吧',
+        classifier,
+      );
+      const second = await resolveIntentCategories(
+        '随便闲聊一会儿也好啊',
+        classifier,
+      );
+      expect(first.lane).toBe('chat');
+      expect(second.lane).toBe('chat');
+      // 两次调用各创建一个兜底 timer，且全部被 clearTimeout 清除（完成路径无悬空）
+      expect(created.length).toBe(2);
+      expect(cleared).toEqual(created);
+    } finally {
+      setTimeoutSpy.mockRestore();
+      clearTimeoutSpy.mockRestore();
+    }
+  });
+
+  it('兜底 timer 生命周期：classifier 异常路径同样清除（race reject 仍经 finally）', async () => {
+    const created: Array<ReturnType<typeof setTimeout>> = [];
+    const cleared: Array<unknown> = [];
+    const realSetTimeout = global.setTimeout as unknown as (
+      handler: TimerHandler,
+      ms?: number,
+    ) => ReturnType<typeof setTimeout>;
+    const realClearTimeout = global.clearTimeout;
+    const setTimeoutSpy = jest
+      .spyOn(global, 'setTimeout')
+      .mockImplementation((handler: TimerHandler, ms?: number) => {
+        const handle = realSetTimeout(handler, ms);
+        created.push(handle);
+        return handle;
+      });
+    const clearTimeoutSpy = jest
+      .spyOn(global, 'clearTimeout')
+      .mockImplementation((handle?: Parameters<typeof realClearTimeout>[0]) => {
+        cleared.push(handle);
+        return realClearTimeout(handle);
+      });
+
+    try {
+      const classifier = jest.fn().mockRejectedValue(new Error('llm down'));
+      const result = await resolveIntentCategories(
+        '这个到底是个什么情况呀',
+        classifier,
+      );
+      expect(result.lane).toBe('fallback');
+      expect(created.length).toBe(1);
+      expect(cleared).toEqual(created);
+    } finally {
+      setTimeoutSpy.mockRestore();
+      clearTimeoutSpy.mockRestore();
+    }
+  });
+
+  it('兜底 timer 生命周期：超时路径触发后不残留（fake timers 推进 3500ms 后零 pending）', async () => {
+    jest.useFakeTimers();
+    try {
+      // classifier 永不落定 → 走 3500ms 超时分支
+      const classifier = jest.fn(
+        () => new Promise<string[] | null>(() => undefined),
+      );
+      const pending = resolveIntentCategories(
+        '陪我随便说说话打发时间',
+        classifier,
+      );
+      await jest.advanceTimersByTimeAsync(3500);
+      const result = await pending;
+      expect(result.lane).toBe('fallback');
+      expect(result.categories).toBeUndefined();
+      // 超时分支落定后 timer 必须已清除：事件循环零 pending timer
+      expect(jest.getTimerCount()).toBe(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });

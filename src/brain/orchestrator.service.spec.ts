@@ -357,3 +357,55 @@ describe('Orchestrator（Agent Loop 核心）', () => {
     expect(firstCall[0].function.name).toBe('createSalesOrder');
   });
 });
+
+describe('工具执行超时闸门 timer 生命周期（回归：60s 悬空 timer 致 Jest worker force-exit）', () => {
+  it('工具调用完成与重复调用后超时 timer 均全部清除（零残留）', async () => {
+    const created: Array<ReturnType<typeof setTimeout>> = [];
+    const cleared: Array<unknown> = [];
+    const realSetTimeout = global.setTimeout as unknown as (
+      handler: TimerHandler,
+      ms?: number,
+    ) => ReturnType<typeof setTimeout>;
+    const realClearTimeout = global.clearTimeout;
+    const setTimeoutSpy = jest
+      .spyOn(global, 'setTimeout')
+      .mockImplementation((handler: TimerHandler, ms?: number) => {
+        const handle = realSetTimeout(handler, ms);
+        created.push(handle);
+        return handle;
+      });
+    const clearTimeoutSpy = jest
+      .spyOn(global, 'clearTimeout')
+      .mockImplementation((handle?: Parameters<typeof realClearTimeout>[0]) => {
+        cleared.push(handle);
+        return realClearTimeout(handle);
+      });
+
+    try {
+      const h = makeOrchestrator();
+      // 第一次：带工具调用的完整 Agent Loop（走 executeToolWithTimeout 闸门）
+      h.deps.router.chatWithFallback
+        .mockImplementationOnce(() =>
+          streamOf([], chatResult('', [makeToolCall('searchProduct')])),
+        )
+        .mockImplementationOnce(() => streamOf(['完成'], chatResult('完成')));
+      await collect(h.orchestrator);
+      // 第二次：重复走同一闸门（重复调用路径）
+      h.deps.router.chatWithFallback
+        .mockImplementationOnce(() =>
+          streamOf([], chatResult('', [makeToolCall('searchProduct')])),
+        )
+        .mockImplementationOnce(() =>
+          streamOf(['再完成'], chatResult('再完成')),
+        );
+      await collect(h.orchestrator);
+
+      // 两次工具调用各创建一个 60s 超时 timer，race 落定后必须全部清除
+      expect(created.length).toBe(2);
+      expect(cleared).toEqual(created);
+    } finally {
+      setTimeoutSpy.mockRestore();
+      clearTimeoutSpy.mockRestore();
+    }
+  });
+});

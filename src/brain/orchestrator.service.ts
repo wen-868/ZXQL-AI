@@ -1459,19 +1459,24 @@ export class Orchestrator {
     const timeoutMs = Number(
       this.configService.get<number>('TOOL_TIMEOUT_MS', 60000),
     );
+    // 超时闸门 timer 归属当前调用生命周期：race 落定（完成/超时/异常均经 finally）即清除，
+    // 防悬空 60s timer 卡住 worker 优雅退出（回归：force-exit 根因，与 intent-detector 同型）
+    let timer: ReturnType<typeof setTimeout> | undefined;
     return await Promise.race([
       this.executor.executeToolCall(tc, toolContext),
-      new Promise<ToolResult>((resolve) =>
-        setTimeout(
+      new Promise<ToolResult>((resolve) => {
+        timer = setTimeout(
           () =>
             resolve({
               success: false,
               error: `工具执行超时（${timeoutMs}ms），请稍后重试或简化请求`,
             }),
           timeoutMs,
-        ),
-      ),
-    ]);
+        );
+      }),
+    ]).finally(() => {
+      if (timer !== undefined) clearTimeout(timer);
+    });
   }
 
   /**
