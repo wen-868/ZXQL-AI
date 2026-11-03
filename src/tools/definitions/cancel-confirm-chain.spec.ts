@@ -251,10 +251,12 @@ describe('取消订单确认链（执行器 + 幂等闸）', () => {
 
   it('确认通道（allowConfirm=true）→ 真实执行一次（MS 请求计数=1）', async () => {
     let postCount = 0;
-    tool.execute.mockImplementation(async () => {
-      postCount += 1;
-      return { success: true, data: { orderNo: 'ORD001', postCount } };
-    });
+    tool.execute.mockImplementation(() =>
+      Promise.resolve({
+        success: true,
+        data: { orderNo: 'ORD001', postCount: ++postCount },
+      }),
+    );
 
     const r = await executor.executeToolCall(
       makeToolCall({ orderNo: 'ORD001' }),
@@ -337,10 +339,9 @@ describe('取消订单确认链（执行器 + 幂等闸）', () => {
 
   it('错租户 → 不共享幂等键（t2 同订单号可独立执行）', async () => {
     let postCount = 0;
-    tool.execute.mockImplementation(async () => {
-      postCount += 1;
-      return { success: true, data: { postCount } };
-    });
+    tool.execute.mockImplementation(() =>
+      Promise.resolve({ success: true, data: { postCount: ++postCount } }),
+    );
     gate.check
       .mockResolvedValueOnce({
         decision: 'proceed',
