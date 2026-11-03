@@ -16,6 +16,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- 集成测试批量断言 mock 依赖 */
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { Logger } from '@nestjs/common';
 import { ToolExecutor } from '../tool-executor';
 import { ToolRegistry } from '../tool-registry';
 import type { ITool, ToolContext } from '../tool.interface';
@@ -24,10 +25,8 @@ import { CircuitBreakerService } from '../circuit-breaker.service';
 import { CancelOrderTool } from './cancel-order.tool';
 import { CancelPurchaseOrderTool } from './cancel-purchase-order.tool';
 
-import type {
-  IdempotencyGateService,
-  IdempotencyHandle,
-} from '../idempotency-gate.service';
+import type { IdempotencyHandle } from '../idempotency-gate.service';
+import { IdempotencyGateService } from '../idempotency-gate.service';
 
 const CTX: ToolContext = { tenantId: 't1', userId: 'u1' };
 const CTX_T2: ToolContext = { tenantId: 't2', userId: 'u2' };
@@ -593,6 +592,121 @@ describe('跨通道确认链哨兵（源码锚点，防回归）', () => {
       const src = readFileSync(join(ROOT, rel), 'utf8');
       expect(src).toContain("source: 'ai'");
       expect(src).toContain('idempotencyKeyFields');
+    }
+  });
+});
+
+/**
+ * M5 哨兵：真幂等闸跨租户隔离（不 mock 闸门，内存假件走真实 IdempotencyGateService）
+ *
+ * 反测载体：若幂等键租户源被移除（idempotency-gate.service.ts 中 tenantId 换成常量），
+ * t2 与 t1 共享 Redis NX 键空间 ⇒ t2 被误判重复（replay），本用例变红。
+ */
+describe('真幂等闸跨租户隔离（M5 哨兵）', () => {
+  it('t1/t2 同 toolName+toolCallId 各自独立认领；t1 同 token 重放判重复', async () => {
+    const warnSpy = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    try {
+      // 内存假仓储：按 uk_ai_idempotency（tenant+tool+key）模拟唯一键
+      const rows: Array<Record<string, unknown>> = [];
+      let seq = 0;
+      const dupErr = () => {
+        const err = new Error(
+          'UNIQUE constraint failed: t_ai_idempotency.tenant_id',
+        ) as Error & { code: string };
+        err.code = 'SQLITE_CONSTRAINT_UNIQUE';
+        return err;
+      };
+      const repo = {
+        insert: jest.fn((entity: Record<string, unknown>) => {
+          const dup = rows.find(
+            (r) =>
+              r.tenantId === entity.tenantId &&
+              r.toolName === entity.toolName &&
+              r.idemKey === entity.idemKey,
+          );
+          if (dup) return Promise.reject(dupErr());
+          rows.push({ id: String(++seq), ...entity });
+          return Promise.resolve({ identifiers: [{ id: String(seq) }] });
+        }),
+        findOne: jest.fn((opts: { where: Record<string, unknown> }) =>
+          Promise.resolve(
+            rows.find((r) =>
+              Object.entries(opts.where).every(([k, v]) => r[k] === v),
+            ) ?? null,
+          ),
+        ),
+        update: jest.fn(
+          (
+            criteria: Record<string, unknown>,
+            patch: Record<string, unknown>,
+          ) => {
+            for (const r of rows) {
+              if (Object.entries(criteria).every(([k, v]) => r[k] === v)) {
+                Object.assign(r, patch);
+              }
+            }
+            return Promise.resolve({ affected: 1 });
+          },
+        ),
+      };
+      // 内存假 Redis：NX 语义
+      const redisStore = new Set<string>();
+      const redisProvider = {
+        getSharedClient: () => ({
+          set: (key: string) =>
+            redisStore.has(key)
+              ? Promise.resolve(null)
+              : (redisStore.add(key), Promise.resolve('OK')),
+        }),
+      };
+      const configService = {
+        get: (_key: string, fallback?: unknown) => fallback,
+      };
+      const gate = new IdempotencyGateService(
+        configService as never,
+        redisProvider as never,
+        repo as never,
+        { query: () => Promise.resolve({ affectedRows: 0 }) } as never,
+      );
+
+      const input = (tenantId: string) => ({
+        toolName: 'cancelOrder',
+        args: { orderNo: 'ORD001', confirm: true },
+        toolCallId: 'confirm-token_ct',
+        context: { tenantId, userId: 'u1' },
+      });
+
+      // t1 认领 → 完成
+      const first = await gate.check(input('t1'));
+      expect(first.decision).toBe('proceed');
+      await gate.complete(first.handle, {
+        success: true,
+        data: { postCount: 1 },
+      });
+
+      // t2 同 token/同单号：键空间租户隔离 ⇒ 必须独立认领（M5 变异下此步变 replay）
+      const second = await gate.check(input('t2'));
+      expect(second.decision).toBe('proceed');
+      await gate.complete(second.handle, {
+        success: true,
+        data: { postCount: 2 },
+      });
+
+      // t1 同 token 重放：同租户防重复语义仍有效（replay 回放首次结果，带裁定 A 标记）
+      const third = await gate.check(input('t1'));
+      expect(third.decision).toBe('replay');
+      const thirdResult = (third as unknown as { result?: unknown }).result;
+      expect(thirdResult).toEqual(
+        expect.objectContaining({
+          success: true,
+          data: { postCount: 1 },
+          idempotent_replay: true,
+        }),
+      );
+    } finally {
+      warnSpy.mockRestore();
     }
   });
 });
