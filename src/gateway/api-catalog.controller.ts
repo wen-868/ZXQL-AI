@@ -32,14 +32,18 @@ export class ApiCatalogController {
     };
   }
 
-  /** 生成并注册目录工具（功能即技能；幂等：已注册跳过） */
+  /** 生成并注册目录工具（功能即技能；幂等：已注册跳过；写条目/非法元数据 fail-closed 拒绝） */
   @Post('register')
   register() {
-    const registered = this.generator.generateAndRegister(this.registry);
-    this.logger.log(`API 目录工具注册接口调用：新注册 ${registered} 个`);
+    const result = this.generator.generateAndRegister(this.registry);
+    this.logger.log(
+      `API 目录工具注册接口调用：新注册 ${result.registered} 个，拒绝 ${result.rejected.length} 个`,
+    );
     return {
       success: true,
-      registered,
+      registered: result.registered,
+      // 结构化拒绝清单（仅工具名与原因，不含凭据与 body）
+      rejected: result.rejected,
       total: this.registry.list().length,
     };
   }
