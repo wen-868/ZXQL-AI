@@ -27,12 +27,14 @@ export class CancelPurchaseOrderTool implements ITool {
 
   readonly name = 'cancelPurchaseOrder';
   readonly description =
-    '取消采购单（写操作）。' +
+    '取消采购单（**高危写操作**，需确认）。' +
     '按采购单号取消指定采购单，需提供取消原因。' +
-    '示例：用户说"取消CG20260801001"→ 调用此工具 → 传入 orderNo 和 reason。';
+    '示例：用户说"取消CG20260801001"→ 调用此工具 → 先返回预览与后果，用户确认后传入 confirm=true 执行。';
   readonly category = 'purchase' as const;
   readonly isWriteOperation = true;
   readonly risk = 'high' as const;
+  /** 幂等业务键（AI-P0-3-F1）：同一采购单重复取消 ⇒ 同一键 ⇒ 回放首次结果 */
+  readonly idempotencyKeyFields = ['orderNo'] as const;
 
   readonly parameters = {
     type: 'object' as const,
@@ -44,6 +46,11 @@ export class CancelPurchaseOrderTool implements ITool {
       reason: {
         type: 'string',
         description: '取消原因（可选，默认为空字符串）',
+      },
+      confirm: {
+        type: 'boolean',
+        description:
+          '是否确认执行（缺省 false ⇒ 仅返回预览与后果说明，不执行取消）',
       },
     },
     required: ['orderNo'],
@@ -65,11 +72,36 @@ export class CancelPurchaseOrderTool implements ITool {
     }
 
     const reason = typeof args.reason === 'string' ? args.reason : '';
+    const confirm = args.confirm === true;
+
+    // ── 预览阶段（AI-P0-3-F1）：不调后端、不改任何状态，零写 ──
+    if (!confirm) {
+      return {
+        success: true,
+        preview: {
+          operation: '取消采购单',
+          summary: `将取消采购单 ${orderNo}${reason ? `（原因：${reason}）` : ''}`,
+          details: {
+            orderNo,
+            reason: reason || null,
+            // 来源标记：AI 发起的改动必须可追溯（MS 缺省记 admin）
+            source: 'ai',
+            consequence: '取消后采购单状态将变为 CANCELLED',
+            cancellableHint: '仅待处理/部分到货状态可取消',
+          },
+          reviewRequired: true,
+        },
+      };
+    }
 
     try {
       const result = await this.serviceClient.post<CancelPurchaseResult>(
         `${API_ENDPOINTS.PURCHASE_ORDERS}/${encodeURIComponent(orderNo)}/cancel`,
-        { reason },
+        {
+          reason,
+          // 🔴 必传：不传则来源记 admin，"AI 改动可追溯"断链（P0-3-F1 审计要求）
+          source: 'ai',
+        },
         context,
       );
 

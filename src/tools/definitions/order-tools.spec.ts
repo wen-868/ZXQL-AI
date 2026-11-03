@@ -694,7 +694,7 @@ describe('R70-09 销售工具', () => {
       });
 
       const result = await cancelOrder.execute(
-        { orderNo: 'ORD20260801001', reason: '客户取消' },
+        { orderNo: 'ORD20260801001', reason: '客户取消', confirm: true },
         mockContext,
       );
 
@@ -703,7 +703,7 @@ describe('R70-09 销售工具', () => {
       expect(data.orderNo).toBe('ORD20260801001');
       expect(mockServiceClient.post).toHaveBeenCalledWith(
         expect.stringContaining('/api/admin/orders/ORD20260801001/cancel'),
-        { reason: '客户取消' },
+        { reason: '客户取消', source: 'ai' },
         mockContext,
       );
     });
