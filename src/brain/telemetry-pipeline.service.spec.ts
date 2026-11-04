@@ -272,6 +272,42 @@ describe('TelemetryPipelineService（三通道统一遥测契约）', () => {
       expect(billing.consume).toHaveBeenCalledWith('t1', 15);
     });
 
+    it('F1 正向哨兵：agent 通道 measured 用量 → 恰好一次 BillingService.consume(tenant, totalTokens)', async () => {
+      const { pipeline, billing, audit } = makePipeline();
+      const session = pipeline.channelBegin({
+        lane: 'agent',
+        tenantId: 't1',
+        sessionId: 'plan-run-sess-7',
+        userId: 'u1',
+        userMessage: 'agent 计划目标（F1 计费正向哨兵）',
+        intent: 'agent_plan',
+      });
+      await pipeline.channelEnd({
+        session,
+        success: true,
+        usage: {
+          promptTokens: 120,
+          completionTokens: 60,
+          totalTokens: 180,
+          latencyMs: 250,
+          usageSource: 'measured',
+        },
+        provider: 'agent',
+        model: 'planner+runner',
+        intent: 'agent_plan',
+      });
+      // 计费单点：恰好一次，金额口径 = totalTokens（调用方侧再按 overage_price 折算）
+      expect(billing.consume).toHaveBeenCalledTimes(1);
+      expect(billing.consume).toHaveBeenCalledWith('t1', 180);
+      // 审计侧：lane=agent 且 sessionId 不回退 tenantId（D4 联动确认）
+      const record = audit.logAiCall.mock.calls[0][0] as Record<string, unknown>;
+      expect(record.lane).toBe('agent');
+      expect(record.sessionId).toBe('plan-run-sess-7');
+      expect(record.sessionId).not.toBe('t1');
+      expect(record.promptTokens).toBe(120);
+      expect(record.completionTokens).toBe(60);
+    });
+
     it('billable=false（失败路径保持 chat 原口径）：不计费、审计仍发', async () => {
       const { pipeline, billing, audit } = makePipeline();
       const session = beginChat(pipeline);

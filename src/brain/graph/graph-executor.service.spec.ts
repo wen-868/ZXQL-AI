@@ -10,7 +10,9 @@ import { ToolRegistry } from '../../tools/tool-registry';
 import type { ToolContext } from '../../tools/tool.interface';
 import { CheckpointerService } from './checkpointer.service';
 import { GraphExecutorService } from './graph-executor.service';
+import type { GraphRunEvent } from './graph-executor.service';
 import { GraphDefinition, GraphState } from './graph.types';
+import type { TelemetryUsage } from '../telemetry-pipeline.service';
 import { ReviewTaskService } from '../review/review-task.service';
 import { EvidenceLedgerService } from '../evidence/evidence-ledger.service';
 import { KnowledgeRulesService } from '../knowledge-rules.service';
@@ -961,7 +963,7 @@ describe('AI-P2-4-TELEMETRY-PIPELINE：graph 通道遥测哨兵', () => {
       pipeline,
     );
 
-    // agent 节点两轮 LLM：prompt 20 / completion 10（真实计量来源）
+    // agent 节点两轮 LLM：prompt 10 / completion 5（真实计量来源）
     const makeChatResult = (value: unknown) => ({
       next: () => Promise.resolve({ done: true as const, value }),
       [Symbol.asyncIterator]() {
@@ -987,7 +989,7 @@ describe('AI-P2-4-TELEMETRY-PIPELINE：graph 通道遥测哨兵', () => {
       );
     const provider = { name: 'deepseek', chat: chatMock } as never;
 
-    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    const events: GraphRunEvent[] = [];
     for await (const e of service.execute(
       AGENT_GRAPH,
       's1',
@@ -997,16 +999,20 @@ describe('AI-P2-4-TELEMETRY-PIPELINE：graph 通道遥测哨兵', () => {
       events.push(e);
     }
 
-    // D12 正向哨兵：graph_done 带真实 usage 载荷（SSE 兼容：新增字段）
-    const done = events.find((e) => e.type === 'graph_done');
-    expect(done).toBeDefined();
-    expect(done?.usage).toEqual({
-      promptTokens: 10,
-      completionTokens: 5,
-      totalTokens: 15,
-      latencyMs: expect.any(Number),
-      usageSource: 'measured',
-    });
+    // D12 正向哨兵：graph_done 带真实 usage 载荷（SSE 兼容：新增字段）。
+    // F1 收口：明确事件类型守卫替代 expect.any 的 any 赋值。
+    const doneEvent = events.find(
+      (e): e is Extract<GraphRunEvent, { type: 'graph_done' }> =>
+        e.type === 'graph_done',
+    );
+    expect(doneEvent).toBeDefined();
+    const usage: TelemetryUsage | undefined = doneEvent?.usage;
+    expect(usage).toBeDefined();
+    expect(usage?.promptTokens).toBe(10);
+    expect(usage?.completionTokens).toBe(5);
+    expect(usage?.totalTokens).toBe(15);
+    expect(usage?.usageSource).toBe('measured');
+    expect(usage?.latencyMs).toBeGreaterThanOrEqual(0);
 
     // D5 正向哨兵：真实管线收口 → lane=graph 审计（sessionId 真实）
     expect(auditLogger.logAiCall).toHaveBeenCalledWith(
