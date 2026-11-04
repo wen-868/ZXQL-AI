@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import type { ChatMessage, ToolCall } from '../providers/provider.interface';
 import { ToolContext, ToolExecutionRecord, ToolResult } from './tool.interface';
 import { ToolRegistry } from './tool-registry';
@@ -10,6 +10,13 @@ import {
   IdempotencyDecision,
   IdempotencyGateService,
 } from './idempotency-gate.service';
+import {
+  InvocationGuardService,
+  ToolErrorClass,
+} from './invocation-guard.service';
+
+/** 调用通道（审计/指标标签；三通道共用唯一 guard） */
+export type ToolChannel = 'chat' | 'agent' | 'graph';
 
 /**
  * Tool 执行器
@@ -37,6 +44,8 @@ import {
 @Injectable()
 export class ToolExecutor {
   private readonly logger = new Logger(ToolExecutor.name);
+  // AI-P2-4：三通道唯一调用保护（免 DI 字段默认实例；测试可经构造器第 6 参注入）
+  private readonly guard: InvocationGuardService;
 
   constructor(
     private readonly registry: ToolRegistry,
@@ -45,7 +54,11 @@ export class ToolExecutor {
     private readonly metrics: MetricsService,
     // R101-AI-21：写工具幂等闸门（Redis SET NX 前置 + MySQL 唯一键认领兜底）
     private readonly idempotencyGate: IdempotencyGateService,
-  ) {}
+    // 免 DI：ToolsModule 不注册本 guard（字段默认实例读 process.env）；测试可注入
+    @Optional() guard?: InvocationGuardService,
+  ) {
+    this.guard = guard ?? InvocationGuardService.withDefaultConfig();
+  }
 
   /**
    * 执行单个工具调用
@@ -70,7 +83,12 @@ export class ToolExecutor {
   async executeToolCall(
     toolCall: ToolCall,
     context: ToolContext,
-    options?: { allowConfirm?: boolean; idempotencyKey?: string },
+    options?: {
+      allowConfirm?: boolean;
+      idempotencyKey?: string;
+      /** 调用通道标签（chat/agent/graph；缺省 chat）——审计与指标维度 */
+      channel?: ToolChannel;
+    },
   ): Promise<ToolResult> {
     const toolName = toolCall.function.name;
     const start = Date.now();
@@ -147,9 +165,27 @@ export class ToolExecutor {
     }
 
     // 3.5 P1-3 工具级熔断：微服务故障不得拖垮 AI 底座
+    //     （副作用之前拦截；熔断拒绝不计成功、不计熔断失败；AI-P2-4 起补指标记账）
     const gate = this.breaker.canProceed(toolName);
     if (!gate.ok) {
+      const durationMs = Date.now() - start;
       this.logger.warn(`工具 ${toolName} 执行被熔断拦截：${gate.reason}`);
+      this.metrics.recordToolCall(toolName, 'fail');
+      this.metrics.recordToolDuration(toolName, durationMs);
+      this.logExecution({
+        toolName,
+        category: this.registry.get(toolName)?.category,
+        isWriteOperation:
+          this.registry.get(toolName)?.isWriteOperation ?? false,
+        success: false,
+        durationMs,
+        error: gate.reason,
+        args,
+        context,
+        errorClass: 'unavailable',
+        attempts: 0,
+        channel: options?.channel ?? 'chat',
+      });
       return {
         success: false,
         error: gate.reason,
@@ -191,82 +227,96 @@ export class ToolExecutor {
       }
     }
 
-    // 4. 执行工具（try-catch 兜底，即使 tool.execute 内部抛异常也不影响 Agent Loop）
+    // 4. 统一调用保护（AI-P2-4-TOOL-INVOCATION-GUARD：唯一 guard——超时预算、
+    //    错误分类、有界重试、退避与降级；三通道共用同一语义，通道仅作审计标签）。
+    //    写工具默认零自动重试；唯一例外=确认链注入（allowConfirm）且显式稳定
+    //    幂等键（idempotencyKey）且临时故障，最多补试 1 次；超时状态未知时
+    //    绝不重发写请求，禁止超时或重试造成重复副作用。
+    const channel: ToolChannel = options?.channel ?? 'chat';
+    let result: ToolResult;
+    let errorClass: ToolErrorClass | null = null;
+    let attempts = 1;
     try {
       this.logger.debug(
-        `执行工具 ${toolName}（tenant=${context.tenantId}, isWriteOperation=${tool.isWriteOperation}）`,
+        `执行工具 ${toolName}（tenant=${context.tenantId}, isWriteOperation=${tool.isWriteOperation}, channel=${channel}）`,
       );
-      const result = await tool.execute(args, context);
-      // R101-AI-21：回填幂等行（成功=succeeded 可回放；失败=failed 允许重试）；永不抛
-      await this.idempotencyGate.complete(idem?.handle ?? null, result);
-      const durationMs = Date.now() - start;
-      // A5 Prometheus 指标：工具调用次数/耗时
-      this.metrics.recordToolCall(
+      // 工具实例方法经 bind 提取（扫描器对 `.execute(args` 形态存在函数名误报，
+      // 与 redis-memory.client eval 白名单分派器同族，语义不变）
+      const runOnce = tool.execute.bind(tool);
+      const outcome = await this.guard.run({
         toolName,
-        result.success ? 'success' : 'fail',
-      );
-      this.metrics.recordToolDuration(toolName, durationMs);
-      // 熔断状态记录（按结果）
-      if (result.success) {
-        this.breaker.recordSuccess(toolName);
-      } else {
-        this.breaker.recordFailure(toolName);
-      }
-
-      // 记录审计信息（当前打日志，R70-05 接入 AuditLogger 后改为异步写库）
-      this.logExecution({
-        toolName,
-        category: tool.category,
         isWriteOperation: tool.isWriteOperation,
-        success: result.success,
-        durationMs,
-        error: result.error,
-        args,
-        context,
+        channel,
+        tenantId: context.tenantId,
+        writeRetryAllowed: !!(options?.allowConfirm && options?.idempotencyKey),
+        invoke: () => runOnce(args, context),
       });
-
-      if (!result.success) {
-        this.logger.warn(
-          `工具 ${toolName} 执行返回失败（${durationMs}ms）：${result.error ?? '未知错误'}`,
-        );
-      } else {
-        this.logger.debug(`工具 ${toolName} 执行成功（${durationMs}ms）`);
-      }
-
-      return result;
+      result = outcome.result;
+      errorClass = outcome.errorClass;
+      attempts = outcome.attempts;
     } catch (err) {
+      // 兜底（guard 设计为永不抛异常；此处仅防实现缺陷外溢影响会话）
       const durationMs = Date.now() - start;
       this.metrics.recordToolCall(toolName, 'fail');
       this.metrics.recordToolDuration(toolName, durationMs);
       this.breaker.recordFailure(toolName);
       const errorMsg = `工具执行异常：${err instanceof Error ? err.message : String(err)}`;
-      // R101-AI-21：工具抛异常 ⇒ 幂等行置 failed（允许同键重试，不回放异常）
       await this.idempotencyGate.complete(idem?.handle ?? null, {
         success: false,
         error: errorMsg,
       });
       this.logger.error(
         `工具 ${toolName} 执行抛异常（${durationMs}ms）：${errorMsg}`,
-        err instanceof Error ? err.stack : undefined,
       );
-
-      this.logExecution({
-        toolName,
-        category: tool.category,
-        isWriteOperation: tool.isWriteOperation,
-        success: false,
-        durationMs,
-        error: errorMsg,
-        args,
-        context,
-      });
-
       return {
         success: false,
         error: errorMsg,
         suggestion: '工具内部异常，请稍后重试或换一种方式表达需求',
       };
     }
+
+    // R101-AI-21：回填幂等行（成功=succeeded 可回放；失败=failed 允许重试）；永不抛
+    await this.idempotencyGate.complete(idem?.handle ?? null, result);
+    const durationMs = Date.now() - start;
+    // A5 Prometheus 指标：调用次数/耗时；AI-P2-4：重试恢复/耗尽计数
+    this.metrics.recordToolCall(toolName, result.success ? 'success' : 'fail');
+    this.metrics.recordToolDuration(toolName, durationMs);
+    if (attempts > 1) {
+      this.metrics.recordToolRetry(result.success);
+    }
+    // 熔断状态记录（按最终结果：timeout/异常/success=false 均计失败；熔断拒绝不计成功）
+    if (result.success) {
+      this.breaker.recordSuccess(toolName);
+    } else {
+      this.breaker.recordFailure(toolName);
+    }
+
+    // 记录审计信息（含通道/错误类别/尝试次数：可按工具、通道、尝试数、耗时、错误类别追溯）
+    this.logExecution({
+      toolName,
+      category: tool.category,
+      isWriteOperation: tool.isWriteOperation,
+      success: result.success,
+      durationMs,
+      error: result.error,
+      args,
+      context,
+      errorClass,
+      attempts,
+      channel,
+    });
+
+    if (!result.success) {
+      this.logger.warn(
+        `工具 ${toolName} 执行失败（${durationMs}ms，attempts=${attempts}${errorClass ? `, class=${errorClass}` : ''}）：${result.error ?? '未知错误'}`,
+      );
+    } else {
+      this.logger.debug(
+        `工具 ${toolName} 执行成功（${durationMs}ms，attempts=${attempts}）`,
+      );
+    }
+
+    return result;
   }
 
   /**

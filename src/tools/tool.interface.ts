@@ -266,4 +266,10 @@ export interface ToolExecutionRecord {
   args: Record<string, unknown>;
   /** 执行上下文（tenantId/userId 等） */
   context: ToolContext;
+  /** 错误类别（AI-P2-4 统一 guard：timeout/transient/permanent/rejected/unavailable） */
+  errorClass?: string | null;
+  /** 实际尝试次数（有界重试后 ≥1） */
+  attempts?: number;
+  /** 调用通道（chat/agent/graph） */
+  channel?: string;
 }

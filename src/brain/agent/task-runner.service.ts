@@ -589,6 +589,7 @@ export class TaskRunnerService {
     const first = await this.executor.executeToolCall(
       this.toToolCall(step.tool, args),
       toolContext,
+      { channel: 'agent' },
     );
 
     // 写步骤 → 挂起令牌（写全审核）
@@ -649,6 +650,7 @@ export class TaskRunnerService {
         this.executor.executeToolCall(
           this.toToolCall(step.tool!, healArgs),
           toolContext,
+          { channel: 'agent' },
         ),
       capture: (outcome, detail) =>
         this.capture.captureTask({
@@ -800,7 +802,9 @@ export class TaskRunnerService {
       for (const tc of chatResult.tool_calls) {
         const toolName = tc.function.name;
         yield { type: 'tool_start', tool: toolName };
-        const result = await this.executor.executeToolCall(tc, toolContext);
+        const result = await this.executor.executeToolCall(tc, toolContext, {
+          channel: 'agent',
+        });
         const suspend = await this.maybeSuspendWrite(
           plan,
           step,

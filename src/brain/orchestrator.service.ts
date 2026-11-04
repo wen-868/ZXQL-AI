@@ -67,7 +67,7 @@ import { MetricsService } from '../common/metrics.service';
 import { BillingService } from '../tenant/billing.service';
 import { AnswerSelfCheckService } from './answer-self-check.service';
 import { WRITE_TOKEN_TTL_MS } from './write-guard.service';
-import type { ChatMessage, ToolCall } from '../providers/provider.interface';
+import type { ChatMessage } from '../providers/provider.interface';
 import type {
   ToolCategory,
   ToolContext,
@@ -853,45 +853,17 @@ export class Orchestrator {
 
           this.logger.debug(`执行工具：${tc.function.name}`);
 
-          let toolResult = await this.executeToolWithTimeout(tc, toolContext);
-
-          // ── G-C Reflection 显式化：失败自动重试一次（仅只读工具）──
-          // 查询类失败多为瞬时抖动，重试直接恢复；
-          // 写操作（isWriteOperation）不自动重试：confirm=true 后服务端可能已
-          // 实际执行（超时/响应丢失场景），重试有重复开单风险——写失败交给 LLM
-          // 如实告知用户处理。reflection 事件供前端展示"已自动重试"。
+          // AI-P2-4 统一调用保护：chat 通道不再自带超时闸与自动重试（原 G-C
+          // reflection 重试已收敛进 executor 的 InvocationGuard——超时/分类/有界
+          // 重试/退避/降级单源），此处直连 executor 即与 agent/graph 同语义。
+          const toolResult = await this.executor.executeToolCall(
+            tc,
+            toolContext,
+            {
+              channel: 'chat',
+            },
+          );
           const toolMeta = this.registry.get(tc.function.name);
-          if (
-            !toolResult.success &&
-            toolMeta?.isWriteOperation !== true &&
-            this.configService.get<string>('ENABLE_TOOL_AUTO_RETRY', 'true') ===
-              'true'
-          ) {
-            yield {
-              type: 'reflection',
-              tool: tc.function.name,
-              action: 'retry',
-              recovered: false,
-            };
-            const retried = await this.executeToolWithTimeout(tc, toolContext);
-            if (retried.success) {
-              toolResult = retried;
-              this.logger.log(
-                `G-C 工具失败已自动重试成功：${tc.function.name}`,
-              );
-            } else {
-              this.logger.warn(
-                `G-C 工具自动重试仍失败：${tc.function.name} err=${retried.error ?? '-'}`,
-              );
-            }
-            this.metrics.recordToolRetry(toolResult.success);
-            yield {
-              type: 'reflection',
-              tool: tc.function.name,
-              action: 'retry',
-              recovered: toolResult.success,
-            };
-          }
 
           // ── P0-2 StructuredExtractor：写参数结构化抽取增强 ──
           // 写工具返回 preview 后，用原始用户消息做结构化抽取：
@@ -1444,39 +1416,6 @@ export class Orchestrator {
       if (category) domains.add(category);
     }
     return [...domains];
-  }
-
-  /**
-   * #5 工具执行超时闸门（2026-09-05 找茬审计）：
-   * executor 层此前无超时保护，非 HTTP 路径的工具逻辑卡死会挂住整个 SSE 流。
-   * 超时（默认 60s，TOOL_TIMEOUT_MS 可调）转为失败结果交 LLM 处理，
-   * 不再无限等待。底层 promise 无法真正取消，但流程不再被挂起。
-   */
-  private async executeToolWithTimeout(
-    tc: ToolCall,
-    toolContext: ToolContext,
-  ): Promise<ToolResult> {
-    const timeoutMs = Number(
-      this.configService.get<number>('TOOL_TIMEOUT_MS', 60000),
-    );
-    // 超时闸门 timer 归属当前调用生命周期：race 落定（完成/超时/异常均经 finally）即清除，
-    // 防悬空 60s timer 卡住 worker 优雅退出（回归：force-exit 根因，与 intent-detector 同型）
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    return await Promise.race([
-      this.executor.executeToolCall(tc, toolContext),
-      new Promise<ToolResult>((resolve) => {
-        timer = setTimeout(
-          () =>
-            resolve({
-              success: false,
-              error: `工具执行超时（${timeoutMs}ms），请稍后重试或简化请求`,
-            }),
-          timeoutMs,
-        );
-      }),
-    ]).finally(() => {
-      if (timer !== undefined) clearTimeout(timer);
-    });
   }
 
   /**

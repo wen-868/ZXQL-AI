@@ -16,6 +16,8 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-10-13
  */
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { Orchestrator, MAX_AGENT_ITERATIONS } from './orchestrator.service';
 import type { OrchestratorParams } from './orchestrator.service';
 
@@ -358,54 +360,17 @@ describe('Orchestrator（Agent Loop 核心）', () => {
   });
 });
 
-describe('工具执行超时闸门 timer 生命周期（回归：60s 悬空 timer 致 Jest worker force-exit）', () => {
-  it('工具调用完成与重复调用后超时 timer 均全部清除（零残留）', async () => {
-    const created: Array<ReturnType<typeof setTimeout>> = [];
-    const cleared: Array<unknown> = [];
-    const realSetTimeout = global.setTimeout as unknown as (
-      handler: TimerHandler,
-      ms?: number,
-    ) => ReturnType<typeof setTimeout>;
-    const realClearTimeout = global.clearTimeout;
-    const setTimeoutSpy = jest
-      .spyOn(global, 'setTimeout')
-      .mockImplementation((handler: TimerHandler, ms?: number) => {
-        const handle = realSetTimeout(handler, ms);
-        created.push(handle);
-        return handle;
-      });
-    const clearTimeoutSpy = jest
-      .spyOn(global, 'clearTimeout')
-      .mockImplementation((handle?: Parameters<typeof realClearTimeout>[0]) => {
-        cleared.push(handle);
-        return realClearTimeout(handle);
-      });
-
-    try {
-      const h = makeOrchestrator();
-      // 第一次：带工具调用的完整 Agent Loop（走 executeToolWithTimeout 闸门）
-      h.deps.router.chatWithFallback
-        .mockImplementationOnce(() =>
-          streamOf([], chatResult('', [makeToolCall('searchProduct')])),
-        )
-        .mockImplementationOnce(() => streamOf(['完成'], chatResult('完成')));
-      await collect(h.orchestrator);
-      // 第二次：重复走同一闸门（重复调用路径）
-      h.deps.router.chatWithFallback
-        .mockImplementationOnce(() =>
-          streamOf([], chatResult('', [makeToolCall('searchProduct')])),
-        )
-        .mockImplementationOnce(() =>
-          streamOf(['再完成'], chatResult('再完成')),
-        );
-      await collect(h.orchestrator);
-
-      // 两次工具调用各创建一个 60s 超时 timer，race 落定后必须全部清除
-      expect(created.length).toBe(2);
-      expect(cleared).toEqual(created);
-    } finally {
-      setTimeoutSpy.mockRestore();
-      clearTimeoutSpy.mockRestore();
-    }
+// AI-P2-4-TOOL-INVOCATION-GUARD：chat 通道超时闸与自动重试已收敛进 executor 的
+// InvocationGuard（唯一 guard）。本哨兵防回归：orchestrator 不得再自带 timeout/重试。
+describe('三通道唯一 guard 哨兵（chat 侧）', () => {
+  it('orchestrator 源码不再自带超时闸/重试逻辑（防回归锚）', () => {
+    const src = readFileSync(
+      join(__dirname, 'orchestrator.service.ts'),
+      'utf8',
+    );
+    expect(src).not.toContain('executeToolWithTimeout');
+    expect(src).not.toContain('setTimeout');
+    expect(src).not.toContain('ENABLE_TOOL_AUTO_RETRY');
+    expect(src).toContain("channel: 'chat'");
   });
 });

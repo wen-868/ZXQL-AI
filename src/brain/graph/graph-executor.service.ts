@@ -342,16 +342,19 @@ export class GraphExecutorService implements OnModuleInit {
               },
             };
             yield { type: 'tool_start', tool: node.tool };
-            // P2 修复（2026-10-04）：与 chat 通道同口径的超时闸门——
-            // 此前直接 await，卡死的工具会无限挂起图执行与 SSE 流，
-            // checkpointer 永远停在 running
+            // AI-P2-4 统一调用保护：graph 通道不再自带超时闸（原 executeToolWithTimeout
+            // 收敛进 executor 的 InvocationGuard——超时/分类/有界重试/退避/降级单源），
+            // 审核放行路径此前完全无超时，现同样被 guard 预算覆盖。
             // P1 修复（2026-10-04）：审核放行的节点带 allowConfirm 真执行
             // （审核=人工确认；否则 confirm 门强制降级 preview，写永不落地）
-            const result = approvedByReview
-              ? await this.executor.executeToolCall(toolCall, toolContext, {
-                  allowConfirm: true,
-                })
-              : await this.executeToolWithTimeout(toolCall, toolContext);
+            const result = await this.executor.executeToolCall(
+              toolCall,
+              toolContext,
+              {
+                channel: 'graph',
+                ...(approvedByReview ? { allowConfirm: true } : {}),
+              },
+            );
             // P1 修复（2026-10-04）：写工具返回 preview（confirm 门强制降级，
             // 未真执行）→ 挂 WriteGuard 确认并暂停图——此前 preview 被当作
             // "节点成功"继续跑到 graph_done，业务单据根本没创建且无确认入口
@@ -624,43 +627,6 @@ export class GraphExecutorService implements OnModuleInit {
     } catch {
       return null;
     }
-  }
-
-  /**
-   * 工具执行超时闸门（P2 修复 2026-10-04，与 chat 通道同口径）：
-   * TOOL_TIMEOUT_MS（默认 60s）超时按失败落账，防卡死工具无限挂起图执行。
-   */
-  private async executeToolWithTimeout(
-    toolCall: ToolCall,
-    toolContext: ToolContext,
-  ): Promise<ToolResult> {
-    // P0 修复（2026-10-06 验收返工）：env 非数字/空串三重守卫——
-    // `Number("60s")=NaN` 时 setTimeout 按 1ms 触发（全站工具即时超时）；
-    // 空串更隐蔽（`?? 60000` 只兜 null/undefined，`Number("")=0` 同样归零）。
-    // 模式与 employee.service.ts 的 MAX_DISPATCH_DEPTH 守卫一致。
-    const parsedTimeout = Number.parseInt(
-      String(process.env.TOOL_TIMEOUT_MS ?? '60000').trim(),
-      10,
-    );
-    const timeoutMs =
-      Number.isFinite(parsedTimeout) && parsedTimeout > 0
-        ? parsedTimeout
-        : 60000;
-    return await Promise.race([
-      this.executor.executeToolCall(toolCall, toolContext),
-      new Promise<ToolResult>((resolve) => {
-        const timer = setTimeout(
-          () =>
-            resolve({
-              success: false,
-              error: `工具执行超时（${timeoutMs}ms），已中止图节点`,
-            }),
-          timeoutMs,
-        );
-        // 超时是兜底路径：正常完成时不让 timer 挂住进程/测试退出
-        timer.unref?.();
-      }),
-    ]);
   }
 
   /** 是否写操作工具（证据台账只记写操作，与 chat 通道口径对齐） */
