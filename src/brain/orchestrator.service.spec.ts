@@ -204,7 +204,6 @@ function makeOrchestrator(overrides: Record<string, unknown> = {}): Harness {
   const orchestrator = new Orchestrator(
     deps.executor as never,
     deps.registry as never,
-    deps.auditLogger as never,
     deps.aiConfigService as never,
     deps.tenantContext as never,
     deps.contextBuilder as never,
@@ -216,7 +215,6 @@ function makeOrchestrator(overrides: Record<string, unknown> = {}): Harness {
     deps.extractor as never,
     deps.capture as never,
     deps.metrics as never,
-    deps.billing as never,
     deps.configService as never,
     deps.selfCheck as never,
     deps.knowledgeRules as never,
@@ -224,8 +222,28 @@ function makeOrchestrator(overrides: Record<string, unknown> = {}): Harness {
     deps.employeeService as never,
     deps.planner as never,
     deps.ltm as never,
+    // AI-P2-4-TELEMETRY-PIPELINE：遥测桩（断言经管线收口；overrides.telemetry 可替换）
+    ((overrides as { telemetry?: unknown }).telemetry ??
+      makeTelemetryStub()) as never,
   );
   return { orchestrator, deps };
+}
+
+/** AI-P2-4-TELEMETRY-PIPELINE：遥测桩（记录 begin/end 调用） */
+function makeTelemetryStub() {
+  return {
+    channelBegin: jest.fn(
+      (input: { lane: string; sessionId?: string; tenantId: string }) => ({
+        ...input,
+        startTime: Date.now(),
+      }),
+    ),
+    channelEnd: jest.fn(() => Promise.resolve()),
+    resolveSessionId: jest.fn(
+      (_lane: string, _t: string, preferred?: string, fallback?: string) =>
+        preferred ?? fallback ?? 'chat-session-t1',
+    ),
+  };
 }
 
 const BASE_PARAMS: OrchestratorParams = {

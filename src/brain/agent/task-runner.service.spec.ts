@@ -130,7 +130,21 @@ function makeRunner(
     recordTokens: jest.fn(),
     recordAgentIterations: jest.fn(),
   };
-  const auditLogger = { logAiCall: jest.fn() };
+  // AI-P2-4-TELEMETRY-PIPELINE：遥测桩（审计/计费经管线单点收口）
+  const telemetry = {
+    channelBegin: jest.fn(
+      (input: { lane: string; sessionId?: string; tenantId: string }) => ({
+        ...input,
+        sessionId: input.sessionId ?? `agent-session-${input.tenantId}`,
+        startTime: Date.now(),
+      }),
+    ),
+    channelEnd: jest.fn(() => Promise.resolve()),
+    resolveSessionId: jest.fn(
+      (_lane: string, _t: string, preferred?: string, fallback?: string) =>
+        preferred ?? fallback ?? `agent-session-${_t}`,
+    ),
+  };
   const router = {
     chatWithFallback: jest.fn(),
     getSystemScope: jest.fn(() => 'mgmt'),
@@ -162,10 +176,11 @@ function makeRunner(
     planner as never,
     capture as never,
     metrics as never,
-    auditLogger as never,
     router as never,
     aiConfigService as never,
     knowledgeRules as never,
+    // AI-P2-4-TELEMETRY-PIPELINE：遥测桩（sessionId 修正与计费断言用）
+    telemetry as never,
   );
   return {
     runner,
@@ -176,6 +191,7 @@ function makeRunner(
     selfHeal,
     planner,
     capture,
+    telemetry,
   };
 }
 

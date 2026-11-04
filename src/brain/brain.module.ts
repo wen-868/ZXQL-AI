@@ -26,6 +26,8 @@ import { Orchestrator } from './orchestrator.service';
 import { ConfirmationService } from './confirmation.service';
 import { WriteConfirmPipelineService } from './write-confirm-pipeline.service';
 import { WriteGuardService } from './write-guard.service';
+// AI-P2-4-TELEMETRY-PIPELINE：三通道审计/会话/用量/计费统一遥测管线（唯一实例）
+import { TelemetryPipelineService } from './telemetry-pipeline.service';
 import { StructuredExtractor } from './extraction/structured-extractor';
 import { McpTokenService } from './mcp/mcp-token.service';
 import { McpServerService } from './mcp/mcp-server.service';
@@ -95,6 +97,7 @@ import { ReportService } from './v2/report.service';
   providers: [
     ContextBuilder,
     MemoryManager,
+    TelemetryPipelineService,
     Orchestrator,
     ConfirmationService,
     WriteConfirmPipelineService,

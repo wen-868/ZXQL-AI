@@ -13,7 +13,12 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-08-25
  */
-import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -26,10 +31,10 @@ import { PlannerService } from './planner.service';
 import { CaptureService } from '../../evolution/capture.service';
 import { MetricsService } from '../../common/metrics.service';
 import { bestEffort } from '../../common/error-semantics';
-import { AuditLogger } from '../../bridge/audit-logger';
 import { detectIntentCategories } from '../intent-detector';
 import { KnowledgeRulesService } from '../knowledge-rules.service';
 import { AiConfigService } from '../../tenant/ai-config.service';
+import { TelemetryPipelineService } from '../telemetry-pipeline.service';
 import { ProviderRouterService } from '../router/provider-router.service';
 import {} from '../write-guard.service';
 import type { ToolContext, ToolResult } from '../../tools/tool.interface';
@@ -75,10 +80,12 @@ export class TaskRunnerService {
     private readonly planner: PlannerService,
     private readonly capture: CaptureService,
     private readonly metrics: MetricsService,
-    private readonly auditLogger: AuditLogger,
     private readonly router: ProviderRouterService,
     private readonly aiConfigService: AiConfigService,
     private readonly knowledgeRules: KnowledgeRulesService,
+    // AI-P2-4-TELEMETRY-PIPELINE：统一遥测（BrainModule 注册单例；@Optional 仅为
+    // 兼容既有契约 spec 的旧构造——生产 DI 恒有实例，缺省时跳过遥测不影响业务）
+    @Optional() private readonly telemetry?: TelemetryPipelineService,
   ) {}
 
   /**
@@ -361,7 +368,13 @@ export class TaskRunnerService {
     if (resumeFrom < 0) {
       plan.state = this.detectFinalState(plan);
       await this.savePlan(plan);
-      for (const event of this.buildDoneEvent(plan, startTime, 0, 0)) {
+      for (const event of this.buildDoneEvent(
+        plan,
+        startTime,
+        0,
+        0,
+        context.sessionId,
+      )) {
         yield event;
       }
       return;
@@ -437,6 +450,7 @@ export class TaskRunnerService {
               startTime,
               totalPromptTokens,
               totalCompletionTokens,
+              context.sessionId,
             )) {
               yield event;
             }
@@ -531,6 +545,7 @@ export class TaskRunnerService {
       startTime,
       totalPromptTokens,
       totalCompletionTokens,
+      context.sessionId,
     )) {
       yield event;
     }
@@ -990,6 +1005,8 @@ export class TaskRunnerService {
     startTime: number,
     promptTokens: number,
     completionTokens: number,
+    // AI-P2-4-TELEMETRY-PIPELINE：真实会话 ID（修正 D4：此前审计 sessionId 错填 tenantId）
+    sessionId?: string,
   ): AgentRunEvent[] {
     const latencyMs = Date.now() - startTime;
     const failed = plan.steps.filter((s) => s.status === 'failed');
@@ -1037,21 +1054,34 @@ export class TaskRunnerService {
       },
     );
 
-    // 审计
-    this.auditLogger.logAiCall({
-      tenantId: plan.tenantId,
-      sessionId: plan.tenantId,
-      provider: 'agent',
-      model: 'planner+runner',
-      intent: 'agent_plan',
-      lane: 'agent',
-      userMessage: plan.goal,
-      toolCalls: [],
-      promptTokens,
-      completionTokens,
-      latencyMs,
-      success: failed.length === 0,
-    });
+    // 统一遥测收口（AI-P2-4-TELEMETRY-PIPELINE）：审计 + t_ai_usage_daily 单点
+    // UPSERT + 计费（agent 通道此前漏计费，D12 修正）。fire-and-forget：
+    // channelEnd 内部全隔离（审计/计费失败只落死信），永不影响 done 事件。
+    // sessionId 修正契约：plan 运行上下文的真实会话 ID ?? plan 兜底，绝不回退 tenantId。
+    if (this.telemetry && typeof this.telemetry.channelBegin === 'function') {
+      const telemetrySession = this.telemetry.channelBegin({
+        lane: 'agent',
+        tenantId: plan.tenantId,
+        sessionId,
+        fallbackSessionId: `plan-${plan.id}`,
+        userMessage: plan.goal,
+        intent: 'agent_plan',
+      });
+      void this.telemetry.channelEnd({
+        session: telemetrySession,
+        success: failed.length === 0,
+        usage: {
+          promptTokens,
+          completionTokens,
+          totalTokens: promptTokens + completionTokens,
+          latencyMs,
+          usageSource: 'measured',
+        },
+        provider: 'agent',
+        model: 'planner+runner',
+        intent: 'agent_plan',
+      });
+    }
 
     this.logger.log(
       `执行计划完成：id=${plan.id} state=${plan.state} steps=${plan.steps.length} latency=${latencyMs}ms`,

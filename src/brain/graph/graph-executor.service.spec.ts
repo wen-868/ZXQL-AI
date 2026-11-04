@@ -14,6 +14,8 @@ import { GraphDefinition, GraphState } from './graph.types';
 import { ReviewTaskService } from '../review/review-task.service';
 import { EvidenceLedgerService } from '../evidence/evidence-ledger.service';
 import { KnowledgeRulesService } from '../knowledge-rules.service';
+import { TelemetryPipelineService } from '../telemetry-pipeline.service';
+import { MetricsService } from '../../common/metrics.service';
 
 /** 内存版 Checkpointer（模拟 Redis 持久化，便于断点测试） */
 function makeCheckpointer() {
@@ -196,6 +198,8 @@ function makeExecutor(
     knowledgeRulesMock as unknown as KnowledgeRulesService,
     confirmationServiceMock as never,
     writeConfirmPipelineMock as never,
+
+    makeTelemetryStub() as never,
   );
 }
 
@@ -209,6 +213,23 @@ async function collectEvents(
     events.push(e);
   }
   return events;
+}
+
+/** AI-P2-4-TELEMETRY-PIPELINE：遥测桩（默认全通过，供各构造点复用） */
+function makeTelemetryStub() {
+  return {
+    channelBegin: jest.fn((input: { lane: string }) => ({
+      lane: input.lane,
+      tenantId: 't1',
+      sessionId: 's1',
+      startTime: Date.now(),
+    })),
+    channelEnd: jest.fn(() => Promise.resolve()),
+    resolveSessionId: jest.fn(
+      (_lane: string, _t: string, preferred?: string, fallback?: string) =>
+        preferred ?? fallback ?? 'graph-session-t1',
+    ),
+  };
 }
 
 describe('GraphExecutorService', () => {
@@ -444,6 +465,8 @@ describe('GraphExecutorService', () => {
         suspend: jest.fn().mockResolvedValue({ token: 'wg_x', expireAt: 0 }),
         getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
       } as never,
+
+      makeTelemetryStub() as never,
     );
 
     const events: Array<{ type: string; [k: string]: unknown }> = [];
@@ -673,6 +696,8 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
       { getRulesContext: jest.fn(() => undefined) } as never,
       confirmation as never,
       writeConfirmPipeline as never,
+
+      makeTelemetryStub() as never,
     );
     return {
       service,
@@ -806,6 +831,8 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
         }),
         getTokenTtlMs: jest.fn(() => ttl),
       } as never,
+
+      makeTelemetryStub() as never,
     );
 
     const events: Array<{ type: string; [k: string]: unknown }> = [];
@@ -860,6 +887,8 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
         suspend: jest.fn().mockResolvedValue({ token: 'wg_s', expireAt: 0 }),
         getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
       } as never,
+
+      makeTelemetryStub() as never,
     );
 
     // 第一跑：建单暂停
@@ -891,5 +920,105 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
       expect.anything(),
       { allowConfirm: true, channel: 'graph' },
     );
+  });
+});
+
+// ════ AI-P2-4-TELEMETRY-PIPELINE：graph 通道遥测哨兵（真实管线实例，非 mock 冒充）════
+describe('AI-P2-4-TELEMETRY-PIPELINE：graph 通道遥测哨兵', () => {
+  it('graph_done 回传真实 usage 载荷，且经真实管线收口（lane=graph 审计 + 计费单点）', async () => {
+    const auditLogger = { logAiCall: jest.fn() };
+    const billing = {
+      consume: jest.fn(() => Promise.resolve()),
+    };
+    const pipeline = new TelemetryPipelineService(
+      auditLogger as never,
+      billing as never,
+      new MetricsService(),
+    );
+    const executorMock = {
+      executeToolCalls: jest.fn().mockResolvedValue([]),
+    };
+    const checkpointer = makeCheckpointer();
+    const service = new GraphExecutorService(
+      executorMock as never,
+      checkpointer as never,
+      makeRegistryMock() as never,
+      { create: jest.fn(), get: jest.fn().mockResolvedValue(null) } as never,
+      {
+        recordWrite: jest.fn(),
+        verify: jest.fn(() => ({ ok: true, issues: [] })),
+      } as never,
+      { getRulesContext: jest.fn(() => undefined) } as never,
+      {
+        create: jest.fn(),
+        getByTenant: jest.fn().mockResolvedValue(null),
+        getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+      } as never,
+      {
+        suspend: jest.fn().mockResolvedValue({ token: 'wg_s', expireAt: 0 }),
+        getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
+      } as never,
+      pipeline,
+    );
+
+    // agent 节点两轮 LLM：prompt 20 / completion 10（真实计量来源）
+    const makeChatResult = (value: unknown) => ({
+      next: () => Promise.resolve({ done: true as const, value }),
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+    });
+    const chatMock = jest.fn();
+    chatMock
+      .mockImplementationOnce(() =>
+        makeChatResult({
+          content: '',
+          tool_calls: [],
+          prompt_tokens: 10,
+          completion_tokens: 5,
+        }),
+      )
+      .mockImplementationOnce(() =>
+        makeChatResult({
+          content: '完成',
+          prompt_tokens: 10,
+          completion_tokens: 5,
+        }),
+      );
+    const provider = { name: 'deepseek', chat: chatMock } as never;
+
+    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    for await (const e of service.execute(
+      AGENT_GRAPH,
+      's1',
+      makeCtx(),
+      provider,
+    )) {
+      events.push(e);
+    }
+
+    // D12 正向哨兵：graph_done 带真实 usage 载荷（SSE 兼容：新增字段）
+    const done = events.find((e) => e.type === 'graph_done');
+    expect(done).toBeDefined();
+    expect(done?.usage).toEqual({
+      promptTokens: 10,
+      completionTokens: 5,
+      totalTokens: 15,
+      latencyMs: expect.any(Number),
+      usageSource: 'measured',
+    });
+
+    // D5 正向哨兵：真实管线收口 → lane=graph 审计（sessionId 真实）
+    expect(auditLogger.logAiCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lane: 'graph',
+        sessionId: 's1',
+        tenantId: 't1',
+        promptTokens: 10,
+        completionTokens: 5,
+      }),
+    );
+    // 计费单点：graph 用量同样计费（D12 计费仅 chat 的修正）
+    expect(billing.consume).toHaveBeenCalledWith('t1', 15);
   });
 });

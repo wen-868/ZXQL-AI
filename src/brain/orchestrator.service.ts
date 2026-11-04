@@ -38,7 +38,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ToolExecutor } from '../tools/tool-executor';
 import { ToolRegistry } from '../tools/tool-registry';
-import { AuditLogger } from '../bridge/audit-logger';
 import { AiConfigService } from '../tenant/ai-config.service';
 import { TenantContext } from '../tenant/tenant-context';
 import { detectTone, toneDirective } from '../nlp/tone-detector';
@@ -64,7 +63,7 @@ import { WriteConfirmPipelineService } from './write-confirm-pipeline.service';
 import { StructuredExtractor } from './extraction/structured-extractor';
 import { CaptureService } from '../evolution/capture.service';
 import { MetricsService } from '../common/metrics.service';
-import { BillingService } from '../tenant/billing.service';
+import { TelemetryPipelineService } from './telemetry-pipeline.service';
 import { AnswerSelfCheckService } from './answer-self-check.service';
 import { WRITE_TOKEN_TTL_MS } from './write-guard.service';
 import type { ChatMessage } from '../providers/provider.interface';
@@ -282,7 +281,6 @@ export class Orchestrator {
   constructor(
     private readonly executor: ToolExecutor,
     private readonly registry: ToolRegistry,
-    private readonly auditLogger: AuditLogger,
     private readonly aiConfigService: AiConfigService,
     private readonly tenantContext: TenantContext,
     private readonly contextBuilder: ContextBuilder,
@@ -294,7 +292,6 @@ export class Orchestrator {
     private readonly extractor: StructuredExtractor,
     private readonly capture: CaptureService,
     private readonly metrics: MetricsService,
-    private readonly billing: BillingService,
     private readonly configService: ConfigService,
     private readonly selfCheck: AnswerSelfCheckService,
     private readonly knowledgeRules: KnowledgeRulesService,
@@ -302,6 +299,8 @@ export class Orchestrator {
     private readonly employeeService: EmployeeService,
     private readonly planner: PlannerService,
     private readonly ltm: LongTermMemoryService,
+    // AI-P2-4-TELEMETRY-PIPELINE：审计/会话/用量/计费统一遥测（唯一实例）
+    private readonly telemetry: TelemetryPipelineService,
   ) {}
 
   /**
@@ -345,6 +344,24 @@ export class Orchestrator {
         `数字员工会话未按员工隔离：uid=${params.employeeUid} session=${conversationId}（建议以 ${EMPLOYEE_SESSION_PREFIX} 前缀传入，或不传由后端兜底）`,
       );
     }
+
+    // AI-P2-4-TELEMETRY-PIPELINE：会话生命周期开始（自动分派早退与 Agent Loop
+    // 两条出口都在此会话上 channelEnd 收口——审计/用量/计费单点）。
+    // 形状守卫：兼容旧契约 spec 的位置参数错位（缺真实管线时跳过遥测，业务照常）。
+    const telemetryOk =
+      !!this.telemetry &&
+      typeof this.telemetry.channelBegin === 'function' &&
+      typeof this.telemetry.channelEnd === 'function';
+    const telemetrySession = telemetryOk
+      ? this.telemetry.channelBegin({
+          lane: 'chat',
+          tenantId,
+          sessionId: conversationId,
+          userId,
+          userMessage: params.message,
+          intent: 'chat',
+        })
+      : undefined;
 
     this.logger.log(
       `Agent Loop 启动：tenant=${tenantId} user=${userId ?? 'anonymous'} session=${conversationId} msg="${params.message.slice(0, 50)}..."`,
@@ -525,24 +542,28 @@ export class Orchestrator {
             this.logger.log(
               `自动分派：任务#${dr.taskId} → ${dr.employeeName}（lane=${intent.lane}）`,
             );
-            // 审计留痕：自动分派路径也入审计（triage 埋点供跨域占比统计）
-            this.auditLogger.logAiCall({
-              tenantId,
-              userId,
-              sessionId: conversationId,
-              employeeUid: dr.employeeUid,
-              provider: providerName,
-              model: modelName,
-              intent: 'auto_dispatch',
-              triageLane: intent.lane,
-              triageCategories:
-                (intent.categories ?? []).join(',') || undefined,
-              userMessage: params.message,
-              promptTokens: auxPromptTokens,
-              completionTokens: auxCompletionTokens,
-              latencyMs: Date.now() - runStartAt,
-              success: true,
-            });
+            // 统一遥测收口（AI-P2-4-TELEMETRY-PIPELINE）：自动分派早退路径同样
+            // 经管线（审计留痕含 triage 埋点 + usage_daily + 计费单点）
+            if (telemetryOk && telemetrySession) {
+              await this.telemetry.channelEnd({
+                session: telemetrySession,
+                success: true,
+                usage: {
+                  promptTokens: auxPromptTokens,
+                  completionTokens: auxCompletionTokens,
+                  totalTokens: auxPromptTokens + auxCompletionTokens,
+                  latencyMs: Date.now() - runStartAt,
+                  usageSource: 'measured',
+                },
+                provider: providerName,
+                model: modelName,
+                employeeUid: dr.employeeUid,
+                intent: 'auto_dispatch',
+                triageLane: intent.lane,
+                triageCategories:
+                  (intent.categories ?? []).join(',') || undefined,
+              });
+            }
             yield {
               type: 'done',
               conversationId,
@@ -1310,7 +1331,7 @@ export class Orchestrator {
       this.metrics.recordTokens(totalPromptTokens, totalCompletionTokens);
       this.metrics.recordAgentIterations(iteration + 1);
 
-      // A4 会话冷备归档 + B5 计费消耗（best-effort，不阻塞）
+      // A4 会话冷备归档（best-effort，不阻塞；计费已收敛进遥测管线单点）
       try {
         await this.memoryManager.archiveSession(
           tenantId,
@@ -1318,13 +1339,9 @@ export class Orchestrator {
           userId,
           messages,
         );
-        await this.billing.consume(
-          tenantId,
-          totalPromptTokens + totalCompletionTokens,
-        );
       } catch (err) {
         this.logger.debug(
-          `会话归档/计费消耗失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
+          `会话归档失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
         );
       }
 
@@ -1340,29 +1357,31 @@ export class Orchestrator {
         },
       };
 
-      // ── 8. 审计日志 ──
-      this.auditLogger.logAiCall({
-        tenantId,
-        userId,
-        sessionId: conversationId,
-        employeeUid: params.employeeUid,
-        provider: providerName,
-        model: modelName,
-        intent: 'chat',
-        triageLane: intent?.lane ?? null,
+      // ── 8. 统一遥测收口（AI-P2-4-TELEMETRY-PIPELINE：审计 + t_ai_usage_daily
+      //    单点 UPSERT + 计费单点；遥测失败隔离，不影响已发出的 done）──
+      if (telemetryOk && telemetrySession) {
+        await this.telemetry.channelEnd({
+          session: telemetrySession,
+          success: true,
+          usage: {
+            promptTokens: totalPromptTokens,
+            completionTokens: totalCompletionTokens,
+            totalTokens: totalPromptTokens + totalCompletionTokens,
+            latencyMs,
+            usageSource: 'measured',
+          },
+          provider: providerName,
+          model: modelName,
+          employeeUid: params.employeeUid,
+          categories: this.collectToolCategories(allToolCalls),
+          toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
+          triageLane: intent?.lane ?? null,
 
-        triageCategories: (intent?.categories ?? []).join(',') || undefined,
+          triageCategories: (intent?.categories ?? []).join(',') || undefined,
 
-        lane: 'chat',
-        categories: this.collectToolCategories(allToolCalls),
-        userMessage: params.message,
-        toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
-        promptTokens: totalPromptTokens,
-        completionTokens: totalCompletionTokens,
-        latencyMs,
-        success: true,
-        fallback: fallbackUsed,
-      });
+          fallback: fallbackUsed,
+        });
+      }
 
       this.logger.log(
         `Agent Loop 完成：session=${conversationId} iterations=${iteration + 1} tokens=${totalPromptTokens + totalCompletionTokens} latency=${latencyMs}ms tools=${allToolCalls.length}`,
@@ -1379,23 +1398,28 @@ export class Orchestrator {
         message: `对话处理失败：${errorMsg}`,
       };
 
-      // 审计日志：记录失败的 AI 调用
-      this.auditLogger.logAiCall({
-        tenantId,
-        userId,
-        sessionId: conversationId,
-        employeeUid: params.employeeUid,
-        provider: providerName,
-        model: modelName,
-        intent: 'chat',
-        lane: 'chat',
-        userMessage: params.message,
-        promptTokens: 0,
-        completionTokens: 0,
-        latencyMs: 0,
-        success: false,
-        errorMessage: errorMsg,
-      });
+      // 统一遥测收口（AI-P2-4-TELEMETRY-PIPELINE）：失败路径同样入审计与
+      // usage_daily（失败不计费保持原口径——billable:false）。
+      // 用量来源 unknown：主 LLM 调用失败时 token 计量不可信，按 0 显式标注。
+      if (telemetryOk && telemetrySession) {
+        await this.telemetry.channelEnd({
+          session: telemetrySession,
+          success: false,
+          usage: {
+            promptTokens: 0,
+            completionTokens: 0,
+            totalTokens: 0,
+            latencyMs: 0,
+            usageSource: 'unknown',
+          },
+          provider: providerName,
+          model: modelName,
+          employeeUid: params.employeeUid,
+          intent: 'chat',
+          billable: false,
+          error: errorMsg,
+        });
+      }
     }
   }
 

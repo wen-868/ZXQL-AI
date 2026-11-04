@@ -31,6 +31,8 @@ import { EvidenceLedgerService } from '../evidence/evidence-ledger.service';
 import { ConfirmationService } from '../confirmation.service';
 import { WriteConfirmPipelineService } from '../write-confirm-pipeline.service';
 import { KnowledgeRulesService } from '../knowledge-rules.service';
+import { TelemetryPipelineService } from '../telemetry-pipeline.service';
+import type { TelemetryUsage } from '../telemetry-pipeline.service';
 import {
   BUILTIN_GRAPHS,
   GraphDefinition,
@@ -68,7 +70,12 @@ export type GraphRunEvent =
       expireAt: number;
     }
   | { type: 'await_confirm'; token: string; expireAt: number }
-  | { type: 'graph_done'; graphId: string }
+  | {
+      type: 'graph_done';
+      graphId: string;
+      /** AI-P2-4-TELEMETRY-PIPELINE：真实用量（D12 修正；unknown 显式标注非真实 0） */
+      usage?: TelemetryUsage;
+    }
   | { type: 'error'; message: string };
 
 @Injectable()
@@ -84,6 +91,8 @@ export class GraphExecutorService implements OnModuleInit {
     private readonly knowledgeRules: KnowledgeRulesService,
     private readonly confirmationService: ConfirmationService,
     private readonly writeConfirmPipeline: WriteConfirmPipelineService,
+    // AI-P2-4-TELEMETRY-PIPELINE：审计/会话/用量/计费统一遥测（graph 通道此前无审计 D5 / usage 恒 0 D12 / 无计费）
+    private readonly telemetry: TelemetryPipelineService,
   ) {}
 
   /**
@@ -120,6 +129,10 @@ export class GraphExecutorService implements OnModuleInit {
   /**
    * 执行有状态图（支持断点续跑）
    *
+   * AI-P2-4-TELEMETRY-PIPELINE：外层为统一遥测包装（begin/end 生命周期 +
+   * graph_done 真实 usage 载荷 + lane=graph 审计 + 计费单点）；核心执行体
+   * 见 executeCore（语义不变）。
+   *
    * @param graph 图定义
    * @param sessionId 会话 ID
    * @param toolContext 工具上下文（tenantId/userId/authToken）
@@ -130,6 +143,92 @@ export class GraphExecutorService implements OnModuleInit {
     sessionId: string,
     toolContext: ToolContext,
     provider?: IModelProvider,
+  ): AsyncGenerator<GraphRunEvent> {
+    const session = this.telemetry.channelBegin({
+      lane: 'graph',
+      tenantId: toolContext.tenantId,
+      sessionId,
+      userId: toolContext.userId,
+    });
+    const startTime = session.startTime;
+    const usageAcc = { prompt: 0, completion: 0, sawLlm: false };
+    let ended = false;
+    let lastError: string | undefined;
+    try {
+      for await (const event of this.executeCore(
+        graph,
+        sessionId,
+        toolContext,
+        provider,
+        usageAcc,
+      )) {
+        if (event.type === 'graph_done') {
+          ended = true;
+          const usage: TelemetryUsage = {
+            promptTokens: usageAcc.prompt,
+            completionTokens: usageAcc.completion,
+            totalTokens: usageAcc.prompt + usageAcc.completion,
+            latencyMs: Date.now() - startTime,
+            // 只有跑过 LLM 节点才有真实计量；纯工具图按 unknown 显式标注（非真实 0）
+            usageSource: usageAcc.sawLlm ? 'measured' : 'unknown',
+          };
+          await this.telemetry.channelEnd({
+            session,
+            success: true,
+            usage,
+            provider: provider?.name,
+          });
+          yield { ...event, usage };
+          continue;
+        }
+        if (event.type === 'error') {
+          lastError = event.message;
+        }
+        yield event;
+      }
+      if (!ended) {
+        // 非 done 退出（error / 早退分支）：按失败收口，遥测仍不丢
+        await this.telemetry.channelEnd({
+          session,
+          success: false,
+          usage: {
+            promptTokens: usageAcc.prompt,
+            completionTokens: usageAcc.completion,
+            totalTokens: usageAcc.prompt + usageAcc.completion,
+            latencyMs: Date.now() - startTime,
+            usageSource: usageAcc.sawLlm ? 'measured' : 'unknown',
+          },
+          provider: provider?.name,
+          error: lastError,
+        });
+      }
+    } catch (err) {
+      // 包装层兜底（executeCore 设计上不抛；此处仅防实现缺陷外溢）
+      lastError = err instanceof Error ? err.message : String(err);
+      await this.telemetry.channelEnd({
+        session,
+        success: false,
+        usage: {
+          promptTokens: usageAcc.prompt,
+          completionTokens: usageAcc.completion,
+          totalTokens: usageAcc.prompt + usageAcc.completion,
+          latencyMs: Date.now() - startTime,
+          usageSource: usageAcc.sawLlm ? 'measured' : 'unknown',
+        },
+        provider: provider?.name,
+        error: lastError,
+      });
+      throw err;
+    }
+  }
+
+  /** 核心执行体（原 execute 主体，语义不变；usageAcc 供遥测累计真实用量） */
+  private async *executeCore(
+    graph: GraphDefinition,
+    sessionId: string,
+    toolContext: ToolContext,
+    provider?: IModelProvider,
+    usageAcc?: { prompt: number; completion: number; sawLlm: boolean },
   ): AsyncGenerator<GraphRunEvent> {
     // 1. 恢复或初始化图状态
     let state =
@@ -526,13 +625,25 @@ export class GraphExecutorService implements OnModuleInit {
               });
               let roundText = '';
               let chatResult:
-                | { tool_calls?: ChatMessage['tool_calls']; content?: string }
+                | {
+                    tool_calls?: ChatMessage['tool_calls'];
+                    content?: string;
+                    prompt_tokens?: number;
+                    completion_tokens?: number;
+                  }
                 | undefined;
               // 手动迭代：done=true 时 value 为 ChatResult（含 tool_calls/usage）
               for (;;) {
                 const { value, done } = await generator.next();
                 if (done) {
                   chatResult = value;
+                  // AI-P2-4-TELEMETRY-PIPELINE：真实 LLM 用量累计（D12 修正——
+                  // graph done 此前恒 0；此处为唯一真实计量来源）
+                  if (usageAcc && chatResult) {
+                    usageAcc.prompt += chatResult.prompt_tokens ?? 0;
+                    usageAcc.completion += chatResult.completion_tokens ?? 0;
+                    usageAcc.sawLlm = true;
+                  }
                   break;
                 }
                 roundText += value;
