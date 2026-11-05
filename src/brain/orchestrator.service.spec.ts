@@ -165,7 +165,9 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
     },
     capture: {
       captureCorrection: jest.fn().mockResolvedValue(undefined),
-      captureTask: jest.fn().mockResolvedValue(undefined),
+      captureTask: jest.fn((_input?: Record<string, unknown>) =>
+        Promise.resolve(undefined),
+      ),
     },
     metrics: {
       recordPlan: jest.fn(),

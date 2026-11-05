@@ -122,7 +122,9 @@ function makeRunner(
     fillStepArgs: jest.fn().mockResolvedValue({ sku: 'WLJ' }),
   };
   const capture = {
-    captureTask: jest.fn().mockResolvedValue(undefined),
+    captureTask: jest.fn((_input?: Record<string, unknown>) =>
+      Promise.resolve(undefined),
+    ),
   };
   const metrics = {
     recordRequest: jest.fn(),
