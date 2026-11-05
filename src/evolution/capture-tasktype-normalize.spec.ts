@@ -181,6 +181,14 @@ describe('阶段 4-1 · ai_sample.taskType 口径归一', () => {
         'createSalesOrder',
       );
     });
+ 
+    it('租户透传：experience/sample tenantId 与输入一致，不丢失不串写（M6 反测锚）', async () => {
+      const { sample, experience } = await captureSample({
+        intent: 'createSalesOrder',
+      });
+      expect(experience.tenantId).toBe('t_001');
+      expect(sample.tenantId).toBe('t_001');
+    });
   });
 
   describe('5. 注册表 14 类 docType 全覆盖 + 映射表完整性', () => {
