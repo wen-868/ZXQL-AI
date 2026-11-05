@@ -32,6 +32,8 @@ import { ConfirmationService } from '../confirmation.service';
 import { WriteConfirmPipelineService } from '../write-confirm-pipeline.service';
 import { KnowledgeRulesService } from '../knowledge-rules.service';
 import { TelemetryPipelineService } from '../telemetry-pipeline.service';
+import { CaptureService } from '../../evolution/capture.service';
+import { normalizeCaptureIntent } from '../../evolution/capture-intent';
 import type { TelemetryUsage } from '../telemetry-pipeline.service';
 import {
   BUILTIN_GRAPHS,
@@ -93,6 +95,8 @@ export class GraphExecutorService implements OnModuleInit {
     private readonly writeConfirmPipeline: WriteConfirmPipelineService,
     // AI-P2-4-TELEMETRY-PIPELINE：审计/会话/用量/计费统一遥测（graph 通道此前无审计 D5 / usage 恒 0 D12 / 无计费）
     private readonly telemetry: TelemetryPipelineService,
+    // AI-P2-4-CAPTURE-INTENT-NORMALIZE：graph 完成态采集（此前 graph 不进进化飞轮）
+    private readonly capture: CaptureService,
   ) {}
 
   /**
@@ -150,6 +154,11 @@ export class GraphExecutorService implements OnModuleInit {
       sessionId,
       userId: toolContext.userId,
     });
+    // AI-P2-4-CAPTURE-INTENT-NORMALIZE：工具轨迹收集（graph 完成态采集用；
+    // 原始工具名保留在轨迹中，归一只作用于 intent/taskType 字段）
+    const captureToolCalls: Array<Record<string, unknown>> = [];
+    // 尝试过的工具名（tool_start；失败路径拿不到 tool_result 时的 intent 来源）
+    const attemptedToolNames: string[] = [];
     const startTime = session.startTime;
     const usageAcc = { prompt: 0, completion: 0, sawLlm: false };
     let ended = false;
@@ -178,8 +187,37 @@ export class GraphExecutorService implements OnModuleInit {
             usage,
             provider: provider?.name,
           });
+          // AI-P2-4-CAPTURE-INTENT-NORMALIZE：graph 完成态采集（确定性单点，
+          // 不得每节点重复）。intent：有工具按其 docType 归一，无工具回退 'graph'。
+          const firstCaptureTool = captureToolCalls.find(
+            (t) => typeof t.tool_name === 'string' && t.tool_name !== '',
+          );
+          void this.capture.captureTask({
+            tenantId: toolContext.tenantId,
+            domain: 'analysis',
+            intent: normalizeCaptureIntent(
+              typeof firstCaptureTool?.tool_name === 'string'
+                ? firstCaptureTool.tool_name
+                : 'graph',
+            ),
+            userMessage: `graph:${graph.id} ${graph.name}`,
+            toolCalls: [
+              ...captureToolCalls,
+              { event: 'graph_done', graphId: graph.id },
+            ],
+            outcome: 'success',
+          });
           yield { ...event, usage };
           continue;
+        }
+        if (event.type === 'tool_start') {
+          attemptedToolNames.push(event.tool);
+        }
+        if (event.type === 'tool_result') {
+          captureToolCalls.push({
+            tool_name: event.tool,
+            success: event.success,
+          });
         }
         if (event.type === 'error') {
           lastError = event.message;
@@ -187,7 +225,26 @@ export class GraphExecutorService implements OnModuleInit {
         yield event;
       }
       if (!ended) {
-        // 非 done 退出（error / 早退分支）：按失败收口，遥测仍不丢
+        // 非 done 退出（error / 早退分支）：按失败收口，遥测仍不丢。
+        // 采集同步落一条 failed（不误记成功；与完成点互斥，同样仅一次）。
+        // intent 来源优先尝试过的工具（tool_start）——失败路径无 tool_result
+        const firstFailTool =
+          attemptedToolNames[0] ??
+          (captureToolCalls.find(
+            (t) => typeof t.tool_name === 'string' && t.tool_name !== '',
+          )?.tool_name as string | undefined);
+        void this.capture.captureTask({
+          tenantId: toolContext.tenantId,
+          domain: 'analysis',
+          intent: normalizeCaptureIntent(firstFailTool ?? 'graph'),
+          userMessage: `graph:${graph.id} ${graph.name}`,
+          toolCalls: [
+            ...captureToolCalls,
+            { event: 'graph_error', graphId: graph.id },
+          ],
+          outcome: 'failed',
+          error: lastError,
+        });
         await this.telemetry.channelEnd({
           session,
           success: false,

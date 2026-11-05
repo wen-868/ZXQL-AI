@@ -296,6 +296,16 @@ describe('Orchestrator（Agent Loop 核心）', () => {
     expect(events.some((e) => e.type === 'done')).toBe(true);
     // 无错误事件
     expect(events.filter((e) => e.type === 'error')).toHaveLength(0);
+    // AI-P2-4-CAPTURE-INTENT-NORMALIZE：chat 采集经统一归一口径——
+    // searchProduct 未映射保持原值（不得折叠成 chat）
+    expect(h.deps.capture.captureTask).toHaveBeenCalledTimes(1);
+    const capArg = h.deps.capture.captureTask.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(capArg.intent).toBe('searchProduct');
+    expect(capArg.outcome).toBe('success');
+    expect(capArg.tenantId).toBe('t1');
   });
 
   it('路径 2：工具调用失败不中断 Loop（失败结果回填后继续跑完）', async () => {

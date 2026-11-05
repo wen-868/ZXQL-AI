@@ -62,6 +62,7 @@ import { MemoryManager } from './memory-manager.service';
 import { WriteConfirmPipelineService } from './write-confirm-pipeline.service';
 import { StructuredExtractor } from './extraction/structured-extractor';
 import { CaptureService } from '../evolution/capture.service';
+import { normalizeCaptureIntent } from '../evolution/capture-intent';
 import { MetricsService } from '../common/metrics.service';
 import { TelemetryPipelineService } from './telemetry-pipeline.service';
 import { AnswerSelfCheckService } from './answer-self-check.service';
@@ -1291,7 +1292,7 @@ export class Orchestrator {
         await this.capture.captureTask({
           tenantId,
           domain: isWrite ? 'write' : 'analysis',
-          intent: toolName ?? 'chat',
+          intent: normalizeCaptureIntent(toolName ?? 'chat'),
           userMessage: params.message,
           toolCalls: allToolCalls,
           outcome: captureFailed ? 'failed' : 'success',

@@ -29,6 +29,7 @@ import { WriteConfirmPipelineService } from '../write-confirm-pipeline.service';
 import { SelfHealLoopService } from './self-heal-loop.service';
 import { PlannerService } from './planner.service';
 import { CaptureService } from '../../evolution/capture.service';
+import { normalizeCaptureIntent } from '../../evolution/capture-intent';
 import { MetricsService } from '../../common/metrics.service';
 import { bestEffort } from '../../common/error-semantics';
 import { detectIntentCategories } from '../intent-detector';
@@ -671,7 +672,7 @@ export class TaskRunnerService {
         this.capture.captureTask({
           tenantId: plan.tenantId,
           domain: 'write',
-          intent: step.tool,
+          intent: normalizeCaptureIntent(step.tool),
           userMessage: plan.goal,
           toolCalls: [{ tool_name: step.tool, success: outcome === 'success' }],
           outcome,
@@ -1040,7 +1041,7 @@ export class TaskRunnerService {
         this.capture.captureTask({
           tenantId: plan.tenantId,
           domain: failed.length > 0 ? 'write' : 'analysis',
-          intent: `agent_plan_${plan.id}`,
+          intent: 'agent_plan',
           userMessage: plan.goal,
           toolCalls: [],
           outcome: failed.length > 0 ? 'failed' : 'success',

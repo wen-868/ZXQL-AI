@@ -202,6 +202,8 @@ function makeExecutor(
     writeConfirmPipelineMock as never,
 
     makeTelemetryStub() as never,
+
+    makeCaptureStub() as never,
   );
 }
 
@@ -215,6 +217,11 @@ async function collectEvents(
     events.push(e);
   }
   return events;
+}
+
+/** AI-P2-4-CAPTURE-INTENT-NORMALIZE：采集桩（记录 captureTask 调用） */
+function makeCaptureStub() {
+  return { captureTask: jest.fn((_input?: Record<string, unknown>) => Promise.resolve()) };
 }
 
 /** AI-P2-4-TELEMETRY-PIPELINE：遥测桩（默认全通过，供各构造点复用） */
@@ -469,6 +476,8 @@ describe('GraphExecutorService', () => {
       } as never,
 
       makeTelemetryStub() as never,
+
+      makeCaptureStub() as never,
     );
 
     const events: Array<{ type: string; [k: string]: unknown }> = [];
@@ -700,6 +709,8 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
       writeConfirmPipeline as never,
 
       makeTelemetryStub() as never,
+
+      makeCaptureStub() as never,
     );
     return {
       service,
@@ -835,6 +846,8 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
       } as never,
 
       makeTelemetryStub() as never,
+
+      makeCaptureStub() as never,
     );
 
     const events: Array<{ type: string; [k: string]: unknown }> = [];
@@ -891,6 +904,8 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
       } as never,
 
       makeTelemetryStub() as never,
+
+      makeCaptureStub() as never,
     );
 
     // 第一跑：建单暂停
@@ -961,6 +976,8 @@ describe('AI-P2-4-TELEMETRY-PIPELINE：graph 通道遥测哨兵', () => {
         getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
       } as never,
       pipeline,
+
+      makeCaptureStub() as never,
     );
 
     // agent 节点两轮 LLM：prompt 10 / completion 5（真实计量来源）
@@ -1026,5 +1043,138 @@ describe('AI-P2-4-TELEMETRY-PIPELINE：graph 通道遥测哨兵', () => {
     );
     // 计费单点：graph 用量同样计费（D12 计费仅 chat 的修正）
     expect(billing.consume).toHaveBeenCalledWith('t1', 15);
+  });
+});
+
+// ════ AI-P2-4-CAPTURE-INTENT-NORMALIZE：graph 完成态采集哨兵 ════
+describe('AI-P2-4-CAPTURE-INTENT-NORMALIZE：graph 完成态采集哨兵', () => {
+  function buildService(
+    capture: { captureTask: jest.Mock },
+    executorMock: Record<string, jest.Mock>,
+    registry?: Record<string, jest.Mock>,
+  ): GraphExecutorService {
+    return new GraphExecutorService(
+      executorMock as never,
+      makeCheckpointer() as never,
+      (registry ?? makeRegistryMock()) as never,
+      {
+        create: jest.fn(),
+        get: jest.fn().mockResolvedValue(null),
+      } as never,
+      {
+        recordWrite: jest.fn(),
+        verify: jest.fn(() => ({ ok: true, issues: [] })),
+      } as never,
+      { getRulesContext: jest.fn(() => undefined) } as never,
+      {
+        create: jest.fn(),
+        getByTenant: jest.fn().mockResolvedValue(null),
+        getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+      } as never,
+      {
+        suspend: jest.fn().mockResolvedValue({ token: 'wg_s', expireAt: 0 }),
+        getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
+      } as never,
+      makeTelemetryStub() as never,
+      capture as never,
+    );
+  }
+
+  const CAPTURE_REGISTRY = {
+    toToolDefinitions: jest.fn(() => []),
+    has: jest.fn(() => true),
+    get: jest.fn(() => ({
+      name: 'createSalesOrder',
+      isWriteOperation: true,
+      risk: 'medium',
+      needsReview: false,
+    })),
+  };
+
+  const CAPTURE_GRAPH: GraphDefinition = {
+    id: 'cap_graph',
+    name: '采集哨兵图',
+    entry: 'a',
+    nodes: [
+      {
+        id: 'a',
+        label: '开单',
+        type: 'tool',
+        tool: 'createSalesOrder',
+        args: {},
+        next: 'end',
+      },
+      { id: 'end', label: '完成', type: 'end' },
+    ],
+  };
+
+  it('完成点仅采集一次：写工具按 docType 归一、轨迹含原始工具名与 graphId', async () => {
+    const capture = makeCaptureStub();
+    const executorMock = {
+      executeToolCall: jest
+        .fn()
+        .mockResolvedValue({ success: true, data: { orderNo: 'XS1' } }),
+    };
+    const service = buildService(capture, executorMock, CAPTURE_REGISTRY);
+    const events = await collectEvents(service, CAPTURE_GRAPH, makeCtx());
+    expect(events.some((e) => e.type === 'graph_done')).toBe(true);
+    expect(capture.captureTask).toHaveBeenCalledTimes(1);
+    const arg = capture.captureTask.mock.calls[0][0] as Record<string, unknown>;
+    expect(arg.tenantId).toBe('t1');
+    expect(arg.intent).toBe('sales_order');
+    expect(arg.outcome).toBe('success');
+    const traj = JSON.stringify(arg.toolCalls);
+    expect(traj).toContain('createSalesOrder');
+    expect(traj).toContain('cap_graph');
+  });
+
+  it('无工具图：intent 回退 graph（不折叠成 chat）', async () => {
+    const capture = makeCaptureStub();
+    const service = buildService(capture, {
+      executeToolCall: jest.fn(),
+    } as never);
+    const emptyGraph: GraphDefinition = {
+      id: 'cap_empty',
+      name: '空图',
+      entry: 'end',
+      nodes: [{ id: 'end', label: '完成', type: 'end' }],
+    };
+    await collectEvents(service, emptyGraph, makeCtx());
+    expect(capture.captureTask).toHaveBeenCalledTimes(1);
+    const arg = capture.captureTask.mock.calls[0][0] as Record<string, unknown>;
+    expect(arg.intent).toBe('graph');
+    expect(arg.intent).not.toBe('chat');
+  });
+
+  it('失败路径：outcome=failed 不误记成功，且仅一次', async () => {
+    const capture = makeCaptureStub();
+    const executorMock = {
+      executeToolCall: jest
+        .fn()
+        .mockRejectedValue(new Error('后端 HTTP 500：boom')),
+    };
+    const service = buildService(capture, executorMock, CAPTURE_REGISTRY);
+    const failGraph: GraphDefinition = {
+      id: 'cap_fail',
+      name: '失败图',
+      entry: 'a',
+      nodes: [
+        {
+          id: 'a',
+          label: '开单',
+          type: 'tool',
+          tool: 'createSalesOrder',
+          args: {},
+          next: 'end',
+        },
+        { id: 'end', label: '完成', type: 'end' },
+      ],
+    };
+    await collectEvents(service, failGraph, makeCtx());
+    expect(capture.captureTask).toHaveBeenCalledTimes(1);
+    const arg = capture.captureTask.mock.calls[0][0] as Record<string, unknown>;
+    expect(arg.outcome).toBe('failed');
+    expect(arg.error).toContain('boom');
+    expect(arg.intent).toBe('sales_order');
   });
 });

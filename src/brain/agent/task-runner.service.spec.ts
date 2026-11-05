@@ -286,7 +286,7 @@ describe('TaskRunnerService', () => {
   });
 
   it('run：纯读计划自动执行至 success，done 事件携带统计', async () => {
-    const { runner, executor } = makeRunner();
+    const { runner, executor, capture } = makeRunner();
     const plan = await runner.createPlan({
       tenantId: 't1',
       goal: '查五粮液库存',
@@ -309,6 +309,17 @@ describe('TaskRunnerService', () => {
     const persisted = await runner.getPlan(plan.id, 't1');
     expect(persisted?.state).toBe('success');
     expect(persisted?.steps[0].status).toBe('success');
+    // AI-P2-4-CAPTURE-INTENT-NORMALIZE：计划完成采集使用稳定键 agent_plan
+    // （不得带自增 plan id）；queryInventory 未映射保持原值
+    expect(capture.captureTask).toHaveBeenCalledTimes(1);
+    const capArg = capture.captureTask.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(capArg.intent).toBe('agent_plan');
+    expect(String(capArg.intent)).not.toBe(`agent_plan_${plan.id}`);
+    expect(capArg.tenantId).toBe('t1');
+    expect(capArg.outcome).toBe('success');
   });
 
   it('run：写步骤返回预览 → 挂起令牌，流结束且计划 suspended', async () => {
