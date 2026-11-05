@@ -30,15 +30,20 @@ describe('normalizeCaptureIntent（三通道 Capture intent 归一矩阵）', ()
       expect(normalizeCaptureIntent('querySaleBills')).toBe('querySaleBills');
     });
 
-    it.each(['office_document', 'write', 'analysis', 'agent_plan', 'graph'] as const)(
-      "非工具意图 '%s' 保持原值",
-      (intent) => {
-        expect(normalizeCaptureIntent(intent)).toBe(intent);
-      },
-    );
+    it.each([
+      'office_document',
+      'write',
+      'analysis',
+      'agent_plan',
+      'graph',
+    ] as const)("非工具意图 '%s' 保持原值", (intent) => {
+      expect(normalizeCaptureIntent(intent)).toBe(intent);
+    });
 
     it('前后空白先 trim 再查表（空白包裹的映射名仍命中）', () => {
-      expect(normalizeCaptureIntent('  createSalesOrder  ')).toBe('sales_order');
+      expect(normalizeCaptureIntent('  createSalesOrder  ')).toBe(
+        'sales_order',
+      );
     });
 
     it('trim 后原值返回（不带尾随空白）', () => {
@@ -49,9 +54,12 @@ describe('normalizeCaptureIntent（三通道 Capture intent 归一矩阵）', ()
   });
 
   describe('空值回退', () => {
-    it.each([undefined, null, '', '   '] as const)('空值 %p ⇒ 缺省 fallback chat', (v) => {
-      expect(normalizeCaptureIntent(v)).toBe('chat');
-    });
+    it.each([undefined, null, '', '   '] as const)(
+      '空值 %p ⇒ 缺省 fallback chat',
+      (v) => {
+        expect(normalizeCaptureIntent(v)).toBe('chat');
+      },
+    );
 
     it('显式 fallback：graph 通道空工具回退 graph', () => {
       expect(normalizeCaptureIntent(undefined, 'graph')).toBe('graph');

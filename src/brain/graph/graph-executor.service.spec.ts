@@ -221,7 +221,11 @@ async function collectEvents(
 
 /** AI-P2-4-CAPTURE-INTENT-NORMALIZE：采集桩（记录 captureTask 调用） */
 function makeCaptureStub() {
-  return { captureTask: jest.fn((_input?: Record<string, unknown>) => Promise.resolve()) };
+  return {
+    captureTask: jest.fn((_input?: Record<string, unknown>) =>
+      Promise.resolve(),
+    ),
+  };
 }
 
 /** AI-P2-4-TELEMETRY-PIPELINE：遥测桩（默认全通过，供各构造点复用） */
