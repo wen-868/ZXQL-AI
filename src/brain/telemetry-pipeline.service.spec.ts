@@ -300,7 +300,10 @@ describe('TelemetryPipelineService（三通道统一遥测契约）', () => {
       expect(billing.consume).toHaveBeenCalledTimes(1);
       expect(billing.consume).toHaveBeenCalledWith('t1', 180);
       // 审计侧：lane=agent 且 sessionId 不回退 tenantId（D4 联动确认）
-      const record = audit.logAiCall.mock.calls[0][0] as Record<string, unknown>;
+      const record = audit.logAiCall.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
       expect(record.lane).toBe('agent');
       expect(record.sessionId).toBe('plan-run-sess-7');
       expect(record.sessionId).not.toBe('t1');
