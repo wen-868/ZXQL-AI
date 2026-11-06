@@ -1,5 +1,5 @@
 -- ai_sample.task_type 存量回填：工具名口径归一为裸 docType（阶段 4-1 · P0 断链修复）
--- 依据：docs/reports/阶段4-1-taskType归一-任务卡.md
+-- 依据：中央归档 docs/reports/阶段4-1-taskType归一-任务卡.md
 --   采集侧（src/evolution/capture.service.ts）历史上把工具名（如 createSalesOrder）
 --   写进 ai_sample.task_type，而消费侧（src/brain/extraction/structured-extractor.ts:141-145）
 --   的 few-shot 回流按裸 docType（如 sales_order）精确相等查询

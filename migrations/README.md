@@ -1,6 +1,7 @@
 # AI 底座数据库迁移（migrations/）
 
-> 依据：`docs/ai-base/智享AI底座-架构设计文档【唯一权威】.md` 第 7 章（数据库设计）、22.7（审计与撤销）、26（进化底座 ai_db）。
+> 依据：`D:\Users\ZXQL\ZXQL-WORK\projects\ai\archive\repo-docs-20261107\docs\ai-base\智享AI底座-架构设计文档【唯一权威】.md`
+> 第 7 章（数据库设计）、22.7（审计与撤销）、26（进化底座 ai_db）。
 > 状态：独立仓库迁移目录已建立；`001_ai_tables.sql` 随 P1-1（ai_db 认知闭环）落地时补齐。
 
 ## 一、目录定位
@@ -46,7 +47,8 @@
      若连接被复用或脚本按分号拆分执行，后续本该落在业务库的语句会**静默落进 ai_db**。
    - 为什么非当前库的对象禁止裸写：裸 `UPDATE ai_sample` 会打到会话当前库（业务库 `liquor_inventory`），
      而该表在 `ai_db` ⇒ ERROR 1146 ⇒ 部署脚本白名单（1060/1061/1050/1091）不含 1146 ⇒ **每次部署红**
-     （run 37665016905 实证，见 `docs/reports/` 下 R101 卡）。
+     （run 37665016905 实证，见中央归档
+     `D:\Users\ZXQL\ZXQL-WORK\projects\ai\archive\repo-docs-20261107\docs\reports\` 下的 R101 卡）。
    - 库名由 `003_ai_db_evolution.sql` 第 1 条 `CREATE DATABASE IF NOT EXISTS ai_db` 固定。
      私有库改名须改该行 + 全仓全部命中点，审计命令：`rg -n "ai_db\." migrations/`。
    - ⚠️ `@ai_db` 这个会话变量在本仓的语义是 **`DATABASE()`（= 业务库）**（见 004/005/008/009/010/011），

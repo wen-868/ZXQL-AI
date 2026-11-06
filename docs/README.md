@@ -1,58 +1,10 @@
-# 智享 AI 底座 — 开发工作文件夹
+# 文档入口
 
-> 本目录是 AI 底座（`ZXQL-AI`）的**研发工作区**，沉淀 AI 底座自己的设计/开发文档 + 平台级通用规范，供 AI 研发团队统一遵循。
+本代码仓不再保存任务、回传、验收、证据、人员记忆、历史报告或设计工作文档。
 
-## 结构
-
-```
-docs/
-├── README.md                本说明
-├── AI底座开发规范.md           AI 底座开发规则（蒸馏核心，必读）
-├── 设计/                       当前 AI 底座开发/设计文档（**AI 大修依据，来自 SharePoint**，最新）
-│   ├── 智享全链AI底座开发文档_v2.0.md
-│   ├── AI底座全量改进详细设计.md
-│   ├── 认知层详细设计.md
-│   ├── 运营域全量工具定义.md
-│   ├── 基于现有AI底座的共享扩展设计.md
-│   └── 运营系统UI设计.md
-├── ai-base/                   AI 底座设计/开发文档（自管理系统 docs/ai-base 迁入）
-│   ├── 智享AI底座-架构设计文档.md
-│   ├── 智享AI底座-开发文档.md
-│   ├── 智享AI助手-能力说明书.md
-│   ├── 智享AI助手-写入操作规范.md
-│   ├── 管理系统AI底座完善计划.md
-│   └── 管理系统AI技能化落地清单.md
-└── 规范/                      平台级通用规范（自管理系统 docs 迁入，AI 团队同样遵守）
-    ├── 项目统一标准.md
-    ├── 项目规则.md
-    ├── 代码审查规范.md
-    ├── 踩坑日志.md
-    ├── 密钥管理规范.md
-    └── verify-five-defense.md
-```
-
-## 必读（AI 研发每次任务前）
-
-1. `docs/AI底座开发规范.md`（本仓库核心规则）
-2. `docs/设计/智享全链AI底座开发文档_v2.0.md`（**最新开发文档**，开发前必读）
-3. `docs/ai-base/智享AI底座-开发文档.md`
-4. `docs/ai-base/智享AI助手-能力说明书.md`
-5. `docs/ai-base/智享AI助手-写入操作规范.md`
-6. `docs/设计/AI底座全量改进详细设计.md`（AI 大修/改造设计，改造前必读）
-7. `docs/规范/项目统一标准.md`
-8. `docs/规范/项目规则.md`
-9. `docs/规范/踩坑日志.md`
-
-> 版本说明：`docs/ai-base/` 为既有（当前线上）底座文档；`docs/设计/` 为 SharePoint 上的最新开发/设计文档，**优先以 `docs/设计/` 为准**，二者冲突时以 `docs/设计/` 为准。
-
-## 与本仓库其它目录的关系
-
-- `knowledge/`：AI 知识库（RAG 预置领域知识，非工作文件）。
-- `src/`：AI 底座源码（NestJS）。
-- `test/`：测试。
-- `.env.example`：环境变量模板（敏感项不提交）。
-
-## 变更约定
-
-- 新增/修改本目录文档后，随代码一起提交并推送（`docs/` 纳入 `ZXQL-AI` 仓库）。
-- 文档取舍原则：平台级**通用规范**放 `规范/`；**AI 专属**设计/规则放 `ai-base/` 或 `AI底座开发规范.md`。
+- 中央总规则：`D:\Users\ZXQL\ZXQL-WORK\AGENTS.md`
+- 当前任务入口：`D:\Users\ZXQL\ZXQL-WORK\projects\ai\tasks\inbox\`
+- 中央证据：`D:\Users\ZXQL\ZXQL-WORK\projects\ai\evidence\`
+- 中央设计：`D:\Users\ZXQL\ZXQL-WORK\projects\ai\design\`
+- 中央报告：`D:\Users\ZXQL\ZXQL-WORK\projects\ai\reports\`
+- 旧仓文档只读归档：`D:\Users\ZXQL\ZXQL-WORK\projects\ai\archive\repo-docs-20261107\`

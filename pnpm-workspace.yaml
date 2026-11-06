@@ -17,7 +17,8 @@ overrides:
   # @xmldom/xmldom<=0.8.14 一条 moderate（XML 片段注入，mammoth/RAG 文档解析链路）
   qs: ^6.16.0
   "@xmldom/xmldom": ^0.8.15
-  # R101-AI-18（2026-10-10）依赖通告整改（审查报告 §1.1），逐条对账见 docs/reports/R101-AI-18-回传.md：
+  # R101-AI-18（2026-10-10）依赖通告整改（审查报告 §1.1），逐条对账见中央归档：
+  # D:\Users\ZXQL\ZXQL-WORK\projects\ai\archive\repo-docs-20261107\docs\reports\R101-AI-18-回传.md
   #   proxy-addr 2.0.7 → critical：IPv4-mapped IPv6 信任子网绕过，正打在 main.ts:38
   #     `trust proxy: 'loopback'` 的信任边界上（express 5 传递依赖）
   #   multer 2.2.0 → high×3：multipart 字段名 DoS / 中止上传 fd 泄漏（@nestjs/platform-express 传递）
