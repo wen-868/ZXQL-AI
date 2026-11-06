@@ -60,7 +60,10 @@ function makeToolCall(name: string, args: unknown = {}) {
 
 interface Harness {
   orchestrator: Orchestrator;
-  deps: ReturnType<typeof makeDeps>;
+  deps: ReturnType<typeof makeDeps> & {
+    /** AI-P2-4-TELEMETRY-PIPELINE：遥测桩（makeOrchestrator 装配时挂入） */
+    telemetry: ReturnType<typeof makeTelemetryStub>;
+  };
 }
 
 function makeDeps(overrides: Record<string, unknown> = {}) {
@@ -202,7 +205,9 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
 
 /** 按 Orchestrator 构造顺序装配（构造参数顺序见 orchestrator.service.ts:280-303） */
 function makeOrchestrator(overrides: Record<string, unknown> = {}): Harness {
-  const deps = makeDeps(overrides);
+  const deps = makeDeps(overrides) as ReturnType<typeof makeDeps> & {
+    telemetry: ReturnType<typeof makeTelemetryStub>;
+  };
   const orchestrator = new Orchestrator(
     deps.executor as never,
     deps.registry as never,
@@ -225,8 +230,8 @@ function makeOrchestrator(overrides: Record<string, unknown> = {}): Harness {
     deps.planner as never,
     deps.ltm as never,
     // AI-P2-4-TELEMETRY-PIPELINE：遥测桩（断言经管线收口；overrides.telemetry 可替换）
-    ((overrides as { telemetry?: unknown }).telemetry ??
-      makeTelemetryStub()) as never,
+    (deps.telemetry = ((overrides as { telemetry?: unknown }).telemetry ??
+      makeTelemetryStub()) as never),
   );
   return { orchestrator, deps };
 }
@@ -240,7 +245,9 @@ function makeTelemetryStub() {
         startTime: Date.now(),
       }),
     ),
-    channelEnd: jest.fn(() => Promise.resolve()),
+    channelEnd: jest.fn((_input?: Record<string, unknown>) =>
+      Promise.resolve(),
+    ),
     resolveSessionId: jest.fn(
       (_lane: string, _t: string, preferred?: string, fallback?: string) =>
         preferred ?? fallback ?? 'chat-session-t1',
@@ -308,6 +315,55 @@ describe('Orchestrator（Agent Loop 核心）', () => {
     expect(capArg.intent).toBe('searchProduct');
     expect(capArg.outcome).toBe('success');
     expect(capArg.tenantId).toBe('t1');
+  });
+
+  // ════ Phase 0 哨兵（AI-P2-4-ORCHESTRATION-CONVERGENCE-IMPLEMENTATION-01）════
+  it('Phase 0 哨兵：LLM 异常 → error 事件 + 失败遥测收口（billable:false / unknown）', async () => {
+    const h = makeOrchestrator();
+    h.deps.router.chatWithFallback = jest.fn(() => {
+      throw new Error('provider down');
+    }) as never;
+    const events = await collect(h.orchestrator);
+    expect(events.some((e) => e.type === 'error')).toBe(true);
+    // 失败路径遥测收口（1391-1406 区）：仅一次、billable:false、来源 unknown
+    expect(h.deps.telemetry.channelEnd).toHaveBeenCalledTimes(1);
+    const arg = h.deps.telemetry.channelEnd.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(arg.success).toBe(false);
+    expect(arg.billable).toBe(false);
+    expect(arg.error).toContain('provider down');
+    const usage = arg.usage as Record<string, unknown>;
+    expect(usage.usageSource).toBe('unknown');
+    const session = arg.session as Record<string, unknown>;
+    expect(session.lane).toBe('chat');
+    expect(session.sessionId).toBe('sess-1');
+    expect(session.tenantId).toBe('t1');
+    // 失败路径不采集（capture 仅成功/纠正路径）
+    expect(h.deps.capture.captureTask).not.toHaveBeenCalled();
+  });
+
+  it('Phase 0 哨兵：LLM 无文本仅工具结果 → 兜底摘要与工具分类（1461-1500 区）', async () => {
+    const h = makeOrchestrator();
+    h.deps.router.chatWithFallback
+      .mockImplementationOnce(() =>
+        streamOf([], chatResult('', [makeToolCall('searchProduct')])),
+      )
+      .mockImplementationOnce(() => streamOf([], chatResult('')));
+    const events = await collect(h.orchestrator);
+    expect(events.some((e) => e.type === 'done')).toBe(true);
+    expect(events.filter((e) => e.type === 'error')).toHaveLength(0);
+    // 兜底摘要：无模型总结时由工具结果生成可读文本（不为空）
+    const texts = events.filter((e) => e.type === 'text').map((e) => e.content);
+    expect(texts.join('').length).toBeGreaterThan(0);
+    // 成功采集：capture 带 toolCalls（原始工具名保留）
+    expect(h.deps.capture.captureTask).toHaveBeenCalledTimes(1);
+    const capArg2 = h.deps.capture.captureTask.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(JSON.stringify(capArg2.toolCalls)).toContain('searchProduct');
   });
 
   it('路径 2：工具调用失败不中断 Loop（失败结果回填后继续跑完）', async () => {

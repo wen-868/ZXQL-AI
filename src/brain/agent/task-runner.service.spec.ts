@@ -194,6 +194,7 @@ function makeRunner(
     planner,
     capture,
     telemetry,
+    router,
   };
 }
 
@@ -322,6 +323,117 @@ describe('TaskRunnerService', () => {
     expect(String(capArg.intent)).not.toBe(`agent_plan_${plan.id}`);
     expect(capArg.tenantId).toBe('t1');
     expect(capArg.outcome).toBe('success');
+  });
+
+  // ════ Phase 0 哨兵：runAgentStep LLM 循环（AI-P2-4-ORCHESTRATION-CONVERGENCE-IMPLEMENTATION-01）════
+  function streamResult(value: unknown) {
+    return {
+      next: () => Promise.resolve({ done: true as const, value }),
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+    };
+  }
+
+  it('Phase 0 哨兵：runAgentStep 多轮 LLM 循环——工具调用、token 累计与 done 统计', async () => {
+    const { runner, executor, router } = makeRunner({
+      registry: {
+        toToolDefinitionsForCategories: jest.fn(() => [
+          {
+            type: 'function' as const,
+            function: {
+              name: 'queryInventory',
+              description: '查库存',
+              parameters: { type: 'object', properties: {} },
+            },
+          },
+        ]),
+        get: jest.fn().mockReturnValue({
+          risk: 'low',
+          needsReview: false,
+          isWriteOperation: false,
+        }),
+      } as never,
+    });
+    const chatMock = jest.fn();
+    chatMock
+      .mockImplementationOnce(() =>
+        streamResult({
+          content: '',
+          tool_calls: [
+            {
+              id: 'call_1',
+              type: 'function' as const,
+              function: {
+                name: 'queryInventory',
+                arguments: '{"sku":"WLJ"}',
+              },
+            },
+          ],
+          prompt_tokens: 10,
+          completion_tokens: 5,
+        }),
+      )
+      .mockImplementationOnce(() =>
+        streamResult({
+          content: '库存 52 箱',
+          prompt_tokens: 10,
+          completion_tokens: 5,
+        }),
+      );
+    router.chatWithFallback = chatMock;
+
+    const plan = await runner.createPlan({
+      tenantId: 't1',
+      goal: '汇总库存情报',
+      steps: [
+        { ...makeStep({ id: 'a1', type: 'agent', label: '库存域Agent', tool: undefined, prompt: '完成库存汇总' }), retryCount: 0 },
+        makeStep({ id: 'end', type: 'end', tool: undefined, label: '完成' }),
+      ],
+    });
+    const events = await collect(runner.run(plan.id, 't1', { tenantId: 't1' }));
+
+    const done = events.find((e) => e.type === 'done') as Record<string, unknown>;
+    expect(done).toBeDefined();
+    expect(done.state).toBe('success');
+    // 多轮：一轮工具调用 + 一轮收尾
+    expect(executor.executeToolCall).toHaveBeenCalledTimes(1);
+    expect(events.some((e) => e.type === 'tool_start' && e.tool === 'queryInventory')).toBe(true);
+    expect(events.some((e) => e.type === 'tool_result' && e.success === true)).toBe(true);
+    // token 累计（10+10 / 5+5）
+    const usage = done.usage as Record<string, unknown>;
+    expect(usage.promptTokens).toBe(20);
+    expect(usage.completionTokens).toBe(10);
+    expect(chatMock).toHaveBeenCalledTimes(2);
+    // 计划落库成功
+    const persisted = await runner.getPlan(plan.id, 't1');
+    expect(persisted?.state).toBe('success');
+    expect(persisted?.steps[0].status).toBe('success');
+  });
+
+  it('Phase 0 哨兵：runAgentStep 异常出口——LLM 抛错 → 步骤 failed + error 事件', async () => {
+    const { runner, router } = makeRunner();
+    router.chatWithFallback = jest.fn(() => {
+      throw new Error('llm boom');
+    });
+    const plan = await runner.createPlan({
+      tenantId: 't1',
+      goal: '汇总库存情报',
+      steps: [
+        { ...makeStep({ id: 'a1', type: 'agent', label: '库存域Agent', tool: undefined, prompt: '完成库存汇总' }), retryCount: 0 },
+        makeStep({ id: 'end', type: 'end', tool: undefined, label: '完成' }),
+      ],
+    });
+    const events = await collect(runner.run(plan.id, 't1', { tenantId: 't1' }));
+    // 单步容错：chatWithFallback 抛错被 run 主循环 catch 吞为 agent_step(failed)
+    //（不产生 type:error 事件，计划不中断——与单步容错设计一致）
+    const failedStep = events.find(
+      (e) => e.type === 'agent_step' && e.status === 'failed',
+    );
+    expect(failedStep).toBeDefined();
+    const persisted = await runner.getPlan(plan.id, 't1');
+    expect(persisted?.steps[0].status).toBe('failed');
+    expect(persisted?.steps[0].error).toContain('llm boom');
   });
 
   it('run：写步骤返回预览 → 挂起令牌，流结束且计划 suspended', async () => {

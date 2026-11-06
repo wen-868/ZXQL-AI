@@ -164,6 +164,7 @@ function makeExecutor(
     create?: jest.Mock;
     get?: jest.Mock;
   },
+  confirmationOverride?: Record<string, jest.Mock>,
 ) {
   const review = reviewMock ?? {
     create: jest.fn(),
@@ -176,7 +177,7 @@ function makeExecutor(
   const knowledgeRulesMock = {
     getRulesContext: jest.fn(() => undefined),
   };
-  const confirmationServiceMock = {
+  const confirmationServiceMock = confirmationOverride ?? {
     create: jest.fn(),
     getByTenant: jest.fn().mockResolvedValue(null),
     getExecutedByConfirmation: jest.fn().mockReturnValue(null),
@@ -1180,5 +1181,117 @@ describe('AI-P2-4-CAPTURE-INTENT-NORMALIZE：graph 完成态采集哨兵', () =>
     expect(arg.outcome).toBe('failed');
     expect(arg.error).toContain('boom');
     expect(arg.intent).toBe('sales_order');
+  });
+});
+
+// ════ Phase 0 哨兵（AI-P2-4-ORCHESTRATION-CONVERGENCE-IMPLEMENTATION-01）════
+describe('Phase 0 哨兵：graph 负路径（审核拒绝 / 写确认 pending/cancelled）', () => {
+  const RESUME_GRAPH: GraphDefinition = {
+    id: 'test_phase0_resume',
+    name: 'Phase0 续跑图',
+    entry: 'step1',
+    nodes: [
+      {
+        id: 'step1',
+        label: '开单',
+        type: 'tool',
+        tool: 'createSalesOrder',
+        next: 'end',
+      },
+      { id: 'end', label: '完成', type: 'end' },
+    ],
+  };
+
+  function savePaused(
+    cp: ReturnType<typeof makeCheckpointer>,
+    extra: Record<string, unknown>,
+  ) {
+    return cp.save({
+      graphId: 'test_phase0_resume',
+      tenantId: 't1',
+      sessionId: 's1',
+      currentNodeId: 'step1',
+      status: 'paused',
+      results: {},
+      nodeOrder: ['step1'],
+      history: [],
+      updatedAt: 0,
+      ...extra,
+    });
+  }
+
+  it('审核拒绝 → error 事件（含驳回原因）+ 状态 error + 节点不执行', async () => {
+    const rejectedReview = {
+      create: jest.fn(),
+      get: jest
+        .fn()
+        .mockResolvedValue({ status: 'rejected', rejectReason: '风险过高' }),
+    };
+    const cp = makeCheckpointer();
+    await savePaused(cp, { pendingReviewId: 8 });
+    const executorMock = { executeToolCall: jest.fn() };
+    const service = makeExecutor(
+      executorMock as never,
+      cp,
+      rejectedReview as never,
+    );
+    const events = await collectEvents(service, RESUME_GRAPH, makeCtx());
+    const errorEvent = events.find((e) => e.type === 'error');
+    expect(errorEvent).toBeDefined();
+    expect(String(errorEvent?.message)).toContain('风险过高');
+    expect(executorMock.executeToolCall).not.toHaveBeenCalled();
+    expect(events.some((e) => e.type === 'graph_done')).toBe(false);
+    const state = await cp.load('t1', 's1');
+    expect(state?.status).toBe('error');
+  });
+
+  it('写确认 pending → 重新下发 await_confirm 且不执行节点', async () => {
+    const cp = makeCheckpointer();
+    await savePaused(cp, { pendingWriteToken: 'wg_pending' });
+    const confirmationOverride = {
+      create: jest.fn(),
+      getByTenant: jest
+        .fn()
+        .mockResolvedValue({ status: 'pending', expiresAt: 999999 }),
+      getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+    };
+    const executorMock = { executeToolCall: jest.fn() };
+    const service = makeExecutor(
+      executorMock as never,
+      cp,
+      undefined,
+      confirmationOverride as never,
+    );
+    const events = await collectEvents(service, RESUME_GRAPH, makeCtx());
+    expect(
+      events.some(
+        (e) => e.type === 'await_confirm' && e.token === 'wg_pending',
+      ),
+    ).toBe(true);
+    expect(events.some((e) => e.type === 'graph_done')).toBe(false);
+    expect(executorMock.executeToolCall).not.toHaveBeenCalled();
+  });
+
+  it('写确认 cancelled → error 终止（含取消语义）+ 状态 error', async () => {
+    const cp = makeCheckpointer();
+    await savePaused(cp, { pendingWriteToken: 'wg_cancelled' });
+    const confirmationOverride = {
+      create: jest.fn(),
+      getByTenant: jest.fn().mockResolvedValue({ status: 'cancelled' }),
+      getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+    };
+    const executorMock = { executeToolCall: jest.fn() };
+    const service = makeExecutor(
+      executorMock as never,
+      cp,
+      undefined,
+      confirmationOverride as never,
+    );
+    const events = await collectEvents(service, RESUME_GRAPH, makeCtx());
+    const cancelError = events.find((e) => e.type === 'error');
+    expect(cancelError).toBeDefined();
+    expect(String(cancelError?.message)).toContain('取消');
+    const state = await cp.load('t1', 's1');
+    expect(state?.status).toBe('error');
   });
 });
