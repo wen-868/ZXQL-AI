@@ -20,6 +20,7 @@ import { AuditLogger } from '../bridge/audit-logger';
 import { BillingService } from '../tenant/billing.service';
 import { MetricsService } from '../common/metrics.service';
 import {
+  buildTelemetryEndInput,
   TelemetryPipelineService,
   TelemetrySession,
 } from './telemetry-pipeline.service';
@@ -561,5 +562,104 @@ describe('TelemetryPipelineService（三通道统一遥测契约）', () => {
       expect(Number(auditRows[0].c)).toBe(1);
       errorSpy.mockRestore();
     });
+  });
+});
+
+// ════ S3：buildTelemetryEndInput 组装单源（收敛实施卡 S3）════
+describe('buildTelemetryEndInput（三通道 telemetry 输入组装单源）', () => {
+  const baseSession: TelemetrySession = {
+    lane: 'chat',
+    tenantId: 't1',
+    sessionId: 'sess-s3',
+    userId: 'u1',
+    startTime: 1000,
+  };
+
+  it('chat 成功形态：usage 三元组=入参之和、billable 缺省 true、无 error', () => {
+    const input = buildTelemetryEndInput({
+      session: baseSession,
+      success: true,
+      promptTokens: 100,
+      completionTokens: 50,
+      usageSource: 'measured',
+      latencyMs: 200,
+    });
+    expect(input.usage).toEqual({
+      promptTokens: 100,
+      completionTokens: 50,
+      totalTokens: 150,
+      latencyMs: 200,
+      usageSource: 'measured',
+    });
+    expect(input.billable).toBe(true);
+    expect(input.success).toBe(true);
+    expect(input.error).toBeUndefined();
+    expect(input.session).toBe(baseSession);
+  });
+
+  it('chat 失败形态：billable:false 显式透传、error 透传（口径不漂移）', () => {
+    const input = buildTelemetryEndInput({
+      session: baseSession,
+      success: false,
+      promptTokens: 0,
+      completionTokens: 0,
+      usageSource: 'unknown',
+      latencyMs: 0,
+      billable: false,
+      error: '对话处理失败',
+    });
+    expect(input.billable).toBe(false);
+    expect(input.success).toBe(false);
+    expect(input.usage.usageSource).toBe('unknown');
+    expect(input.usage.totalTokens).toBe(0);
+    expect(input.error).toContain('对话处理失败');
+  });
+
+  it('agent 形态：overrides 透传 provider/model/intent（审计字段不缺失）', () => {
+    const input = buildTelemetryEndInput(
+      {
+        session: { ...baseSession, lane: 'agent', sessionId: 'plan-run-9' },
+        success: true,
+        promptTokens: 120,
+        completionTokens: 60,
+        usageSource: 'measured',
+        latencyMs: 250,
+      },
+      { provider: 'agent', model: 'planner+runner', intent: 'agent_plan' },
+    );
+    expect(input.session.lane).toBe('agent');
+    expect(input.session.sessionId).toBe('plan-run-9');
+    expect(input.provider).toBe('agent');
+    expect(input.model).toBe('planner+runner');
+    expect(input.intent).toBe('agent_plan');
+    expect(input.usage.totalTokens).toBe(180);
+  });
+
+  it('graph 形态：unknown 用量显式标注（usage 伪 0 反测锚）', () => {
+    const input = buildTelemetryEndInput({
+      session: { ...baseSession, lane: 'graph' },
+      success: true,
+      promptTokens: 0,
+      completionTokens: 0,
+      usageSource: 'unknown',
+      latencyMs: 50,
+    });
+    expect(input.usage.usageSource).toBe('unknown');
+    expect(input.usage.totalTokens).toBe(0);
+    expect(input.session.lane).toBe('graph');
+  });
+
+  it('lane 原样透传（M6/混淆反测锚：组装层不改写通道）', () => {
+    for (const lane of ['chat', 'agent', 'graph'] as const) {
+      const input = buildTelemetryEndInput({
+        session: { ...baseSession, lane },
+        success: true,
+        promptTokens: 1,
+        completionTokens: 1,
+        usageSource: 'measured',
+        latencyMs: 1,
+      });
+      expect(input.session.lane).toBe(lane);
+    }
   });
 });

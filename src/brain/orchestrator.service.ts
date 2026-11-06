@@ -63,6 +63,7 @@ import { WriteConfirmPipelineService } from './write-confirm-pipeline.service';
 import { StructuredExtractor } from './extraction/structured-extractor';
 import { CaptureService } from '../evolution/capture.service';
 import { buildCaptureTaskInput } from '../evolution/capture-intent';
+import { buildTelemetryEndInput } from './telemetry-pipeline.service';
 import { MetricsService } from '../common/metrics.service';
 import { TelemetryPipelineService } from './telemetry-pipeline.service';
 import { AnswerSelfCheckService } from './answer-self-check.service';
@@ -545,25 +546,29 @@ export class Orchestrator {
             );
             // 统一遥测收口（AI-P2-4-TELEMETRY-PIPELINE）：自动分派早退路径同样
             // 经管线（审计留痕含 triage 埋点 + usage_daily + 计费单点）
+            // 收敛实施 S3：输入组装单源 buildTelemetryEndInput
             if (telemetryOk && telemetrySession) {
-              await this.telemetry.channelEnd({
-                session: telemetrySession,
-                success: true,
-                usage: {
-                  promptTokens: auxPromptTokens,
-                  completionTokens: auxCompletionTokens,
-                  totalTokens: auxPromptTokens + auxCompletionTokens,
-                  latencyMs: Date.now() - runStartAt,
-                  usageSource: 'measured',
-                },
-                provider: providerName,
-                model: modelName,
-                employeeUid: dr.employeeUid,
-                intent: 'auto_dispatch',
-                triageLane: intent.lane,
-                triageCategories:
-                  (intent.categories ?? []).join(',') || undefined,
-              });
+              await this.telemetry.channelEnd(
+                buildTelemetryEndInput(
+                  {
+                    session: telemetrySession,
+                    success: true,
+                    promptTokens: auxPromptTokens,
+                    completionTokens: auxCompletionTokens,
+                    usageSource: 'measured',
+                    latencyMs: Date.now() - runStartAt,
+                  },
+                  {
+                    provider: providerName,
+                    model: modelName,
+                    employeeUid: dr.employeeUid,
+                    intent: 'auto_dispatch',
+                    triageLane: intent.lane,
+                    triageCategories:
+                      (intent.categories ?? []).join(',') || undefined,
+                  },
+                ),
+              );
             }
             yield {
               type: 'done',
@@ -1366,27 +1371,29 @@ export class Orchestrator {
       // ── 8. 统一遥测收口（AI-P2-4-TELEMETRY-PIPELINE：审计 + t_ai_usage_daily
       //    单点 UPSERT + 计费单点；遥测失败隔离，不影响已发出的 done）──
       if (telemetryOk && telemetrySession) {
-        await this.telemetry.channelEnd({
-          session: telemetrySession,
-          success: true,
-          usage: {
-            promptTokens: totalPromptTokens,
-            completionTokens: totalCompletionTokens,
-            totalTokens: totalPromptTokens + totalCompletionTokens,
-            latencyMs,
-            usageSource: 'measured',
-          },
-          provider: providerName,
-          model: modelName,
-          employeeUid: params.employeeUid,
-          categories: this.collectToolCategories(allToolCalls),
-          toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
-          triageLane: intent?.lane ?? null,
-
-          triageCategories: (intent?.categories ?? []).join(',') || undefined,
-
-          fallback: fallbackUsed,
-        });
+        await this.telemetry.channelEnd(
+          buildTelemetryEndInput(
+            {
+              session: telemetrySession,
+              success: true,
+              promptTokens: totalPromptTokens,
+              completionTokens: totalCompletionTokens,
+              usageSource: 'measured',
+              latencyMs,
+            },
+            {
+              provider: providerName,
+              model: modelName,
+              employeeUid: params.employeeUid,
+              categories: this.collectToolCategories(allToolCalls),
+              toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
+              triageLane: intent?.lane ?? null,
+              triageCategories:
+                (intent?.categories ?? []).join(',') || undefined,
+              fallback: fallbackUsed,
+            },
+          ),
+        );
       }
 
       this.logger.log(
@@ -1408,23 +1415,26 @@ export class Orchestrator {
       // usage_daily（失败不计费保持原口径——billable:false）。
       // 用量来源 unknown：主 LLM 调用失败时 token 计量不可信，按 0 显式标注。
       if (telemetryOk && telemetrySession) {
-        await this.telemetry.channelEnd({
-          session: telemetrySession,
-          success: false,
-          usage: {
-            promptTokens: 0,
-            completionTokens: 0,
-            totalTokens: 0,
-            latencyMs: 0,
-            usageSource: 'unknown',
-          },
-          provider: providerName,
-          model: modelName,
-          employeeUid: params.employeeUid,
-          intent: 'chat',
-          billable: false,
-          error: errorMsg,
-        });
+        await this.telemetry.channelEnd(
+          buildTelemetryEndInput(
+            {
+              session: telemetrySession,
+              success: false,
+              promptTokens: 0,
+              completionTokens: 0,
+              usageSource: 'unknown',
+              latencyMs: 0,
+              billable: false,
+              error: errorMsg,
+            },
+            {
+              provider: providerName,
+              model: modelName,
+              employeeUid: params.employeeUid,
+              intent: 'chat',
+            },
+          ),
+        );
       }
     }
   }

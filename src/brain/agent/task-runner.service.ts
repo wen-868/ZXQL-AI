@@ -36,6 +36,7 @@ import { detectIntentCategories } from '../intent-detector';
 import { KnowledgeRulesService } from '../knowledge-rules.service';
 import { AiConfigService } from '../../tenant/ai-config.service';
 import { TelemetryPipelineService } from '../telemetry-pipeline.service';
+import { buildTelemetryEndInput } from '../telemetry-pipeline.service';
 import { ProviderRouterService } from '../router/provider-router.service';
 import {} from '../write-guard.service';
 import type { ToolContext, ToolResult } from '../../tools/tool.interface';
@@ -1075,20 +1076,19 @@ export class TaskRunnerService {
         userMessage: plan.goal,
         intent: 'agent_plan',
       });
-      void this.telemetry.channelEnd({
-        session: telemetrySession,
-        success: failed.length === 0,
-        usage: {
-          promptTokens,
-          completionTokens,
-          totalTokens: promptTokens + completionTokens,
-          latencyMs,
-          usageSource: 'measured',
-        },
-        provider: 'agent',
-        model: 'planner+runner',
-        intent: 'agent_plan',
-      });
+      void this.telemetry.channelEnd(
+        buildTelemetryEndInput(
+          {
+            session: telemetrySession,
+            success: failed.length === 0,
+            promptTokens,
+            completionTokens,
+            usageSource: 'measured',
+            latencyMs,
+          },
+          { provider: 'agent', model: 'planner+runner', intent: 'agent_plan' },
+        ),
+      );
     }
 
     this.logger.log(

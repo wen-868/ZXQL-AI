@@ -90,6 +90,64 @@ export interface TelemetryEndInput {
   error?: string;
 }
 
+/** buildTelemetryEndInput 的通道结果上下文（S3 · 组装单源输入） */
+export interface TelemetryEndContext {
+  /** begin 产出的会话句柄（原样透传） */
+  session: TelemetrySession;
+  /** 主任务成功与否 */
+  success: boolean;
+  /** 三元 token 计量（measured 通道提供真实值；unknown 通道全 0） */
+  promptTokens: number;
+  completionTokens: number;
+  /** 用量来源：measured=真实计量；unknown=来源未知（显式 0+审计标记） */
+  usageSource: TelemetryUsageSource;
+  /** 通道耗时（ms；channelEnd 内不再二次计时） */
+  latencyMs: number;
+  /** 是否计费（缺省 true；chat 失败路径保持原口径显式传 false） */
+  billable?: boolean;
+  error?: string;
+}
+
+/**
+ * channelEnd 输入组装单源（S3 · 三通道共用）
+ *
+ * 收敛 chat/agent/graph 各自拼装 TelemetryEndInput（usage 三元组+success+
+ * billable+error）的机械重复：usage 三元组装、usageSource 透传、billable
+ * 缺省 true（真实计费策略 BILLING-POLICY-20261105 口径）、error 透传。
+ *
+ * 行为不变判据：产出的 TelemetryEndInput 与三通道原手工组装逐字段等价
+ * （S3 mutation 靶点：lane 混淆/usage 伪 0/billable 漂移/审计字段缺失）。
+ */
+export function buildTelemetryEndInput(
+  ctx: TelemetryEndContext,
+  overrides: {
+    provider?: string;
+    model?: string;
+    employeeUid?: string;
+    intent?: string;
+    categories?: ToolCategory[];
+    toolCalls?: Array<Record<string, unknown>>;
+    triageLane?: string | null;
+    triageCategories?: string | null;
+    fallback?: FallbackMeta;
+  } = {},
+): TelemetryEndInput {
+  return {
+    session: ctx.session,
+    success: ctx.success,
+    usage: {
+      promptTokens: ctx.promptTokens,
+      completionTokens: ctx.completionTokens,
+      totalTokens: ctx.promptTokens + ctx.completionTokens,
+      latencyMs: ctx.latencyMs,
+      usageSource: ctx.usageSource,
+    },
+    billable: ctx.billable ?? true,
+    error: ctx.error,
+    ...overrides,
+  };
+}
+
 @Injectable()
 export class TelemetryPipelineService {
   private readonly logger = new Logger(TelemetryPipelineService.name);

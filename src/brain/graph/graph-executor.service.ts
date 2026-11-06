@@ -36,6 +36,7 @@ import { CaptureService } from '../../evolution/capture.service';
 import { normalizeCaptureIntent } from '../../evolution/capture-intent';
 import { buildCaptureTaskInput } from '../../evolution/capture-intent';
 import type { TelemetryUsage } from '../telemetry-pipeline.service';
+import { buildTelemetryEndInput } from '../telemetry-pipeline.service';
 import {
   BUILTIN_GRAPHS,
   GraphDefinition,
@@ -174,20 +175,21 @@ export class GraphExecutorService implements OnModuleInit {
       )) {
         if (event.type === 'graph_done') {
           ended = true;
-          const usage: TelemetryUsage = {
-            promptTokens: usageAcc.prompt,
-            completionTokens: usageAcc.completion,
-            totalTokens: usageAcc.prompt + usageAcc.completion,
-            latencyMs: Date.now() - startTime,
-            // 只有跑过 LLM 节点才有真实计量；纯工具图按 unknown 显式标注（非真实 0）
-            usageSource: usageAcc.sawLlm ? 'measured' : 'unknown',
-          };
-          await this.telemetry.channelEnd({
-            session,
-            success: true,
-            usage,
-            provider: provider?.name,
-          });
+          // 收敛实施 S3：channelEnd 输入组装单源 buildTelemetryEndInput
+          // （只有跑过 LLM 节点才有真实计量；纯工具图按 unknown 显式标注）
+          const endInput = buildTelemetryEndInput(
+            {
+              session,
+              success: true,
+              promptTokens: usageAcc.prompt,
+              completionTokens: usageAcc.completion,
+              usageSource: usageAcc.sawLlm ? 'measured' : 'unknown',
+              latencyMs: Date.now() - startTime,
+            },
+            { provider: provider?.name },
+          );
+          const usage: TelemetryUsage = endInput.usage;
+          await this.telemetry.channelEnd(endInput);
           // AI-P2-4-CAPTURE-INTENT-NORMALIZE + 收敛实施 S2：完成态采集输入
           // 组装单源 buildCaptureTaskInput（intent 归一/轨迹/单点语义不变；
           // 无工具时 buildCaptureTaskInput 归一回退 chat，此处保持 graph 语义
@@ -249,19 +251,20 @@ export class GraphExecutorService implements OnModuleInit {
           outcome: 'failed',
           error: lastError,
         });
-        await this.telemetry.channelEnd({
-          session,
-          success: false,
-          usage: {
-            promptTokens: usageAcc.prompt,
-            completionTokens: usageAcc.completion,
-            totalTokens: usageAcc.prompt + usageAcc.completion,
-            latencyMs: Date.now() - startTime,
-            usageSource: usageAcc.sawLlm ? 'measured' : 'unknown',
-          },
-          provider: provider?.name,
-          error: lastError,
-        });
+        await this.telemetry.channelEnd(
+          buildTelemetryEndInput(
+            {
+              session,
+              success: false,
+              promptTokens: usageAcc.prompt,
+              completionTokens: usageAcc.completion,
+              usageSource: usageAcc.sawLlm ? 'measured' : 'unknown',
+              latencyMs: Date.now() - startTime,
+              error: lastError,
+            },
+            { provider: provider?.name },
+          ),
+        );
       }
     } catch (err) {
       // 包装层兜底（executeCore 设计上不抛；此处仅防实现缺陷外溢）
