@@ -955,22 +955,19 @@ export class Orchestrator {
           if (toolResult.preview) {
             try {
               const tool = this.registry.get(tc.function.name);
-              const risk = tool?.risk ?? 'medium';
-              // AI-P2-4 切片 1：写确认挂起统一经 WriteConfirmPipeline
-              // （令牌生成与 expireAt 计算单源，三边不再各自拼装）
-              const suspended = await this.writeConfirmPipeline.suspend({
-                tenantId,
-                conversationId,
-                customerId,
-                toolName: tc.function.name,
-                docType: tc.function.name,
-                risk,
-                needsReview: tool?.needsReview ?? risk === 'high',
-                args: execArgs,
-                preview: toolResult.preview,
-                operationLabel:
-                  toolResult.preview.operation ?? tc.function.name,
-              });
+              // AI-P2-4 切片 1 + 收敛实施 S1：挂起输入组装单源
+              // （docType/needsReview/operationLabel 缺省由管线统一，三边不再各自拼）
+              const suspended =
+                await this.writeConfirmPipeline.suspendFromToolCall({
+                  tenantId,
+                  conversationId,
+                  customerId,
+                  toolName: tc.function.name,
+                  risk: tool?.risk,
+                  needsReview: tool?.needsReview,
+                  args: execArgs,
+                  preview: toolResult.preview,
+                });
               confirmationId = suspended.token;
               writeConfirmExpireAt = suspended.expireAt;
             } catch (err) {

@@ -22,6 +22,7 @@ import {
   PendingConfirmation,
 } from './confirmation.service';
 import type { CreateConfirmationInput } from './confirmation.service';
+import type { ToolResult, ToolRisk } from '../tools/tool.interface';
 
 /** 写确认挂起结果（通道适配器据此映射各自的 SSE 事件形态） */
 export interface WriteConfirmSuspendResult {
@@ -62,5 +63,59 @@ export class WriteConfirmPipelineService {
       expireAt: confirmation.expiresAt,
       confirmation,
     };
+  }
+
+  /**
+   * 从工具调用现场直接挂起（AI-P2-4-ORCHESTRATION-CONVERGENCE-IMPLEMENTATION-01 S1）
+   *
+   * 收敛三通道「写工具返回 preview 后拼装 CreateConfirmationInput」的机械重复：
+   * docType 缺省=工具名、needsReview 缺省=needsReview??risk==='high'、
+   * operationLabel 缺省=preview.operation??工具名——三通道此前各自拼装这三项
+   * （orchestrator:961 / task-runner:893 / graph:521），形状漂移风险即在于此。
+   * 调用方只提供通道上下文与工具元数据。
+   *
+   * 令牌生成仍走既有 suspend → ConfirmationService.create → WriteGuard 链；
+   * 事件名与载荷字段由调用方映射，保持逐字段不变（行为不变判据）。
+   */
+  async suspendFromToolCall(input: {
+    /** 租户 ID（必填） */
+    tenantId: string;
+    /** 工具名（必填；同时作为 docType 缺省） */
+    toolName: string;
+    /** 工具参数（必填，透传给确认链） */
+    args: Record<string, unknown>;
+    /** 写工具返回的预览卡片（必填） */
+    preview: ToolResult['preview'];
+    /** 会话 ID（chat=conversationId；agent=计划运行上下文 sessionId；graph=图 sessionId） */
+    conversationId?: string;
+    /** 客户 ID（运营客户端写操作） */
+    customerId?: string;
+    /** 自主任务计划 ID（agent 通道） */
+    planId?: number;
+    /** 计划步骤 ID（agent 通道） */
+    planStepId?: string;
+    /** 风险分级（缺省 medium） */
+    risk?: ToolRisk;
+    /** 是否强制人工审核（缺省 risk==='high'） */
+    needsReview?: boolean;
+    /** 操作名称（缺省 preview.operation ?? toolName） */
+    operationLabel?: string;
+  }): Promise<WriteConfirmSuspendResult> {
+    const risk = input.risk ?? 'medium';
+    return this.suspend({
+      tenantId: input.tenantId,
+      conversationId: input.conversationId,
+      customerId: input.customerId,
+      planId: input.planId,
+      planStepId: input.planStepId,
+      toolName: input.toolName,
+      docType: input.toolName,
+      risk,
+      needsReview: input.needsReview ?? risk === 'high',
+      args: input.args,
+      preview: input.preview,
+      operationLabel:
+        input.operationLabel ?? input.preview?.operation ?? input.toolName,
+    });
   }
 }

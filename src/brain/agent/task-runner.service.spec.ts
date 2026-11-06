@@ -77,7 +77,11 @@ function makeRunner(
   overrides: {
     executor?: Partial<ExecutorMock>;
     selfHeal?: { heal: jest.Mock };
-    writeConfirmPipeline?: { suspend: jest.Mock; getTokenTtlMs: jest.Mock };
+    writeConfirmPipeline?: {
+      suspend?: jest.Mock;
+      suspendFromToolCall?: jest.Mock;
+      getTokenTtlMs?: jest.Mock;
+    };
     registry?: { get: jest.Mock };
   } = {},
 ) {
@@ -99,13 +103,15 @@ function makeRunner(
     ...overrides.registry,
   };
   const writeConfirmPipeline = {
-    suspend: jest.fn().mockImplementation(() =>
+    // 收敛实施 S1：生产代码经 suspendFromToolCall 挂起
+    suspendFromToolCall: jest.fn().mockImplementation(() =>
       Promise.resolve({
         token: 'wg_test_token',
         expireAt: Date.now() + 24 * 60 * 60 * 1000,
         confirmation: { confirmationId: 'wg_test_token' },
       }),
     ),
+    suspend: jest.fn(),
     getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
     ...overrides.writeConfirmPipeline,
   };
@@ -387,19 +393,37 @@ describe('TaskRunnerService', () => {
       tenantId: 't1',
       goal: '汇总库存情报',
       steps: [
-        { ...makeStep({ id: 'a1', type: 'agent', label: '库存域Agent', tool: undefined, prompt: '完成库存汇总' }), retryCount: 0 },
+        {
+          ...makeStep({
+            id: 'a1',
+            type: 'agent',
+            label: '库存域Agent',
+            tool: undefined,
+            prompt: '完成库存汇总',
+          }),
+          retryCount: 0,
+        },
         makeStep({ id: 'end', type: 'end', tool: undefined, label: '完成' }),
       ],
     });
     const events = await collect(runner.run(plan.id, 't1', { tenantId: 't1' }));
 
-    const done = events.find((e) => e.type === 'done') as Record<string, unknown>;
+    const done = events.find((e) => e.type === 'done') as Record<
+      string,
+      unknown
+    >;
     expect(done).toBeDefined();
     expect(done.state).toBe('success');
     // 多轮：一轮工具调用 + 一轮收尾
     expect(executor.executeToolCall).toHaveBeenCalledTimes(1);
-    expect(events.some((e) => e.type === 'tool_start' && e.tool === 'queryInventory')).toBe(true);
-    expect(events.some((e) => e.type === 'tool_result' && e.success === true)).toBe(true);
+    expect(
+      events.some(
+        (e) => e.type === 'tool_start' && e.tool === 'queryInventory',
+      ),
+    ).toBe(true);
+    expect(
+      events.some((e) => e.type === 'tool_result' && e.success === true),
+    ).toBe(true);
     // token 累计（10+10 / 5+5）
     const usage = done.usage as Record<string, unknown>;
     expect(usage.promptTokens).toBe(20);
@@ -420,7 +444,16 @@ describe('TaskRunnerService', () => {
       tenantId: 't1',
       goal: '汇总库存情报',
       steps: [
-        { ...makeStep({ id: 'a1', type: 'agent', label: '库存域Agent', tool: undefined, prompt: '完成库存汇总' }), retryCount: 0 },
+        {
+          ...makeStep({
+            id: 'a1',
+            type: 'agent',
+            label: '库存域Agent',
+            tool: undefined,
+            prompt: '完成库存汇总',
+          }),
+          retryCount: 0,
+        },
         makeStep({ id: 'end', type: 'end', tool: undefined, label: '完成' }),
       ],
     });
@@ -455,10 +488,15 @@ describe('TaskRunnerService', () => {
     });
 
     const events = await collect(runner.run(plan.id, 't1', { tenantId: 't1' }));
+
+    const tr = events.find((e) => e.type === 'tool_result');
+
+    console.log('[TEMP-S1-DIAG] tool_result =', JSON.stringify(tr));
     expect(events.some((e) => e.type === 'pending_write')).toBe(true);
     expect(events.some((e) => e.type === 'await_confirm')).toBe(true);
     expect(events.some((e) => e.type === 'done')).toBe(false);
-    expect(writeConfirmPipeline.suspend).toHaveBeenCalledWith(
+    // 收敛实施 S1：断言迁至 suspendFromToolCall（planId/planStepId/toolName 口径不变）
+    expect(writeConfirmPipeline.suspendFromToolCall).toHaveBeenCalledWith(
       expect.objectContaining({
         planId: plan.id,
         planStepId: 's1',
@@ -481,7 +519,10 @@ describe('TaskRunnerService', () => {
         }),
       },
       writeConfirmPipeline: {
-        suspend: jest.fn().mockRejectedValue(new Error('Redis down')),
+        // 收敛实施 S1：生产代码经 suspendFromToolCall 挂起
+        suspendFromToolCall: jest
+          .fn()
+          .mockRejectedValue(new Error('Redis down')),
         getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
       },
     });

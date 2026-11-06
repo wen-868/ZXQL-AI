@@ -183,13 +183,17 @@ function makeExecutor(
     getExecutedByConfirmation: jest.fn().mockReturnValue(null),
   };
   const writeConfirmPipelineMock = {
-    suspend: jest.fn().mockImplementation((input: Record<string, unknown>) =>
-      Promise.resolve({
-        token: 'wg_tok1',
-        expireAt: Date.now() + 24 * 60 * 60 * 1000,
-        confirmation: { confirmationId: 'wg_tok1', ...input },
-      }),
-    ),
+    // 收敛实施 S1：生产代码经 suspendFromToolCall 挂起；mock 转发到同一实现
+    suspendFromToolCall: jest
+      .fn()
+      .mockImplementation((input: Record<string, unknown>) =>
+        Promise.resolve({
+          token: 'wg_tok1',
+          expireAt: Date.now() + 24 * 60 * 60 * 1000,
+          confirmation: { confirmationId: 'wg_tok1', ...input },
+        }),
+      ),
+    suspend: jest.fn(),
     getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
   };
   return new GraphExecutorService(
@@ -672,13 +676,14 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
           : null,
       ),
     };
-    // AI-P2-4 切片 1：挂起经 WriteConfirmPipeline（suspend 委托 create）
+    // AI-P2-4 切片 1 + 收敛实施 S1：挂起经 WriteConfirmPipeline（suspendFromToolCall）
     const writeConfirmPipeline = {
-      suspend: jest.fn().mockResolvedValue({
+      suspendFromToolCall: jest.fn().mockResolvedValue({
         token: 'wg_tok1',
         expireAt: Date.now() + 24 * 60 * 60 * 1000,
         confirmation: { confirmationId: 'wg_tok1' },
       }),
+      suspend: jest.fn(),
       getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
     };
     const executorMock = {
@@ -744,7 +749,8 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
 
     const events = await collect(service.execute(WRITE_GRAPH, 's1', makeCtx()));
 
-    expect(writeConfirmPipeline.suspend).toHaveBeenCalledWith(
+    // 收敛实施 S1：断言迁至 suspendFromToolCall（toolName/tenantId 口径不变）
+    expect(writeConfirmPipeline.suspendFromToolCall).toHaveBeenCalledWith(
       expect.objectContaining({
         toolName: 'createSalesOrder',
         tenantId: 't1',
@@ -842,11 +848,13 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
       { getRulesContext: jest.fn(() => undefined) } as never,
       { getByTenant: jest.fn().mockResolvedValue(null) } as never,
       {
-        suspend: jest.fn().mockResolvedValue({
+        // 收敛实施 S1：生产代码经 suspendFromToolCall 挂起（TTL 口径不变）
+        suspendFromToolCall: jest.fn().mockResolvedValue({
           token: 'wg_cfg',
           expireAt: start + ttl,
           confirmation: { confirmationId: 'wg_cfg' },
         }),
+        suspend: jest.fn(),
         getTokenTtlMs: jest.fn(() => ttl),
       } as never,
 
@@ -1230,11 +1238,7 @@ describe('Phase 0 哨兵：graph 负路径（审核拒绝 / 写确认 pending/ca
     const cp = makeCheckpointer();
     await savePaused(cp, { pendingReviewId: 8 });
     const executorMock = { executeToolCall: jest.fn() };
-    const service = makeExecutor(
-      executorMock as never,
-      cp,
-      rejectedReview as never,
-    );
+    const service = makeExecutor(executorMock, cp, rejectedReview);
     const events = await collectEvents(service, RESUME_GRAPH, makeCtx());
     const errorEvent = events.find((e) => e.type === 'error');
     expect(errorEvent).toBeDefined();
@@ -1257,7 +1261,7 @@ describe('Phase 0 哨兵：graph 负路径（审核拒绝 / 写确认 pending/ca
     };
     const executorMock = { executeToolCall: jest.fn() };
     const service = makeExecutor(
-      executorMock as never,
+      executorMock,
       cp,
       undefined,
       confirmationOverride as never,
@@ -1282,7 +1286,7 @@ describe('Phase 0 哨兵：graph 负路径（审核拒绝 / 写确认 pending/ca
     };
     const executorMock = { executeToolCall: jest.fn() };
     const service = makeExecutor(
-      executorMock as never,
+      executorMock,
       cp,
       undefined,
       confirmationOverride as never,

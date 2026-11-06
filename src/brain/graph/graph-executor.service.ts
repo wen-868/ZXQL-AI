@@ -515,18 +515,18 @@ export class GraphExecutorService implements OnModuleInit {
             // 未真执行）→ 挂 WriteGuard 确认并暂停图——此前 preview 被当作
             // "节点成功"继续跑到 graph_done，业务单据根本没创建且无确认入口
             if (tool?.isWriteOperation && result.success && result.preview) {
-              // AI-P2-4 切片 1：挂起统一经 WriteConfirmPipeline（令牌生成与
-              // expireAt 单源）——修复 D1：此前 expireAt 硬编码 24h，
-              // 与 WRITE_TOKEN_TTL_HOURS 配置脱钩
-              const suspended = await this.writeConfirmPipeline.suspend({
-                tenantId: toolContext.tenantId,
-                conversationId: sessionId,
-                toolName: node.tool,
-                risk: toolRisk,
-                args: node.args ?? {},
-                preview: result.preview,
-                operationLabel: `图「${graph.name}」节点「${node.label}」`,
-              });
+              // AI-P2-4 切片 1 + 收敛实施 S1：挂起输入组装单源（缺省项由管线统一；
+              // graph 特有 operationLabel 仍显式传入，保持确认卡文案不变）
+              const suspended =
+                await this.writeConfirmPipeline.suspendFromToolCall({
+                  tenantId: toolContext.tenantId,
+                  conversationId: sessionId,
+                  toolName: node.tool,
+                  risk: toolRisk,
+                  args: node.args ?? {},
+                  preview: result.preview,
+                  operationLabel: `图「${graph.name}」节点「${node.label}」`,
+                });
               state.status = 'paused';
               state.pendingWriteToken = suspended.token;
               // P2 顺手改（验收意见）：挂起不写 history——awaiting 状态既非

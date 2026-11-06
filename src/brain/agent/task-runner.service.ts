@@ -886,23 +886,19 @@ export class TaskRunnerService {
     }
     const toolName = toolCall?.function.name ?? step.tool ?? '';
     const tool = this.registry.get(toolName);
-    const risk = tool?.risk ?? 'medium';
     try {
-      // AI-P2-4 切片 1：写确认挂起统一经 WriteConfirmPipeline
-      // （令牌生成与 expireAt 计算单源，三边不再各自拼装）
-      const suspended = await this.writeConfirmPipeline.suspend({
+      // AI-P2-4 切片 1 + 收敛实施 S1：挂起输入组装单源（缺省项由管线统一）
+      const suspended = await this.writeConfirmPipeline.suspendFromToolCall({
         tenantId: plan.tenantId,
         conversationId: context.sessionId,
         customerId: context.customerId,
         toolName,
-        docType: toolName,
-        risk,
-        needsReview: tool?.needsReview ?? risk === 'high',
+        risk: tool?.risk,
+        needsReview: tool?.needsReview,
         args: toolCall
           ? (JSON.parse(toolCall.function.arguments) as Record<string, unknown>)
           : (step.args ?? {}),
         preview: result.preview,
-        operationLabel: result.preview.operation ?? toolName,
         planId: plan.id,
         planStepId: step.id,
       });

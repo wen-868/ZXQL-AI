@@ -129,19 +129,25 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
       archiveSession: jest.fn().mockResolvedValue(undefined),
     },
     writeConfirmPipeline: {
-      suspend: jest.fn().mockImplementation((input: Record<string, unknown>) =>
-        Promise.resolve({
-          token: 'wg_orch_token',
-          expireAt: Date.now() + 24 * 60 * 60 * 1000,
-          confirmation: {
-            confirmationId: 'wg_orch_token',
-            toolName: input.toolName,
-            docType: input.docType,
-            risk: 'medium',
-            operationLabel: input.operationLabel,
-          },
-        }),
-      ),
+      // 收敛实施 S1：生产代码经 suspendFromToolCall 挂起；mock 转发到同一实现
+      suspendFromToolCall: jest
+        .fn()
+        .mockImplementation((input: Record<string, unknown>) =>
+          Promise.resolve({
+            token: 'wg_orch_token',
+            expireAt: Date.now() + 24 * 60 * 60 * 1000,
+            confirmation: {
+              confirmationId: 'wg_orch_token',
+              toolName: input.toolName,
+              docType: input.toolName,
+              risk: input.risk ?? 'medium',
+              operationLabel:
+                (input.preview as { operation?: string })?.operation ??
+                input.toolName,
+            },
+          }),
+        ),
+      suspend: jest.fn(),
     },
     graphExecutor: { getGraph: jest.fn(), execute: jest.fn() },
     router: {
@@ -427,9 +433,16 @@ describe('Orchestrator（Agent Loop 核心）', () => {
     const events = await collect(h.orchestrator);
 
     // 写工具预览 ⇒ 经写确认管线挂起并下发令牌（后续 confirm → 3 分钟撤销窗口的入口）
-    expect(h.deps.writeConfirmPipeline.suspend).toHaveBeenCalledTimes(1);
-    expect(h.deps.writeConfirmPipeline.suspend).toHaveBeenCalledWith(
-      expect.objectContaining({ toolName: 'createSalesOrder' }),
+    // 收敛实施 S1：断言迁至 suspendFromToolCall（toolName 口径不变）
+    expect(
+      h.deps.writeConfirmPipeline.suspendFromToolCall,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      h.deps.writeConfirmPipeline.suspendFromToolCall,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'createSalesOrder',
+      }),
     );
     const confirmEvent = events.find(
       (e) =>
