@@ -43,3 +43,66 @@ export function normalizeCaptureIntent(
   }
   return docTypeForTool(trimmed) ?? trimmed;
 }
+
+/** buildCaptureTaskInput 的通道上下文输入（AI-P2-4-ORCHESTRATION-CONVERGENCE-IMPLEMENTATION-01 S2） */
+export interface CaptureTaskBuildContext {
+  /** 租户 ID（必填，透传） */
+  tenantId: string;
+  /** 意图/工具名（归一口径；空值回退 fallback） */
+  intent?: string | null;
+  /** 用户目标（样本 prompt 来源） */
+  userMessage?: string;
+  /** 工具调用轨迹（原始工具名保留） */
+  toolCalls?: Array<Record<string, unknown>>;
+  /** 结果：success/corrected/failed */
+  outcome: 'success' | 'corrected' | 'failed';
+  /** 最终回复（样本 completion 来源） */
+  reply?: string;
+  /** 失败信息 */
+  error?: string;
+}
+
+/**
+ * captureTask 输入组装单源（S2 · 三通道共用）
+ *
+ * 收敛 chat/agent/graph 三通道各自拼装 CaptureTaskInput 的机械重复：
+ * intent 归一 + domain 判定（write=写工具轨迹含成功写调用 / 其余 analysis）
+ * + outcome 透传 + 轨迹透传。调用方只提供通道上下文。
+ *
+ * 行为不变判据：产出的 CaptureTaskInput 与三通道原手工组装逐字段等价
+ * （S2 mutation 靶点：未归一/丢 tenantId/graph 丢轨迹/outcome 误记）。
+ *
+ * @param ctx       通道上下文
+ * @param overrides 通道特有覆盖（domain/outcome 等已有判定结果的字段直接透传，
+ *                  防止本函数二次推断与通道语义漂移）
+ */
+export function buildCaptureTaskInput(
+  ctx: CaptureTaskBuildContext,
+  overrides: {
+    domain?: 'analysis' | 'write' | 'push';
+    outcome?: 'success' | 'corrected' | 'failed';
+    reply?: string;
+    adopted?: boolean;
+  } = {},
+): {
+  tenantId: string;
+  domain: 'analysis' | 'write' | 'push';
+  intent: string;
+  userMessage?: string;
+  toolCalls?: Array<Record<string, unknown>>;
+  outcome: 'success' | 'corrected' | 'failed';
+  reply?: string;
+  error?: string;
+} {
+  const failedToolCall = (ctx.toolCalls ?? []).find((t) => t.success === false);
+  return {
+    tenantId: ctx.tenantId,
+    domain: overrides.domain ?? (failedToolCall ? 'write' : 'analysis'),
+    intent: normalizeCaptureIntent(ctx.intent),
+    userMessage: ctx.userMessage,
+    toolCalls: ctx.toolCalls,
+    outcome: overrides.outcome ?? ctx.outcome,
+    reply: overrides.reply ?? ctx.reply,
+    error: ctx.error,
+  };
+}

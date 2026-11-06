@@ -29,7 +29,7 @@ import { WriteConfirmPipelineService } from '../write-confirm-pipeline.service';
 import { SelfHealLoopService } from './self-heal-loop.service';
 import { PlannerService } from './planner.service';
 import { CaptureService } from '../../evolution/capture.service';
-import { normalizeCaptureIntent } from '../../evolution/capture-intent';
+import { buildCaptureTaskInput } from '../../evolution/capture-intent';
 import { MetricsService } from '../../common/metrics.service';
 import { bestEffort } from '../../common/error-semantics';
 import { detectIntentCategories } from '../intent-detector';
@@ -669,16 +669,21 @@ export class TaskRunnerService {
           { channel: 'agent' },
         ),
       capture: (outcome, detail) =>
-        this.capture.captureTask({
-          tenantId: plan.tenantId,
-          domain: 'write',
-          intent: normalizeCaptureIntent(step.tool),
-          userMessage: plan.goal,
-          toolCalls: [{ tool_name: step.tool, success: outcome === 'success' }],
-          outcome,
-          reply: detail,
-          error: outcome === 'failed' ? detail : undefined,
-        }),
+        this.capture.captureTask(
+          buildCaptureTaskInput(
+            {
+              tenantId: plan.tenantId,
+              intent: step.tool,
+              userMessage: plan.goal,
+              toolCalls: [
+                { tool_name: step.tool, success: outcome === 'success' },
+              ],
+              outcome,
+              error: outcome === 'failed' ? detail : undefined,
+            },
+            { domain: 'write', reply: detail },
+          ),
+        ),
     });
     step.healLog = heal.healLog ?? [];
     step.retryCount += heal.healLog?.length ?? 0;
@@ -1034,16 +1039,22 @@ export class TaskRunnerService {
     // （含死信sink 失败），永不reject，故void 丢弃其Promise 是安全的。
     void bestEffort(
       () =>
-        this.capture.captureTask({
-          tenantId: plan.tenantId,
-          domain: failed.length > 0 ? 'write' : 'analysis',
-          intent: 'agent_plan',
-          userMessage: plan.goal,
-          toolCalls: [],
-          outcome: failed.length > 0 ? 'failed' : 'success',
-          reply: `计划 ${plan.id} 完成：${plan.steps.filter((s) => s.status === 'success').length} 步成功，${failed.length} 步失败`,
-          error: failed[0]?.error,
-        }),
+        this.capture.captureTask(
+          buildCaptureTaskInput(
+            {
+              tenantId: plan.tenantId,
+              intent: 'agent_plan',
+              userMessage: plan.goal,
+              toolCalls: [],
+              outcome: failed.length > 0 ? 'failed' : 'success',
+              error: failed[0]?.error,
+            },
+            {
+              domain: failed.length > 0 ? 'write' : 'analysis',
+              reply: `计划 ${plan.id} 完成：${plan.steps.filter((s) => s.status === 'success').length} 步成功，${failed.length} 步失败`,
+            },
+          ),
+        ),
       {
         op: 'agent.experience_capture',
         tenantId: plan.tenantId,

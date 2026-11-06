@@ -62,7 +62,7 @@ import { MemoryManager } from './memory-manager.service';
 import { WriteConfirmPipelineService } from './write-confirm-pipeline.service';
 import { StructuredExtractor } from './extraction/structured-extractor';
 import { CaptureService } from '../evolution/capture.service';
-import { normalizeCaptureIntent } from '../evolution/capture-intent';
+import { buildCaptureTaskInput } from '../evolution/capture-intent';
 import { MetricsService } from '../common/metrics.service';
 import { TelemetryPipelineService } from './telemetry-pipeline.service';
 import { AnswerSelfCheckService } from './answer-self-check.service';
@@ -1276,6 +1276,8 @@ export class Orchestrator {
       }
 
       // ── 6.7 P1-1 ai_db 采集：任务结束落经验/样本（脱敏入库，不阻塞主流程） ──
+      // 收敛实施 S2：输入组装单源 buildCaptureTaskInput（domain 沿用通道侧
+      // registry 判定，outcome/reply 由通道语义决定，其余归一/透传统一）
       try {
         const captureFailed = toolResults.find((r) => !r.success);
         const firstTool = allToolCalls[0];
@@ -1286,16 +1288,22 @@ export class Orchestrator {
         const isWrite = toolName
           ? (this.registry.get(toolName)?.isWriteOperation ?? false)
           : false;
-        await this.capture.captureTask({
-          tenantId,
-          domain: isWrite ? 'write' : 'analysis',
-          intent: normalizeCaptureIntent(toolName ?? 'chat'),
-          userMessage: params.message,
-          toolCalls: allToolCalls,
-          outcome: captureFailed ? 'failed' : 'success',
-          reply: finalAssistantText.trim() || undefined,
-          error: captureFailed?.error,
-        });
+        await this.capture.captureTask(
+          buildCaptureTaskInput(
+            {
+              tenantId,
+              intent: toolName ?? 'chat',
+              userMessage: params.message,
+              toolCalls: allToolCalls,
+              outcome: captureFailed ? 'failed' : 'success',
+              error: captureFailed?.error,
+            },
+            {
+              domain: isWrite ? 'write' : 'analysis',
+              reply: finalAssistantText.trim() || undefined,
+            },
+          ),
+        );
       } catch (err) {
         this.logger.debug(
           `ai_db 任务采集失败（忽略）：${err instanceof Error ? err.message : String(err)}`,

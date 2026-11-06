@@ -34,6 +34,7 @@ import { KnowledgeRulesService } from '../knowledge-rules.service';
 import { TelemetryPipelineService } from '../telemetry-pipeline.service';
 import { CaptureService } from '../../evolution/capture.service';
 import { normalizeCaptureIntent } from '../../evolution/capture-intent';
+import { buildCaptureTaskInput } from '../../evolution/capture-intent';
 import type { TelemetryUsage } from '../telemetry-pipeline.service';
 import {
   BUILTIN_GRAPHS,
@@ -187,26 +188,29 @@ export class GraphExecutorService implements OnModuleInit {
             usage,
             provider: provider?.name,
           });
-          // AI-P2-4-CAPTURE-INTENT-NORMALIZE：graph 完成态采集（确定性单点，
-          // 不得每节点重复）。intent：有工具按其 docType 归一，无工具回退 'graph'。
+          // AI-P2-4-CAPTURE-INTENT-NORMALIZE + 收敛实施 S2：完成态采集输入
+          // 组装单源 buildCaptureTaskInput（intent 归一/轨迹/单点语义不变；
+          // 无工具时 buildCaptureTaskInput 归一回退 chat，此处保持 graph 语义
+          // 显式传 'graph' 作为 intent 候选——normalizeCaptureIntent 对非工具
+          // 意图原样保留）
           const firstCaptureTool = captureToolCalls.find(
             (t) => typeof t.tool_name === 'string' && t.tool_name !== '',
           );
-          void this.capture.captureTask({
-            tenantId: toolContext.tenantId,
-            domain: 'analysis',
-            intent: normalizeCaptureIntent(
-              typeof firstCaptureTool?.tool_name === 'string'
-                ? firstCaptureTool.tool_name
-                : 'graph',
-            ),
-            userMessage: `graph:${graph.id} ${graph.name}`,
-            toolCalls: [
-              ...captureToolCalls,
-              { event: 'graph_done', graphId: graph.id },
-            ],
-            outcome: 'success',
-          });
+          void this.capture.captureTask(
+            buildCaptureTaskInput({
+              tenantId: toolContext.tenantId,
+              intent:
+                typeof firstCaptureTool?.tool_name === 'string'
+                  ? firstCaptureTool.tool_name
+                  : 'graph',
+              userMessage: `graph:${graph.id} ${graph.name}`,
+              toolCalls: [
+                ...captureToolCalls,
+                { event: 'graph_done', graphId: graph.id },
+              ],
+              outcome: 'success',
+            }),
+          );
           yield { ...event, usage };
           continue;
         }
