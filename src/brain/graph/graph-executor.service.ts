@@ -33,7 +33,6 @@ import { WriteConfirmPipelineService } from '../write-confirm-pipeline.service';
 import { KnowledgeRulesService } from '../knowledge-rules.service';
 import { TelemetryPipelineService } from '../telemetry-pipeline.service';
 import { CaptureService } from '../../evolution/capture.service';
-import { normalizeCaptureIntent } from '../../evolution/capture-intent';
 import { buildCaptureTaskInput } from '../../evolution/capture-intent';
 import type { TelemetryUsage } from '../telemetry-pipeline.service';
 import { buildTelemetryEndInput } from '../telemetry-pipeline.service';
@@ -234,23 +233,25 @@ export class GraphExecutorService implements OnModuleInit {
         // 非 done 退出（error / 早退分支）：按失败收口，遥测仍不丢。
         // 采集同步落一条 failed（不误记成功；与完成点互斥，同样仅一次）。
         // intent 来源优先尝试过的工具（tool_start）——失败路径无 tool_result
+        // 收敛实施 F1：采集输入经 buildCaptureTaskInput 单源（旁路收口）
         const firstFailTool =
           attemptedToolNames[0] ??
           (captureToolCalls.find(
             (t) => typeof t.tool_name === 'string' && t.tool_name !== '',
           )?.tool_name as string | undefined);
-        void this.capture.captureTask({
-          tenantId: toolContext.tenantId,
-          domain: 'analysis',
-          intent: normalizeCaptureIntent(firstFailTool ?? 'graph'),
-          userMessage: `graph:${graph.id} ${graph.name}`,
-          toolCalls: [
-            ...captureToolCalls,
-            { event: 'graph_error', graphId: graph.id },
-          ],
-          outcome: 'failed',
-          error: lastError,
-        });
+        void this.capture.captureTask(
+          buildCaptureTaskInput({
+            tenantId: toolContext.tenantId,
+            intent: firstFailTool ?? 'graph',
+            userMessage: `graph:${graph.id} ${graph.name}`,
+            toolCalls: [
+              ...captureToolCalls,
+              { event: 'graph_error', graphId: graph.id },
+            ],
+            outcome: 'failed',
+            error: lastError,
+          }),
+        );
         await this.telemetry.channelEnd(
           buildTelemetryEndInput(
             {
@@ -268,20 +269,22 @@ export class GraphExecutorService implements OnModuleInit {
       }
     } catch (err) {
       // 包装层兜底（executeCore 设计上不抛；此处仅防实现缺陷外溢）
+      // 收敛实施 F1：遥测输入经 buildTelemetryEndInput 单源（旁路收口）
       lastError = err instanceof Error ? err.message : String(err);
-      await this.telemetry.channelEnd({
-        session,
-        success: false,
-        usage: {
-          promptTokens: usageAcc.prompt,
-          completionTokens: usageAcc.completion,
-          totalTokens: usageAcc.prompt + usageAcc.completion,
-          latencyMs: Date.now() - startTime,
-          usageSource: usageAcc.sawLlm ? 'measured' : 'unknown',
-        },
-        provider: provider?.name,
-        error: lastError,
-      });
+      await this.telemetry.channelEnd(
+        buildTelemetryEndInput(
+          {
+            session,
+            success: false,
+            promptTokens: usageAcc.prompt,
+            completionTokens: usageAcc.completion,
+            usageSource: usageAcc.sawLlm ? 'measured' : 'unknown',
+            latencyMs: Date.now() - startTime,
+            error: lastError,
+          },
+          { provider: provider?.name },
+        ),
+      );
       throw err;
     }
   }

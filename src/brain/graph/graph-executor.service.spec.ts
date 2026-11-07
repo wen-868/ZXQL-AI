@@ -165,6 +165,7 @@ function makeExecutor(
     get?: jest.Mock;
   },
   confirmationOverride?: Record<string, jest.Mock>,
+  captureOverride?: { captureTask: jest.Mock },
 ) {
   const review = reviewMock ?? {
     create: jest.fn(),
@@ -193,7 +194,6 @@ function makeExecutor(
           confirmation: { confirmationId: 'wg_tok1', ...input },
         }),
       ),
-    suspend: jest.fn(),
     getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
   };
   return new GraphExecutorService(
@@ -208,7 +208,7 @@ function makeExecutor(
 
     makeTelemetryStub() as never,
 
-    makeCaptureStub() as never,
+    (captureOverride ?? makeCaptureStub()) as never,
   );
 }
 
@@ -242,7 +242,9 @@ function makeTelemetryStub() {
       sessionId: 's1',
       startTime: Date.now(),
     })),
-    channelEnd: jest.fn(() => Promise.resolve()),
+    channelEnd: jest.fn((_input?: Record<string, unknown>) =>
+      Promise.resolve(),
+    ),
     resolveSessionId: jest.fn(
       (_lane: string, _t: string, preferred?: string, fallback?: string) =>
         preferred ?? fallback ?? 'graph-session-t1',
@@ -683,7 +685,6 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
         expireAt: Date.now() + 24 * 60 * 60 * 1000,
         confirmation: { confirmationId: 'wg_tok1' },
       }),
-      suspend: jest.fn(),
       getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
     };
     const executorMock = {
@@ -854,7 +855,6 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
           expireAt: start + ttl,
           confirmation: { confirmationId: 'wg_cfg' },
         }),
-        suspend: jest.fn(),
         getTokenTtlMs: jest.fn(() => ttl),
       } as never,
 
@@ -1297,5 +1297,92 @@ describe('Phase 0 哨兵：graph 负路径（审核拒绝 / 写确认 pending/ca
     expect(String(cancelError?.message)).toContain('取消');
     const state = await cp.load('t1', 's1');
     expect(state?.status).toBe('error');
+  });
+
+  // ════ F1 哨兵（AI-P2-4-ORCHESTRATION-CONVERGENCE-IMPLEMENTATION-01-F1）════
+  it('F1 哨兵：失败采集入参由 buildCaptureTaskInput 产生且字段不丢（failed/轨迹/graphId/租户）', async () => {
+    const capture = makeCaptureStub();
+    const confirmationOverride = {
+      create: jest.fn(),
+      getByTenant: jest.fn().mockResolvedValue({ status: 'cancelled' }),
+      getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+    };
+    const cp = makeCheckpointer();
+    await savePaused(cp, { pendingWriteToken: 'wg_f1' });
+    const service = makeExecutor(
+      { executeToolCall: jest.fn() },
+      cp,
+      undefined,
+      confirmationOverride as never,
+      capture,
+    );
+    await collectEvents(service, RESUME_GRAPH, makeCtx());
+    expect(capture.captureTask).toHaveBeenCalledTimes(1);
+    const arg = capture.captureTask.mock.calls[0][0] as Record<string, unknown>;
+    // builder 产出口径（S2 单源）：failed / 归一后 intent / 租户 / 轨迹含 graphId
+    expect(arg.outcome).toBe('failed');
+    expect(arg.intent).toBe('graph');
+    expect(arg.tenantId).toBe('t1');
+    const traj = JSON.stringify(arg.toolCalls);
+    expect(traj).toContain('graph_error');
+    expect(traj).toContain('test_phase0_resume');
+    expect(arg.error).toContain('取消');
+  });
+
+  it('F1 哨兵：包装 catch 的 channelEnd 入参由 buildTelemetryEndInput 产生且字段不丢', async () => {
+    const telemetry = makeTelemetryStub();
+    const capture = makeCaptureStub();
+    // 构造包装层兜底唯一可达路径：executeCore 首步 checkpointer.load 抛错
+    const brokenCp = {
+      load: jest.fn().mockRejectedValue(new Error('cp exploded')),
+      save: jest.fn(),
+      clear: jest.fn(),
+    };
+    const service = new GraphExecutorService(
+      { executeToolCall: jest.fn() } as never,
+      brokenCp as never,
+      makeRegistryMock() as never,
+      { create: jest.fn(), get: jest.fn().mockResolvedValue(null) } as never,
+      {
+        recordWrite: jest.fn(),
+        verify: jest.fn(() => ({ ok: true, issues: [] })),
+      } as never,
+      { getRulesContext: jest.fn(() => undefined) } as never,
+      {
+        create: jest.fn(),
+        getByTenant: jest.fn().mockResolvedValue(null),
+        getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+      } as never,
+      {
+        suspend: jest.fn(),
+        suspendFromToolCall: jest.fn(),
+        getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
+      } as never,
+      telemetry as never,
+      capture as never,
+    );
+    // 包装层兜底后重新抛出——调用方以 try/catch 承接
+    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    await expect(async () => {
+      for await (const e of service.execute(RESUME_GRAPH, 's1', makeCtx())) {
+        events.push(e);
+      }
+    }).rejects.toThrow('cp exploded');
+    // 遥测收口恰好一次（lane=graph / success=false / error 字段不丢）
+    expect(telemetry.channelEnd).toHaveBeenCalledTimes(1);
+    const arg = telemetry.channelEnd.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(arg.success).toBe(false);
+    expect(arg.error).toContain('cp exploded');
+    const session = arg.session as Record<string, unknown>;
+    expect(session.lane).toBe('graph');
+    expect(session.tenantId).toBe('t1');
+    expect(session.sessionId).toBe('s1');
+    const usage = arg.usage as Record<string, unknown>;
+    expect(usage.usageSource).toBe('unknown');
+    // 异常发生在首步 load，未到完成/失败出口 ⇒ 采集未发生
+    expect(capture.captureTask).not.toHaveBeenCalled();
   });
 });
