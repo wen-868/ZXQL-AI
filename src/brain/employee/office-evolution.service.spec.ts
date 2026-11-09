@@ -8,30 +8,60 @@
 import { EmployeeService } from './employee.service';
 import { OfficeEvolutionService } from './office-evolution.service';
 
-function makeEmployeeService() {
-  return {
-    getTaskById: jest.fn(async (id: number) =>
-      id === 999
-        ? null
-        : { id, task: '生成周报', resultSummary: '周报已生成', tenantId: 't1' },
+/** captureTask 入参形状（与 buildDomainCaptureTaskInput 返回结构对齐，供类型安全断言） */
+interface CaptureTaskArg {
+  tenantId: string;
+  domain: string;
+  intent: string;
+  userMessage?: string;
+  toolCalls?: Array<Record<string, unknown>>;
+  outcome: string;
+  reply?: string;
+  error?: string;
+  sampleQuality?: number;
+  adopted?: boolean;
+}
+
+/** 员工服务桩：同时返回原始 jest 桩（类型安全断言用）与注入用的服务实例 */
+function makeEmployeeStubs() {
+  const stubs = {
+    getTaskById: jest.fn().mockImplementation((id: number) =>
+      Promise.resolve(
+        id === 999
+          ? null
+          : {
+              id,
+              task: '生成周报',
+              resultSummary: '周报已生成',
+              tenantId: 't1',
+            },
+      ),
     ),
     markTaskRated: jest.fn().mockResolvedValue(undefined),
-  } as unknown as EmployeeService;
+  };
+  return { stubs, service: stubs as unknown as EmployeeService };
 }
 
 describe('OfficeEvolutionService（AI-P2-5 capture 单源收敛）', () => {
-  let capture: { captureTask: jest.Mock; captureCorrection: jest.Mock };
+  let capture: {
+    captureTask: jest.Mock<Promise<void>, [CaptureTaskArg]>;
+    captureCorrection: jest.Mock<Promise<void>, [Record<string, unknown>]>;
+  };
+  let employeeStubs: ReturnType<typeof makeEmployeeStubs>['stubs'];
   let service: OfficeEvolutionService;
 
   beforeEach(() => {
     capture = {
-      captureTask: jest.fn().mockResolvedValue(undefined),
-      captureCorrection: jest.fn().mockResolvedValue(undefined),
+      captureTask: jest
+        .fn<Promise<void>, [CaptureTaskArg]>()
+        .mockResolvedValue(undefined),
+      captureCorrection: jest
+        .fn<Promise<void>, [Record<string, unknown>]>()
+        .mockResolvedValue(undefined),
     };
-    service = new OfficeEvolutionService(
-      capture as never,
-      makeEmployeeService(),
-    );
+    const emp = makeEmployeeStubs();
+    employeeStubs = emp.stubs;
+    service = new OfficeEvolutionService(capture as never, emp.service);
   });
 
   it('采纳（score≥4）：captureTask 经单源组装——domain=analysis、intent=域任务类型、sampleQuality=score 透传', async () => {
@@ -129,13 +159,9 @@ describe('OfficeEvolutionService（AI-P2-5 capture 单源收敛）', () => {
       adopted: true,
       taskType: 'office_report',
     });
-    const emp = service['employeeService'] as {
-      markTaskRated: jest.Mock;
-    };
-    expect(emp.markTaskRated).toHaveBeenCalledWith(
-      1,
-      'sample',
-      't1',
-    );
+    // 断言取原始 jest 桩（不经不兼容断言，也避开 method 引用取 this 的问题）
+    expect(employeeStubs.markTaskRated.mock.calls).toEqual([
+      [1, 'sample', 't1'],
+    ]);
   });
 });

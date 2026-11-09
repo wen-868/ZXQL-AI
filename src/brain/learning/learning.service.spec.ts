@@ -9,6 +9,20 @@ import { AiLearningLogEntity } from '../../database/entities/ai-learning-log.ent
 import { LongTermMemoryService } from '../memory/long-term-memory.service';
 import { LearningService } from './learning.service';
 
+/** captureTask 入参形状（与 buildDomainCaptureTaskInput 返回结构对齐，供类型安全断言） */
+interface CaptureTaskArg {
+  tenantId: string;
+  domain: string;
+  intent: string;
+  userMessage?: string;
+  toolCalls?: Array<Record<string, unknown>>;
+  outcome: string;
+  reply?: string;
+  error?: string;
+  sampleQuality?: number;
+  adopted?: boolean;
+}
+
 function makeLtm() {
   return {
     saveEpisodic: jest.fn().mockResolvedValue(undefined),
@@ -28,13 +42,17 @@ function makeLogRepo() {
 describe('LearningService', () => {
   let ltm: ReturnType<typeof makeLtm>;
   let logRepo: ReturnType<typeof makeLogRepo>;
-  let capture: { captureTask: jest.Mock };
+  let capture: { captureTask: jest.Mock<Promise<void>, [CaptureTaskArg]> };
   let service: LearningService;
 
   beforeEach(() => {
     ltm = makeLtm();
     logRepo = makeLogRepo();
-    capture = { captureTask: jest.fn().mockResolvedValue(undefined) };
+    capture = {
+      captureTask: jest
+        .fn<Promise<void>, [CaptureTaskArg]>()
+        .mockResolvedValue(undefined),
+    };
     service = new LearningService(ltm, logRepo, capture as never);
   });
 

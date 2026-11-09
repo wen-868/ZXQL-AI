@@ -210,16 +210,39 @@ describe('normalizeCaptureIntent（三通道 Capture intent 归一矩阵）', ()
     });
 
     it('tenantId 缺失（undefined/null/空白）⇒ fail-closed 抛 CaptureTenantMissingError，不补默认租户', () => {
-      expect(() => buildDomainCaptureTaskInput({ intent: 'office_report', outcome: 'success' })).toThrow(CaptureTenantMissingError);
-      expect(() => buildDomainCaptureTaskInput({ tenantId: null, intent: 'office_report', outcome: 'success' })).toThrow(CaptureTenantMissingError);
-      expect(() => buildDomainCaptureTaskInput({ tenantId: '   ', intent: 'office_report', outcome: 'success' })).toThrow(CaptureTenantMissingError);
+      expect(() =>
+        buildDomainCaptureTaskInput({
+          intent: 'office_report',
+          outcome: 'success',
+        }),
+      ).toThrow(CaptureTenantMissingError);
+      expect(() =>
+        buildDomainCaptureTaskInput({
+          tenantId: null,
+          intent: 'office_report',
+          outcome: 'success',
+        }),
+      ).toThrow(CaptureTenantMissingError);
+      expect(() =>
+        buildDomainCaptureTaskInput({
+          tenantId: '   ',
+          intent: 'office_report',
+          outcome: 'success',
+        }),
+      ).toThrow(CaptureTenantMissingError);
       // 反测：错误信息只声明拒绝，不给出任何回退/默认租户语义
       try {
-        buildDomainCaptureTaskInput({ tenantId: '', intent: 'office_report', outcome: 'success' });
+        buildDomainCaptureTaskInput({
+          tenantId: '',
+          intent: 'office_report',
+          outcome: 'success',
+        });
         fail('should throw');
       } catch (e) {
         expect((e as Error).message).toContain('fail-closed');
-        expect((e as Error).message).not.toMatch(/fallback tenant|default tenant|tenant-\d/i);
+        expect((e as Error).message).not.toMatch(
+          /fallback tenant|default tenant|tenant-\d/i,
+        );
       }
     });
 

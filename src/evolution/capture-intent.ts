@@ -184,10 +184,7 @@ export function buildDomainCaptureTaskInput(
       `intent=${normalizeCaptureIntent(ctx.intent)}`,
     );
   }
-  const input = buildCaptureTaskInput(
-    { ...ctx, tenantId },
-    overrides,
-  );
+  const input = buildCaptureTaskInput({ ...ctx, tenantId }, overrides);
   const sampleQuality = overrides.sampleQuality ?? ctx.sampleQuality;
   // adopted 是 ctx 透传字段（学习域成功信号 adopted=true），三通道 builder
   // 返回形状不含它——在此补回，保持与手工组装逐字段等价（不丢采纳标记）
