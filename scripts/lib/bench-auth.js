@@ -35,7 +35,27 @@ function pickToken(json) {
   return d && d.token;
 }
 
+// SEC-003 出站校验（AI-SECURITY-BASELINE-01）：基准脚本仅允许 http(s) +
+// 本地/内网主机（对齐 isLocalish），拒绝公网/保留地址与非常规协议
+function assertOutboundAllowed(rawUrl) {
+  let u;
+  try {
+    u = new URL(rawUrl);
+  } catch {
+    throw new Error('bench-auth: 出站地址非法：' + rawUrl);
+  }
+  if (!/^https?:$/.test(u.protocol)) {
+    throw new Error('bench-auth: 出站协议仅允许 http/https：' + u.protocol);
+  }
+  if (!isLocalish(u.hostname)) {
+    throw new Error(
+      'bench-auth: 出站主机仅允许本地/内网（got ' + u.hostname + '）',
+    );
+  }
+}
+
 async function postJson(url, body) {
+  assertOutboundAllowed(url);
   const r = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -58,6 +78,10 @@ async function postJson(url, body) {
  */
 async function resolveAdminToken(opts) {
   const authBase = (opts.authBase || '').replace(/\/+$/, '');
+  // SEC-003 出站校验（AI-SECURITY-BASELINE-01）：登录端点同样限本地/内网
+  if (authBase) {
+    assertOutboundAllowed(authBase + LOGIN_PATH);
+  }
   const explicit = opts.token || process.env.AI_BASE_TOKEN;
   if (explicit) return { token: explicit, via: '显式 token' };
 
@@ -94,4 +118,4 @@ async function resolveAdminToken(opts) {
   return { token, via: `演示登录(${host || authBase})` };
 }
 
-module.exports = { resolveAdminToken, isLocalish };
+module.exports = { resolveAdminToken, isLocalish, assertOutboundAllowed };

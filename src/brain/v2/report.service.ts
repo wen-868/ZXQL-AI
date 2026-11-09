@@ -12,6 +12,7 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-08-26
  */
+import { randomUUID } from 'crypto';
 import { Injectable } from '@nestjs/common';
 import { existsSync } from 'fs';
 import { ToolExecutor } from '../../tools/tool-executor';
@@ -211,7 +212,7 @@ function buildArgs(
 
 function toToolCall(tool: string, args: Record<string, unknown>): ToolCall {
   return {
-    id: `report_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: `report_${randomUUID()}`,
     type: 'function',
     function: { name: tool, arguments: JSON.stringify(args) },
   };

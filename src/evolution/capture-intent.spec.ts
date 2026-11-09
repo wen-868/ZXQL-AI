@@ -1,0 +1,177 @@
+/**
+ * normalizeCaptureIntent 归一矩阵测试（AI-P2-4-CAPTURE-INTENT-NORMALIZE-01）
+ *
+ * 口径：normalizeCaptureIntent(toolOrIntent, fallback='chat')
+ *       = docTypeForTool(trimmed) ?? trimmed ?? fallback
+ * - 映射命中 → 裸 docType（唯一映射真源 = write-schema-registry）；
+ * - 未映射工具名保持原值（不得折叠成 chat）；
+ * - 非工具意图（office_document/write/analysis/agent_plan/graph）保持原值；
+ * - 空值/纯空白回退 fallback。
+ */
+import {
+  buildCaptureTaskInput,
+  normalizeCaptureIntent,
+} from './capture-intent';
+
+describe('normalizeCaptureIntent（三通道 Capture intent 归一矩阵）', () => {
+  describe('映射命中 → 裸 docType（卡面三.1 七例全覆盖）', () => {
+    it.each([
+      ['createSalesOrder', 'sales_order'],
+      ['createCustomer', 'customer_create'],
+      ['updateProductPrice', 'price_update'],
+      ['inventoryTransfer', 'inventory_transfer'],
+      ['stockCheck', 'inventory_check'],
+      ['createRefund', 'refund'],
+      ['api_create_flash_sale', 'promotion'],
+    ] as const)('%s ⇒ %s', (tool, expected) => {
+      expect(normalizeCaptureIntent(tool)).toBe(expected);
+    });
+  });
+
+  describe('未映射与非工具意图保持原值（不得折叠成 chat）', () => {
+    it('未映射工具名保持原值', () => {
+      expect(normalizeCaptureIntent('querySaleBills')).toBe('querySaleBills');
+    });
+
+    it.each([
+      'office_document',
+      'write',
+      'analysis',
+      'agent_plan',
+      'graph',
+    ] as const)("非工具意图 '%s' 保持原值", (intent) => {
+      expect(normalizeCaptureIntent(intent)).toBe(intent);
+    });
+
+    it('前后空白先 trim 再查表（空白包裹的映射名仍命中）', () => {
+      expect(normalizeCaptureIntent('  createSalesOrder  ')).toBe(
+        'sales_order',
+      );
+    });
+
+    it('trim 后原值返回（不带尾随空白）', () => {
+      expect(normalizeCaptureIntent('  querySaleBills  ')).toBe(
+        'querySaleBills',
+      );
+    });
+  });
+
+  describe('空值回退', () => {
+    it.each([undefined, null, '', '   '] as const)(
+      '空值 %p ⇒ 缺省 fallback chat',
+      (v) => {
+        expect(normalizeCaptureIntent(v)).toBe('chat');
+      },
+    );
+
+    it('显式 fallback：graph 通道空工具回退 graph', () => {
+      expect(normalizeCaptureIntent(undefined, 'graph')).toBe('graph');
+    });
+
+    it('显式 fallback：agent 通道空值回退 agent', () => {
+      expect(normalizeCaptureIntent('', 'agent')).toBe('agent');
+    });
+  });
+
+  describe('反测边界（防回归）', () => {
+    it('未知工具不得被折叠成 chat（M2 反测锚）', () => {
+      const result = normalizeCaptureIntent('totallyUnknownTool');
+      expect(result).not.toBe('chat');
+      expect(result).toBe('totallyUnknownTool');
+    });
+
+    it('非工具意图不得被规则推导成假 docType', () => {
+      // write/analysis 若被驼峰转下划线之类推导会凭空造出注册表不存在的值
+      expect(normalizeCaptureIntent('write')).toBe('write');
+      expect(normalizeCaptureIntent('analysis')).toBe('analysis');
+    });
+  });
+
+  // ════ S2：buildCaptureTaskInput 组装单源（收敛实施卡 S2）════
+  describe('buildCaptureTaskInput（三通道 capture 输入组装单源）', () => {
+    it('chat 形态：未映射工具保持原值、无失败轨迹 ⇒ domain=analysis、outcome=success', () => {
+      const input = buildCaptureTaskInput({
+        tenantId: 't1',
+        intent: 'searchProduct',
+        userMessage: '查商品',
+        toolCalls: [{ tool_name: 'searchProduct', success: true }],
+        outcome: 'success',
+      });
+      expect(input).toEqual({
+        tenantId: 't1',
+        domain: 'analysis',
+        intent: 'searchProduct',
+        userMessage: '查商品',
+        toolCalls: [{ tool_name: 'searchProduct', success: true }],
+        outcome: 'success',
+        reply: undefined,
+        error: undefined,
+      });
+    });
+
+    it('agent 形态：稳定键 agent_plan 原样、domain 走 overrides（失败→write）', () => {
+      const input = buildCaptureTaskInput(
+        {
+          tenantId: 't1',
+          intent: 'agent_plan',
+          userMessage: '计划目标',
+          toolCalls: [],
+          outcome: 'failed',
+          error: 'step boom',
+        },
+        { domain: 'write', reply: '计划 1 完成：0 步成功，1 步失败' },
+      );
+      expect(input.intent).toBe('agent_plan');
+      expect(input.domain).toBe('write');
+      expect(input.outcome).toBe('failed');
+      expect(input.reply).toContain('计划 1 完成');
+      expect(input.error).toContain('step boom');
+    });
+
+    it('graph 形态：无工具回退 graph、轨迹含原始工具名与 graphId', () => {
+      const input = buildCaptureTaskInput({
+        tenantId: 't1',
+        intent: 'graph',
+        userMessage: 'graph:cap_evidence 哨兵图',
+        toolCalls: [
+          { tool_name: 'createSalesOrder', success: true },
+          { event: 'graph_done', graphId: 'cap_evidence' },
+        ],
+        outcome: 'success',
+      });
+      expect(input.intent).toBe('graph');
+      const traj = JSON.stringify(input.toolCalls);
+      expect(traj).toContain('createSalesOrder');
+      expect(traj).toContain('cap_evidence');
+      expect(input.domain).toBe('analysis');
+    });
+
+    it('映射命中：intent 归一为裸 docType（createSalesOrder ⇒ sales_order）', () => {
+      const input = buildCaptureTaskInput({
+        tenantId: 't1',
+        intent: 'createSalesOrder',
+        outcome: 'success',
+      });
+      expect(input.intent).toBe('sales_order');
+    });
+
+    it('tenantId 恒透传（M6 反测锚：组装层不丢租户）', () => {
+      const input = buildCaptureTaskInput({
+        tenantId: 'tenant-keep',
+        intent: 'chat',
+        outcome: 'success',
+      });
+      expect(input.tenantId).toBe('tenant-keep');
+    });
+
+    it('失败轨迹存在 ⇒ 缺省 domain=write（无 overrides 时）', () => {
+      const input = buildCaptureTaskInput({
+        tenantId: 't1',
+        intent: 'chat',
+        toolCalls: [{ tool_name: 'createSalesOrder', success: false }],
+        outcome: 'failed',
+      });
+      expect(input.domain).toBe('write');
+    });
+  });
+});

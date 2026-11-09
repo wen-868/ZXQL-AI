@@ -142,15 +142,16 @@ describe('阶段 4-1 · ai_sample.taskType 口径归一', () => {
     );
   });
 
-  describe('4. 归一不得污染 ai_experience.intent', () => {
-    it("experience.intent 仍为原工具名 'createSalesOrder'（任务卡 R3-4）", async () => {
+  // AI-P2-4-CAPTURE-INTENT-NORMALIZE-01：口径升级——ai_sample.taskType 与
+  // ai_experience.intent 对齐**同一归一值**（调用方 + 落库层双层归一）；
+  // 原始工具名的审计语义改由 trajectory（toolCalls）承载，不再依赖 intent 列。
+  describe('4. 双层归一：ai_sample.taskType 与 ai_experience.intent 对齐同一归一值', () => {
+    it('experience.intent 与 sample.taskType 同为归一值 sales_order（AI-P2-4-CAPTURE-INTENT-NORMALIZE-01）', async () => {
       const { sample, experience } = await captureSample({
         intent: 'createSalesOrder',
       });
-      // 样本侧已归一
       expect(sample.taskType).toBe('sales_order');
-      // 经验侧必须保持工具名 —— 那是「调了哪个工具」的审计语义
-      expect(experience.intent).toBe('createSalesOrder');
+      expect(experience.intent).toBe('sales_order');
     });
 
     it('未命中值时两侧口径一致（原样透传，不做任何改写）', async () => {
@@ -162,12 +163,31 @@ describe('阶段 4-1 · ai_sample.taskType 口径归一', () => {
       expect(experience.intent).toBe('office_document');
     });
 
-    it('intent 缺省时 experience.intent 为 null（不被 domain 污染）', async () => {
-      const { experience } = await captureSample({
+    it('intent 缺省时两侧回退 domain（write）——归一不产生 null', async () => {
+      const { sample, experience } = await captureSample({
         domain: 'write',
         intent: undefined,
       });
-      expect(experience.intent).toBeNull();
+      expect(sample.taskType).toBe('write');
+      expect(experience.intent).toBe('write');
+    });
+
+    it('原始工具名仍在 trajectory 中保留（审计不丢失，验收 4）', async () => {
+      const { experience } = await captureSample({
+        intent: 'createSalesOrder',
+        toolCalls: [{ tool_name: 'createSalesOrder', success: true }],
+      });
+      expect(JSON.stringify(experience.trajectory)).toContain(
+        'createSalesOrder',
+      );
+    });
+
+    it('租户透传：experience/sample tenantId 与输入一致，不丢失不串写（M6 反测锚）', async () => {
+      const { sample, experience } = await captureSample({
+        intent: 'createSalesOrder',
+      });
+      expect(experience.tenantId).toBe('t_001');
+      expect(sample.tenantId).toBe('t_001');
     });
   });
 

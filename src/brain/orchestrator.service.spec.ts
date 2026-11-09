@@ -16,6 +16,8 @@
  *
  * 负责人: 阿坚 | 创建日期: 2026-10-13
  */
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { Orchestrator, MAX_AGENT_ITERATIONS } from './orchestrator.service';
 import type { OrchestratorParams } from './orchestrator.service';
 
@@ -58,7 +60,10 @@ function makeToolCall(name: string, args: unknown = {}) {
 
 interface Harness {
   orchestrator: Orchestrator;
-  deps: ReturnType<typeof makeDeps>;
+  deps: ReturnType<typeof makeDeps> & {
+    /** AI-P2-4-TELEMETRY-PIPELINE：遥测桩（makeOrchestrator 装配时挂入） */
+    telemetry: ReturnType<typeof makeTelemetryStub>;
+  };
 }
 
 function makeDeps(overrides: Record<string, unknown> = {}) {
@@ -123,13 +128,26 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
       saveHistory: jest.fn().mockResolvedValue(undefined),
       archiveSession: jest.fn().mockResolvedValue(undefined),
     },
-    confirmationService: {
-      create: jest.fn().mockResolvedValue({
-        confirmationId: 'wg_orch_token',
-        docType: 'createSalesOrder',
-        risk: 'medium',
-        operationLabel: '创建销售单',
-      }),
+    writeConfirmPipeline: {
+      // 收敛实施 S1：生产代码经 suspendFromToolCall 挂起；mock 转发到同一实现
+      suspendFromToolCall: jest
+        .fn()
+        .mockImplementation((input: Record<string, unknown>) =>
+          Promise.resolve({
+            token: 'wg_orch_token',
+            expireAt: Date.now() + 24 * 60 * 60 * 1000,
+            confirmation: {
+              confirmationId: 'wg_orch_token',
+              toolName: input.toolName,
+              docType: input.toolName,
+              risk: input.risk ?? 'medium',
+              operationLabel:
+                (input.preview as { operation?: string })?.operation ??
+                input.toolName,
+            },
+          }),
+        ),
+      suspend: jest.fn(),
     },
     graphExecutor: { getGraph: jest.fn(), execute: jest.fn() },
     router: {
@@ -156,7 +174,9 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
     },
     capture: {
       captureCorrection: jest.fn().mockResolvedValue(undefined),
-      captureTask: jest.fn().mockResolvedValue(undefined),
+      captureTask: jest.fn((_input?: Record<string, unknown>) =>
+        Promise.resolve(undefined),
+      ),
     },
     metrics: {
       recordPlan: jest.fn(),
@@ -191,23 +211,23 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
 
 /** 按 Orchestrator 构造顺序装配（构造参数顺序见 orchestrator.service.ts:280-303） */
 function makeOrchestrator(overrides: Record<string, unknown> = {}): Harness {
-  const deps = makeDeps(overrides);
+  const deps = makeDeps(overrides) as ReturnType<typeof makeDeps> & {
+    telemetry: ReturnType<typeof makeTelemetryStub>;
+  };
   const orchestrator = new Orchestrator(
     deps.executor as never,
     deps.registry as never,
-    deps.auditLogger as never,
     deps.aiConfigService as never,
     deps.tenantContext as never,
     deps.contextBuilder as never,
     deps.memoryManager as never,
-    deps.confirmationService as never,
+    deps.writeConfirmPipeline as never,
     deps.graphExecutor as never,
     deps.router as never,
     deps.learning as never,
     deps.extractor as never,
     deps.capture as never,
     deps.metrics as never,
-    deps.billing as never,
     deps.configService as never,
     deps.selfCheck as never,
     deps.knowledgeRules as never,
@@ -215,8 +235,30 @@ function makeOrchestrator(overrides: Record<string, unknown> = {}): Harness {
     deps.employeeService as never,
     deps.planner as never,
     deps.ltm as never,
+    // AI-P2-4-TELEMETRY-PIPELINE：遥测桩（断言经管线收口；overrides.telemetry 可替换）
+    (deps.telemetry = ((overrides as { telemetry?: unknown }).telemetry ??
+      makeTelemetryStub()) as never),
   );
   return { orchestrator, deps };
+}
+
+/** AI-P2-4-TELEMETRY-PIPELINE：遥测桩（记录 begin/end 调用） */
+function makeTelemetryStub() {
+  return {
+    channelBegin: jest.fn(
+      (input: { lane: string; sessionId?: string; tenantId: string }) => ({
+        ...input,
+        startTime: Date.now(),
+      }),
+    ),
+    channelEnd: jest.fn((_input?: Record<string, unknown>) =>
+      Promise.resolve(),
+    ),
+    resolveSessionId: jest.fn(
+      (_lane: string, _t: string, preferred?: string, fallback?: string) =>
+        preferred ?? fallback ?? 'chat-session-t1',
+    ),
+  };
 }
 
 const BASE_PARAMS: OrchestratorParams = {
@@ -269,6 +311,65 @@ describe('Orchestrator（Agent Loop 核心）', () => {
     expect(events.some((e) => e.type === 'done')).toBe(true);
     // 无错误事件
     expect(events.filter((e) => e.type === 'error')).toHaveLength(0);
+    // AI-P2-4-CAPTURE-INTENT-NORMALIZE：chat 采集经统一归一口径——
+    // searchProduct 未映射保持原值（不得折叠成 chat）
+    expect(h.deps.capture.captureTask).toHaveBeenCalledTimes(1);
+    const capArg = h.deps.capture.captureTask.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(capArg.intent).toBe('searchProduct');
+    expect(capArg.outcome).toBe('success');
+    expect(capArg.tenantId).toBe('t1');
+  });
+
+  // ════ Phase 0 哨兵（AI-P2-4-ORCHESTRATION-CONVERGENCE-IMPLEMENTATION-01）════
+  it('Phase 0 哨兵：LLM 异常 → error 事件 + 失败遥测收口（billable:false / unknown）', async () => {
+    const h = makeOrchestrator();
+    h.deps.router.chatWithFallback = jest.fn(() => {
+      throw new Error('provider down');
+    }) as never;
+    const events = await collect(h.orchestrator);
+    expect(events.some((e) => e.type === 'error')).toBe(true);
+    // 失败路径遥测收口（1391-1406 区）：仅一次、billable:false、来源 unknown
+    expect(h.deps.telemetry.channelEnd).toHaveBeenCalledTimes(1);
+    const arg = h.deps.telemetry.channelEnd.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(arg.success).toBe(false);
+    expect(arg.billable).toBe(false);
+    expect(arg.error).toContain('provider down');
+    const usage = arg.usage as Record<string, unknown>;
+    expect(usage.usageSource).toBe('unknown');
+    const session = arg.session as Record<string, unknown>;
+    expect(session.lane).toBe('chat');
+    expect(session.sessionId).toBe('sess-1');
+    expect(session.tenantId).toBe('t1');
+    // 失败路径不采集（capture 仅成功/纠正路径）
+    expect(h.deps.capture.captureTask).not.toHaveBeenCalled();
+  });
+
+  it('Phase 0 哨兵：LLM 无文本仅工具结果 → 兜底摘要与工具分类（1461-1500 区）', async () => {
+    const h = makeOrchestrator();
+    h.deps.router.chatWithFallback
+      .mockImplementationOnce(() =>
+        streamOf([], chatResult('', [makeToolCall('searchProduct')])),
+      )
+      .mockImplementationOnce(() => streamOf([], chatResult('')));
+    const events = await collect(h.orchestrator);
+    expect(events.some((e) => e.type === 'done')).toBe(true);
+    expect(events.filter((e) => e.type === 'error')).toHaveLength(0);
+    // 兜底摘要：无模型总结时由工具结果生成可读文本（不为空）
+    const texts = events.filter((e) => e.type === 'text').map((e) => e.content);
+    expect(texts.join('').length).toBeGreaterThan(0);
+    // 成功采集：capture 带 toolCalls（原始工具名保留）
+    expect(h.deps.capture.captureTask).toHaveBeenCalledTimes(1);
+    const capArg2 = h.deps.capture.captureTask.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(JSON.stringify(capArg2.toolCalls)).toContain('searchProduct');
   });
 
   it('路径 2：工具调用失败不中断 Loop（失败结果回填后继续跑完）', async () => {
@@ -331,10 +432,17 @@ describe('Orchestrator（Agent Loop 核心）', () => {
 
     const events = await collect(h.orchestrator);
 
-    // 写工具预览 ⇒ 经确认服务挂起并下发令牌（后续 confirm → 3 分钟撤销窗口的入口）
-    expect(h.deps.confirmationService.create).toHaveBeenCalledTimes(1);
-    expect(h.deps.confirmationService.create).toHaveBeenCalledWith(
-      expect.objectContaining({ toolName: 'createSalesOrder' }),
+    // 写工具预览 ⇒ 经写确认管线挂起并下发令牌（后续 confirm → 3 分钟撤销窗口的入口）
+    // 收敛实施 S1：断言迁至 suspendFromToolCall（toolName 口径不变）
+    expect(
+      h.deps.writeConfirmPipeline.suspendFromToolCall,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      h.deps.writeConfirmPipeline.suspendFromToolCall,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'createSalesOrder',
+      }),
     );
     const confirmEvent = events.find(
       (e) =>
@@ -348,5 +456,20 @@ describe('Orchestrator（Agent Loop 核心）', () => {
       unknown,
     ];
     expect(firstCall[0].function.name).toBe('createSalesOrder');
+  });
+});
+
+// AI-P2-4-TOOL-INVOCATION-GUARD：chat 通道超时闸与自动重试已收敛进 executor 的
+// InvocationGuard（唯一 guard）。本哨兵防回归：orchestrator 不得再自带 timeout/重试。
+describe('三通道唯一 guard 哨兵（chat 侧）', () => {
+  it('orchestrator 源码不再自带超时闸/重试逻辑（防回归锚）', () => {
+    const src = readFileSync(
+      join(__dirname, 'orchestrator.service.ts'),
+      'utf8',
+    );
+    expect(src).not.toContain('executeToolWithTimeout');
+    expect(src).not.toContain('setTimeout');
+    expect(src).not.toContain('ENABLE_TOOL_AUTO_RETRY');
+    expect(src).toContain("channel: 'chat'");
   });
 });

@@ -38,7 +38,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ToolExecutor } from '../tools/tool-executor';
 import { ToolRegistry } from '../tools/tool-registry';
-import { AuditLogger } from '../bridge/audit-logger';
 import { AiConfigService } from '../tenant/ai-config.service';
 import { TenantContext } from '../tenant/tenant-context';
 import { detectTone, toneDirective } from '../nlp/tone-detector';
@@ -60,14 +59,16 @@ import type { PlanStep } from './agent/agent.types';
 import { LongTermMemoryService } from './memory/long-term-memory.service';
 import { ContextBuilder } from './context-builder.service';
 import { MemoryManager } from './memory-manager.service';
-import { ConfirmationService } from './confirmation.service';
+import { WriteConfirmPipelineService } from './write-confirm-pipeline.service';
 import { StructuredExtractor } from './extraction/structured-extractor';
 import { CaptureService } from '../evolution/capture.service';
+import { buildCaptureTaskInput } from '../evolution/capture-intent';
+import { buildTelemetryEndInput } from './telemetry-pipeline.service';
 import { MetricsService } from '../common/metrics.service';
-import { BillingService } from '../tenant/billing.service';
+import { TelemetryPipelineService } from './telemetry-pipeline.service';
 import { AnswerSelfCheckService } from './answer-self-check.service';
 import { WRITE_TOKEN_TTL_MS } from './write-guard.service';
-import type { ChatMessage, ToolCall } from '../providers/provider.interface';
+import type { ChatMessage } from '../providers/provider.interface';
 import type {
   ToolCategory,
   ToolContext,
@@ -282,19 +283,17 @@ export class Orchestrator {
   constructor(
     private readonly executor: ToolExecutor,
     private readonly registry: ToolRegistry,
-    private readonly auditLogger: AuditLogger,
     private readonly aiConfigService: AiConfigService,
     private readonly tenantContext: TenantContext,
     private readonly contextBuilder: ContextBuilder,
     private readonly memoryManager: MemoryManager,
-    private readonly confirmationService: ConfirmationService,
+    private readonly writeConfirmPipeline: WriteConfirmPipelineService,
     private readonly graphExecutor: GraphExecutorService,
     private readonly router: ProviderRouterService,
     private readonly learning: LearningService,
     private readonly extractor: StructuredExtractor,
     private readonly capture: CaptureService,
     private readonly metrics: MetricsService,
-    private readonly billing: BillingService,
     private readonly configService: ConfigService,
     private readonly selfCheck: AnswerSelfCheckService,
     private readonly knowledgeRules: KnowledgeRulesService,
@@ -302,6 +301,8 @@ export class Orchestrator {
     private readonly employeeService: EmployeeService,
     private readonly planner: PlannerService,
     private readonly ltm: LongTermMemoryService,
+    // AI-P2-4-TELEMETRY-PIPELINE：审计/会话/用量/计费统一遥测（唯一实例）
+    private readonly telemetry: TelemetryPipelineService,
   ) {}
 
   /**
@@ -345,6 +346,24 @@ export class Orchestrator {
         `数字员工会话未按员工隔离：uid=${params.employeeUid} session=${conversationId}（建议以 ${EMPLOYEE_SESSION_PREFIX} 前缀传入，或不传由后端兜底）`,
       );
     }
+
+    // AI-P2-4-TELEMETRY-PIPELINE：会话生命周期开始（自动分派早退与 Agent Loop
+    // 两条出口都在此会话上 channelEnd 收口——审计/用量/计费单点）。
+    // 形状守卫：兼容旧契约 spec 的位置参数错位（缺真实管线时跳过遥测，业务照常）。
+    const telemetryOk =
+      !!this.telemetry &&
+      typeof this.telemetry.channelBegin === 'function' &&
+      typeof this.telemetry.channelEnd === 'function';
+    const telemetrySession = telemetryOk
+      ? this.telemetry.channelBegin({
+          lane: 'chat',
+          tenantId,
+          sessionId: conversationId,
+          userId,
+          userMessage: params.message,
+          intent: 'chat',
+        })
+      : undefined;
 
     this.logger.log(
       `Agent Loop 启动：tenant=${tenantId} user=${userId ?? 'anonymous'} session=${conversationId} msg="${params.message.slice(0, 50)}..."`,
@@ -525,24 +544,32 @@ export class Orchestrator {
             this.logger.log(
               `自动分派：任务#${dr.taskId} → ${dr.employeeName}（lane=${intent.lane}）`,
             );
-            // 审计留痕：自动分派路径也入审计（triage 埋点供跨域占比统计）
-            this.auditLogger.logAiCall({
-              tenantId,
-              userId,
-              sessionId: conversationId,
-              employeeUid: dr.employeeUid,
-              provider: providerName,
-              model: modelName,
-              intent: 'auto_dispatch',
-              triageLane: intent.lane,
-              triageCategories:
-                (intent.categories ?? []).join(',') || undefined,
-              userMessage: params.message,
-              promptTokens: auxPromptTokens,
-              completionTokens: auxCompletionTokens,
-              latencyMs: Date.now() - runStartAt,
-              success: true,
-            });
+            // 统一遥测收口（AI-P2-4-TELEMETRY-PIPELINE）：自动分派早退路径同样
+            // 经管线（审计留痕含 triage 埋点 + usage_daily + 计费单点）
+            // 收敛实施 S3：输入组装单源 buildTelemetryEndInput
+            if (telemetryOk && telemetrySession) {
+              await this.telemetry.channelEnd(
+                buildTelemetryEndInput(
+                  {
+                    session: telemetrySession,
+                    success: true,
+                    promptTokens: auxPromptTokens,
+                    completionTokens: auxCompletionTokens,
+                    usageSource: 'measured',
+                    latencyMs: Date.now() - runStartAt,
+                  },
+                  {
+                    provider: providerName,
+                    model: modelName,
+                    employeeUid: dr.employeeUid,
+                    intent: 'auto_dispatch',
+                    triageLane: intent.lane,
+                    triageCategories:
+                      (intent.categories ?? []).join(',') || undefined,
+                  },
+                ),
+              );
+            }
             yield {
               type: 'done',
               conversationId,
@@ -853,45 +880,17 @@ export class Orchestrator {
 
           this.logger.debug(`执行工具：${tc.function.name}`);
 
-          let toolResult = await this.executeToolWithTimeout(tc, toolContext);
-
-          // ── G-C Reflection 显式化：失败自动重试一次（仅只读工具）──
-          // 查询类失败多为瞬时抖动，重试直接恢复；
-          // 写操作（isWriteOperation）不自动重试：confirm=true 后服务端可能已
-          // 实际执行（超时/响应丢失场景），重试有重复开单风险——写失败交给 LLM
-          // 如实告知用户处理。reflection 事件供前端展示"已自动重试"。
+          // AI-P2-4 统一调用保护：chat 通道不再自带超时闸与自动重试（原 G-C
+          // reflection 重试已收敛进 executor 的 InvocationGuard——超时/分类/有界
+          // 重试/退避/降级单源），此处直连 executor 即与 agent/graph 同语义。
+          const toolResult = await this.executor.executeToolCall(
+            tc,
+            toolContext,
+            {
+              channel: 'chat',
+            },
+          );
           const toolMeta = this.registry.get(tc.function.name);
-          if (
-            !toolResult.success &&
-            toolMeta?.isWriteOperation !== true &&
-            this.configService.get<string>('ENABLE_TOOL_AUTO_RETRY', 'true') ===
-              'true'
-          ) {
-            yield {
-              type: 'reflection',
-              tool: tc.function.name,
-              action: 'retry',
-              recovered: false,
-            };
-            const retried = await this.executeToolWithTimeout(tc, toolContext);
-            if (retried.success) {
-              toolResult = retried;
-              this.logger.log(
-                `G-C 工具失败已自动重试成功：${tc.function.name}`,
-              );
-            } else {
-              this.logger.warn(
-                `G-C 工具自动重试仍失败：${tc.function.name} err=${retried.error ?? '-'}`,
-              );
-            }
-            this.metrics.recordToolRetry(toolResult.success);
-            yield {
-              type: 'reflection',
-              tool: tc.function.name,
-              action: 'retry',
-              recovered: toolResult.success,
-            };
-          }
 
           // ── P0-2 StructuredExtractor：写参数结构化抽取增强 ──
           // 写工具返回 preview 后，用原始用户消息做结构化抽取：
@@ -957,24 +956,25 @@ export class Orchestrator {
           // 中携带，供前端渲染确认卡片。risk/needsReview 取自工具注册元信息，
           // 高危写（资金/删除/批量）触发二次确认。
           let confirmationId: string | undefined;
+          let writeConfirmExpireAt: number | undefined;
           if (toolResult.preview) {
             try {
               const tool = this.registry.get(tc.function.name);
-              const risk = tool?.risk ?? 'medium';
-              const confirmation = await this.confirmationService.create({
-                tenantId,
-                conversationId,
-                customerId,
-                toolName: tc.function.name,
-                docType: tc.function.name,
-                risk,
-                needsReview: tool?.needsReview ?? risk === 'high',
-                args: execArgs,
-                preview: toolResult.preview,
-                operationLabel:
-                  toolResult.preview.operation ?? tc.function.name,
-              });
-              confirmationId = confirmation.confirmationId;
+              // AI-P2-4 切片 1 + 收敛实施 S1：挂起输入组装单源
+              // （docType/needsReview/operationLabel 缺省由管线统一，三边不再各自拼）
+              const suspended =
+                await this.writeConfirmPipeline.suspendFromToolCall({
+                  tenantId,
+                  conversationId,
+                  customerId,
+                  toolName: tc.function.name,
+                  risk: tool?.risk,
+                  needsReview: tool?.needsReview,
+                  args: execArgs,
+                  preview: toolResult.preview,
+                });
+              confirmationId = suspended.token;
+              writeConfirmExpireAt = suspended.expireAt;
             } catch (err) {
               this.logger.warn(
                 `注册待确认操作失败：${err instanceof Error ? err.message : String(err)}`,
@@ -995,7 +995,8 @@ export class Orchestrator {
           // A7 文档 12.1：写意图挂起补充 pending_write + await_confirm 事件
           // （与 tool_result.preview 并存，兼容现有前端确认卡）
           if (confirmationId) {
-            const expireAt = Date.now() + WRITE_TOKEN_TTL_MS;
+            const expireAt =
+              writeConfirmExpireAt ?? Date.now() + WRITE_TOKEN_TTL_MS;
             yield {
               type: 'pending_write',
               token: confirmationId,
@@ -1280,6 +1281,8 @@ export class Orchestrator {
       }
 
       // ── 6.7 P1-1 ai_db 采集：任务结束落经验/样本（脱敏入库，不阻塞主流程） ──
+      // 收敛实施 S2：输入组装单源 buildCaptureTaskInput（domain 沿用通道侧
+      // registry 判定，outcome/reply 由通道语义决定，其余归一/透传统一）
       try {
         const captureFailed = toolResults.find((r) => !r.success);
         const firstTool = allToolCalls[0];
@@ -1290,16 +1293,22 @@ export class Orchestrator {
         const isWrite = toolName
           ? (this.registry.get(toolName)?.isWriteOperation ?? false)
           : false;
-        await this.capture.captureTask({
-          tenantId,
-          domain: isWrite ? 'write' : 'analysis',
-          intent: toolName ?? 'chat',
-          userMessage: params.message,
-          toolCalls: allToolCalls,
-          outcome: captureFailed ? 'failed' : 'success',
-          reply: finalAssistantText.trim() || undefined,
-          error: captureFailed?.error,
-        });
+        await this.capture.captureTask(
+          buildCaptureTaskInput(
+            {
+              tenantId,
+              intent: toolName ?? 'chat',
+              userMessage: params.message,
+              toolCalls: allToolCalls,
+              outcome: captureFailed ? 'failed' : 'success',
+              error: captureFailed?.error,
+            },
+            {
+              domain: isWrite ? 'write' : 'analysis',
+              reply: finalAssistantText.trim() || undefined,
+            },
+          ),
+        );
       } catch (err) {
         this.logger.debug(
           `ai_db 任务采集失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
@@ -1333,7 +1342,7 @@ export class Orchestrator {
       this.metrics.recordTokens(totalPromptTokens, totalCompletionTokens);
       this.metrics.recordAgentIterations(iteration + 1);
 
-      // A4 会话冷备归档 + B5 计费消耗（best-effort，不阻塞）
+      // A4 会话冷备归档（best-effort，不阻塞；计费已收敛进遥测管线单点）
       try {
         await this.memoryManager.archiveSession(
           tenantId,
@@ -1341,13 +1350,9 @@ export class Orchestrator {
           userId,
           messages,
         );
-        await this.billing.consume(
-          tenantId,
-          totalPromptTokens + totalCompletionTokens,
-        );
       } catch (err) {
         this.logger.debug(
-          `会话归档/计费消耗失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
+          `会话归档失败（忽略）：${err instanceof Error ? err.message : String(err)}`,
         );
       }
 
@@ -1363,29 +1368,33 @@ export class Orchestrator {
         },
       };
 
-      // ── 8. 审计日志 ──
-      this.auditLogger.logAiCall({
-        tenantId,
-        userId,
-        sessionId: conversationId,
-        employeeUid: params.employeeUid,
-        provider: providerName,
-        model: modelName,
-        intent: 'chat',
-        triageLane: intent?.lane ?? null,
-
-        triageCategories: (intent?.categories ?? []).join(',') || undefined,
-
-        lane: 'chat',
-        categories: this.collectToolCategories(allToolCalls),
-        userMessage: params.message,
-        toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
-        promptTokens: totalPromptTokens,
-        completionTokens: totalCompletionTokens,
-        latencyMs,
-        success: true,
-        fallback: fallbackUsed,
-      });
+      // ── 8. 统一遥测收口（AI-P2-4-TELEMETRY-PIPELINE：审计 + t_ai_usage_daily
+      //    单点 UPSERT + 计费单点；遥测失败隔离，不影响已发出的 done）──
+      if (telemetryOk && telemetrySession) {
+        await this.telemetry.channelEnd(
+          buildTelemetryEndInput(
+            {
+              session: telemetrySession,
+              success: true,
+              promptTokens: totalPromptTokens,
+              completionTokens: totalCompletionTokens,
+              usageSource: 'measured',
+              latencyMs,
+            },
+            {
+              provider: providerName,
+              model: modelName,
+              employeeUid: params.employeeUid,
+              categories: this.collectToolCategories(allToolCalls),
+              toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
+              triageLane: intent?.lane ?? null,
+              triageCategories:
+                (intent?.categories ?? []).join(',') || undefined,
+              fallback: fallbackUsed,
+            },
+          ),
+        );
+      }
 
       this.logger.log(
         `Agent Loop 完成：session=${conversationId} iterations=${iteration + 1} tokens=${totalPromptTokens + totalCompletionTokens} latency=${latencyMs}ms tools=${allToolCalls.length}`,
@@ -1402,23 +1411,31 @@ export class Orchestrator {
         message: `对话处理失败：${errorMsg}`,
       };
 
-      // 审计日志：记录失败的 AI 调用
-      this.auditLogger.logAiCall({
-        tenantId,
-        userId,
-        sessionId: conversationId,
-        employeeUid: params.employeeUid,
-        provider: providerName,
-        model: modelName,
-        intent: 'chat',
-        lane: 'chat',
-        userMessage: params.message,
-        promptTokens: 0,
-        completionTokens: 0,
-        latencyMs: 0,
-        success: false,
-        errorMessage: errorMsg,
-      });
+      // 统一遥测收口（AI-P2-4-TELEMETRY-PIPELINE）：失败路径同样入审计与
+      // usage_daily（失败不计费保持原口径——billable:false）。
+      // 用量来源 unknown：主 LLM 调用失败时 token 计量不可信，按 0 显式标注。
+      if (telemetryOk && telemetrySession) {
+        await this.telemetry.channelEnd(
+          buildTelemetryEndInput(
+            {
+              session: telemetrySession,
+              success: false,
+              promptTokens: 0,
+              completionTokens: 0,
+              usageSource: 'unknown',
+              latencyMs: 0,
+              billable: false,
+              error: errorMsg,
+            },
+            {
+              provider: providerName,
+              model: modelName,
+              employeeUid: params.employeeUid,
+              intent: 'chat',
+            },
+          ),
+        );
+      }
     }
   }
 
@@ -1439,34 +1456,6 @@ export class Orchestrator {
       if (category) domains.add(category);
     }
     return [...domains];
-  }
-
-  /**
-   * #5 工具执行超时闸门（2026-09-05 找茬审计）：
-   * executor 层此前无超时保护，非 HTTP 路径的工具逻辑卡死会挂住整个 SSE 流。
-   * 超时（默认 60s，TOOL_TIMEOUT_MS 可调）转为失败结果交 LLM 处理，
-   * 不再无限等待。底层 promise 无法真正取消，但流程不再被挂起。
-   */
-  private async executeToolWithTimeout(
-    tc: ToolCall,
-    toolContext: ToolContext,
-  ): Promise<ToolResult> {
-    const timeoutMs = Number(
-      this.configService.get<number>('TOOL_TIMEOUT_MS', 60000),
-    );
-    return await Promise.race([
-      this.executor.executeToolCall(tc, toolContext),
-      new Promise<ToolResult>((resolve) =>
-        setTimeout(
-          () =>
-            resolve({
-              success: false,
-              error: `工具执行超时（${timeoutMs}ms），请稍后重试或简化请求`,
-            }),
-          timeoutMs,
-        ),
-      ),
-    ]);
   }
 
   /**

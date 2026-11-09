@@ -29,7 +29,8 @@ import { ExternalModelService } from '../tenant/external-model.service';
 import { ExternalModelController } from './external-model.controller';
 
 /** 测试专用 JWT 签名密钥（不读 .env，避免污染真实部署配置） */
-const TEST_JWT_SECRET = 'p0-1-external-model-scope-spec-secret';
+const TEST_JWT_SECRET =
+  'p0-1-external-model-scope-spec-secret-0123456789abcdef'; // 长度≥32（Mimosa 弱加密判定）
 
 /** 平台级外部模型端点基址（测试模块无全局前缀） */
 const BASE = '/admin/ai-config/external-models';

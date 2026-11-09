@@ -77,7 +77,11 @@ function makeRunner(
   overrides: {
     executor?: Partial<ExecutorMock>;
     selfHeal?: { heal: jest.Mock };
-    confirmation?: { create: jest.Mock };
+    writeConfirmPipeline?: {
+      suspend?: jest.Mock;
+      suspendFromToolCall?: jest.Mock;
+      getTokenTtlMs?: jest.Mock;
+    };
     registry?: { get: jest.Mock };
   } = {},
 ) {
@@ -98,11 +102,18 @@ function makeRunner(
     toToolDefinitionsForCategories: jest.fn().mockReturnValue([]),
     ...overrides.registry,
   };
-  const confirmation = {
-    create: jest.fn().mockResolvedValue({
-      confirmationId: 'wg_test_token',
-    }),
-    ...overrides.confirmation,
+  const writeConfirmPipeline = {
+    // 收敛实施 S1：生产代码经 suspendFromToolCall 挂起
+    suspendFromToolCall: jest.fn().mockImplementation(() =>
+      Promise.resolve({
+        token: 'wg_test_token',
+        expireAt: Date.now() + 24 * 60 * 60 * 1000,
+        confirmation: { confirmationId: 'wg_test_token' },
+      }),
+    ),
+    suspend: jest.fn(),
+    getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
+    ...overrides.writeConfirmPipeline,
   };
   const selfHeal = {
     heal: jest.fn().mockResolvedValue({
@@ -117,7 +128,9 @@ function makeRunner(
     fillStepArgs: jest.fn().mockResolvedValue({ sku: 'WLJ' }),
   };
   const capture = {
-    captureTask: jest.fn().mockResolvedValue(undefined),
+    captureTask: jest.fn((_input?: Record<string, unknown>) =>
+      Promise.resolve(undefined),
+    ),
   };
   const metrics = {
     recordRequest: jest.fn(),
@@ -125,7 +138,21 @@ function makeRunner(
     recordTokens: jest.fn(),
     recordAgentIterations: jest.fn(),
   };
-  const auditLogger = { logAiCall: jest.fn() };
+  // AI-P2-4-TELEMETRY-PIPELINE：遥测桩（审计/计费经管线单点收口）
+  const telemetry = {
+    channelBegin: jest.fn(
+      (input: { lane: string; sessionId?: string; tenantId: string }) => ({
+        ...input,
+        sessionId: input.sessionId ?? `agent-session-${input.tenantId}`,
+        startTime: Date.now(),
+      }),
+    ),
+    channelEnd: jest.fn(() => Promise.resolve()),
+    resolveSessionId: jest.fn(
+      (_lane: string, _t: string, preferred?: string, fallback?: string) =>
+        preferred ?? fallback ?? `agent-session-${_t}`,
+    ),
+  };
   const router = {
     chatWithFallback: jest.fn(),
     getSystemScope: jest.fn(() => 'mgmt'),
@@ -152,25 +179,28 @@ function makeRunner(
     repo as never,
     executor as never,
     registry as never,
-    confirmation as never,
+    writeConfirmPipeline as never,
     selfHeal as never,
     planner as never,
     capture as never,
     metrics as never,
-    auditLogger as never,
     router as never,
     aiConfigService as never,
     knowledgeRules as never,
+    // AI-P2-4-TELEMETRY-PIPELINE：遥测桩（sessionId 修正与计费断言用）
+    telemetry as never,
   );
   return {
     runner,
     repo,
     executor,
     registry,
-    confirmation,
+    writeConfirmPipeline,
     selfHeal,
     planner,
     capture,
+    telemetry,
+    router,
   };
 }
 
@@ -265,7 +295,7 @@ describe('TaskRunnerService', () => {
   });
 
   it('run：纯读计划自动执行至 success，done 事件携带统计', async () => {
-    const { runner, executor } = makeRunner();
+    const { runner, executor, capture } = makeRunner();
     const plan = await runner.createPlan({
       tenantId: 't1',
       goal: '查五粮液库存',
@@ -288,10 +318,159 @@ describe('TaskRunnerService', () => {
     const persisted = await runner.getPlan(plan.id, 't1');
     expect(persisted?.state).toBe('success');
     expect(persisted?.steps[0].status).toBe('success');
+    // AI-P2-4-CAPTURE-INTENT-NORMALIZE：计划完成采集使用稳定键 agent_plan
+    // （不得带自增 plan id）；queryInventory 未映射保持原值
+    expect(capture.captureTask).toHaveBeenCalledTimes(1);
+    const capArg = capture.captureTask.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(capArg.intent).toBe('agent_plan');
+    expect(String(capArg.intent)).not.toBe(`agent_plan_${plan.id}`);
+    expect(capArg.tenantId).toBe('t1');
+    expect(capArg.outcome).toBe('success');
+  });
+
+  // ════ Phase 0 哨兵：runAgentStep LLM 循环（AI-P2-4-ORCHESTRATION-CONVERGENCE-IMPLEMENTATION-01）════
+  function streamResult(value: unknown) {
+    return {
+      next: () => Promise.resolve({ done: true as const, value }),
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+    };
+  }
+
+  it('Phase 0 哨兵：runAgentStep 多轮 LLM 循环——工具调用、token 累计与 done 统计', async () => {
+    const { runner, executor, router } = makeRunner({
+      registry: {
+        toToolDefinitionsForCategories: jest.fn(() => [
+          {
+            type: 'function' as const,
+            function: {
+              name: 'queryInventory',
+              description: '查库存',
+              parameters: { type: 'object', properties: {} },
+            },
+          },
+        ]),
+        get: jest.fn().mockReturnValue({
+          risk: 'low',
+          needsReview: false,
+          isWriteOperation: false,
+        }),
+      } as never,
+    });
+    const chatMock = jest.fn();
+    chatMock
+      .mockImplementationOnce(() =>
+        streamResult({
+          content: '',
+          tool_calls: [
+            {
+              id: 'call_1',
+              type: 'function' as const,
+              function: {
+                name: 'queryInventory',
+                arguments: '{"sku":"WLJ"}',
+              },
+            },
+          ],
+          prompt_tokens: 10,
+          completion_tokens: 5,
+        }),
+      )
+      .mockImplementationOnce(() =>
+        streamResult({
+          content: '库存 52 箱',
+          prompt_tokens: 10,
+          completion_tokens: 5,
+        }),
+      );
+    router.chatWithFallback = chatMock;
+
+    const plan = await runner.createPlan({
+      tenantId: 't1',
+      goal: '汇总库存情报',
+      steps: [
+        {
+          ...makeStep({
+            id: 'a1',
+            type: 'agent',
+            label: '库存域Agent',
+            tool: undefined,
+            prompt: '完成库存汇总',
+          }),
+          retryCount: 0,
+        },
+        makeStep({ id: 'end', type: 'end', tool: undefined, label: '完成' }),
+      ],
+    });
+    const events = await collect(runner.run(plan.id, 't1', { tenantId: 't1' }));
+
+    const done = events.find((e) => e.type === 'done') as Record<
+      string,
+      unknown
+    >;
+    expect(done).toBeDefined();
+    expect(done.state).toBe('success');
+    // 多轮：一轮工具调用 + 一轮收尾
+    expect(executor.executeToolCall).toHaveBeenCalledTimes(1);
+    expect(
+      events.some(
+        (e) => e.type === 'tool_start' && e.tool === 'queryInventory',
+      ),
+    ).toBe(true);
+    expect(
+      events.some((e) => e.type === 'tool_result' && e.success === true),
+    ).toBe(true);
+    // token 累计（10+10 / 5+5）
+    const usage = done.usage as Record<string, unknown>;
+    expect(usage.promptTokens).toBe(20);
+    expect(usage.completionTokens).toBe(10);
+    expect(chatMock).toHaveBeenCalledTimes(2);
+    // 计划落库成功
+    const persisted = await runner.getPlan(plan.id, 't1');
+    expect(persisted?.state).toBe('success');
+    expect(persisted?.steps[0].status).toBe('success');
+  });
+
+  it('Phase 0 哨兵：runAgentStep 异常出口——LLM 抛错 → 步骤 failed + error 事件', async () => {
+    const { runner, router } = makeRunner();
+    router.chatWithFallback = jest.fn(() => {
+      throw new Error('llm boom');
+    });
+    const plan = await runner.createPlan({
+      tenantId: 't1',
+      goal: '汇总库存情报',
+      steps: [
+        {
+          ...makeStep({
+            id: 'a1',
+            type: 'agent',
+            label: '库存域Agent',
+            tool: undefined,
+            prompt: '完成库存汇总',
+          }),
+          retryCount: 0,
+        },
+        makeStep({ id: 'end', type: 'end', tool: undefined, label: '完成' }),
+      ],
+    });
+    const events = await collect(runner.run(plan.id, 't1', { tenantId: 't1' }));
+    // 单步容错：chatWithFallback 抛错被 run 主循环 catch 吞为 agent_step(failed)
+    //（不产生 type:error 事件，计划不中断——与单步容错设计一致）
+    const failedStep = events.find(
+      (e) => e.type === 'agent_step' && e.status === 'failed',
+    );
+    expect(failedStep).toBeDefined();
+    const persisted = await runner.getPlan(plan.id, 't1');
+    expect(persisted?.steps[0].status).toBe('failed');
+    expect(persisted?.steps[0].error).toContain('llm boom');
   });
 
   it('run：写步骤返回预览 → 挂起令牌，流结束且计划 suspended', async () => {
-    const { runner, confirmation } = makeRunner({
+    const { runner, writeConfirmPipeline } = makeRunner({
       executor: {
         executeToolCall: jest.fn().mockResolvedValue({
           success: true,
@@ -309,10 +488,15 @@ describe('TaskRunnerService', () => {
     });
 
     const events = await collect(runner.run(plan.id, 't1', { tenantId: 't1' }));
+
+    const tr = events.find((e) => e.type === 'tool_result');
+
+    console.log('[TEMP-S1-DIAG] tool_result =', JSON.stringify(tr));
     expect(events.some((e) => e.type === 'pending_write')).toBe(true);
     expect(events.some((e) => e.type === 'await_confirm')).toBe(true);
     expect(events.some((e) => e.type === 'done')).toBe(false);
-    expect(confirmation.create).toHaveBeenCalledWith(
+    // 收敛实施 S1：断言迁至 suspendFromToolCall（planId/planStepId/toolName 口径不变）
+    expect(writeConfirmPipeline.suspendFromToolCall).toHaveBeenCalledWith(
       expect.objectContaining({
         planId: plan.id,
         planStepId: 's1',
@@ -334,8 +518,12 @@ describe('TaskRunnerService', () => {
           preview: { operation: '创建销售单', summary: '红星商行 20 件五粮液' },
         }),
       },
-      confirmation: {
-        create: jest.fn().mockRejectedValue(new Error('Redis down')),
+      writeConfirmPipeline: {
+        // 收敛实施 S1：生产代码经 suspendFromToolCall 挂起
+        suspendFromToolCall: jest
+          .fn()
+          .mockRejectedValue(new Error('Redis down')),
+        getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
       },
     });
     const plan = await runner.createPlan({

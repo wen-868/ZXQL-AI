@@ -10,10 +10,14 @@ import { ToolRegistry } from '../../tools/tool-registry';
 import type { ToolContext } from '../../tools/tool.interface';
 import { CheckpointerService } from './checkpointer.service';
 import { GraphExecutorService } from './graph-executor.service';
+import type { GraphRunEvent } from './graph-executor.service';
 import { GraphDefinition, GraphState } from './graph.types';
+import type { TelemetryUsage } from '../telemetry-pipeline.service';
 import { ReviewTaskService } from '../review/review-task.service';
 import { EvidenceLedgerService } from '../evidence/evidence-ledger.service';
 import { KnowledgeRulesService } from '../knowledge-rules.service';
+import { TelemetryPipelineService } from '../telemetry-pipeline.service';
+import { MetricsService } from '../../common/metrics.service';
 
 /** 内存版 Checkpointer（模拟 Redis 持久化，便于断点测试） */
 function makeCheckpointer() {
@@ -160,6 +164,8 @@ function makeExecutor(
     create?: jest.Mock;
     get?: jest.Mock;
   },
+  confirmationOverride?: Record<string, jest.Mock>,
+  captureOverride?: { captureTask: jest.Mock },
 ) {
   const review = reviewMock ?? {
     create: jest.fn(),
@@ -172,10 +178,23 @@ function makeExecutor(
   const knowledgeRulesMock = {
     getRulesContext: jest.fn(() => undefined),
   };
-  const confirmationServiceMock = {
+  const confirmationServiceMock = confirmationOverride ?? {
     create: jest.fn(),
     getByTenant: jest.fn().mockResolvedValue(null),
     getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+  };
+  const writeConfirmPipelineMock = {
+    // 收敛实施 S1：生产代码经 suspendFromToolCall 挂起；mock 转发到同一实现
+    suspendFromToolCall: jest
+      .fn()
+      .mockImplementation((input: Record<string, unknown>) =>
+        Promise.resolve({
+          token: 'wg_tok1',
+          expireAt: Date.now() + 24 * 60 * 60 * 1000,
+          confirmation: { confirmationId: 'wg_tok1', ...input },
+        }),
+      ),
+    getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
   };
   return new GraphExecutorService(
     executorMock as unknown as ToolExecutor,
@@ -185,6 +204,11 @@ function makeExecutor(
     evidence as unknown as EvidenceLedgerService,
     knowledgeRulesMock as unknown as KnowledgeRulesService,
     confirmationServiceMock as never,
+    writeConfirmPipelineMock as never,
+
+    makeTelemetryStub() as never,
+
+    (captureOverride ?? makeCaptureStub()) as never,
   );
 }
 
@@ -198,6 +222,34 @@ async function collectEvents(
     events.push(e);
   }
   return events;
+}
+
+/** AI-P2-4-CAPTURE-INTENT-NORMALIZE：采集桩（记录 captureTask 调用） */
+function makeCaptureStub() {
+  return {
+    captureTask: jest.fn((_input?: Record<string, unknown>) =>
+      Promise.resolve(),
+    ),
+  };
+}
+
+/** AI-P2-4-TELEMETRY-PIPELINE：遥测桩（默认全通过，供各构造点复用） */
+function makeTelemetryStub() {
+  return {
+    channelBegin: jest.fn((input: { lane: string }) => ({
+      lane: input.lane,
+      tenantId: 't1',
+      sessionId: 's1',
+      startTime: Date.now(),
+    })),
+    channelEnd: jest.fn((_input?: Record<string, unknown>) =>
+      Promise.resolve(),
+    ),
+    resolveSessionId: jest.fn(
+      (_lane: string, _t: string, preferred?: string, fallback?: string) =>
+        preferred ?? fallback ?? 'graph-session-t1',
+    ),
+  };
 }
 
 describe('GraphExecutorService', () => {
@@ -429,6 +481,14 @@ describe('GraphExecutorService', () => {
         getByTenant: jest.fn().mockResolvedValue(null),
         getExecutedByConfirmation: jest.fn().mockReturnValue(null),
       } as never,
+      {
+        suspend: jest.fn().mockResolvedValue({ token: 'wg_x', expireAt: 0 }),
+        getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
+      } as never,
+
+      makeTelemetryStub() as never,
+
+      makeCaptureStub() as never,
     );
 
     const events: Array<{ type: string; [k: string]: unknown }> = [];
@@ -605,7 +665,6 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
   }) {
     const checkpointer = makeCheckpointer();
     const confirmation = {
-      create: jest.fn().mockResolvedValue({ confirmationId: 'wg_tok1' }),
       getByTenant: jest
         .fn()
         .mockResolvedValue(
@@ -618,6 +677,15 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
           ? { result: opts.executedResult }
           : null,
       ),
+    };
+    // AI-P2-4 切片 1 + 收敛实施 S1：挂起经 WriteConfirmPipeline（suspendFromToolCall）
+    const writeConfirmPipeline = {
+      suspendFromToolCall: jest.fn().mockResolvedValue({
+        token: 'wg_tok1',
+        expireAt: Date.now() + 24 * 60 * 60 * 1000,
+        confirmation: { confirmationId: 'wg_tok1' },
+      }),
+      getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
     };
     const executorMock = {
       executeToolCall: jest
@@ -649,8 +717,20 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
       evidence as never,
       { getRulesContext: jest.fn(() => undefined) } as never,
       confirmation as never,
+      writeConfirmPipeline as never,
+
+      makeTelemetryStub() as never,
+
+      makeCaptureStub() as never,
     );
-    return { service, checkpointer, confirmation, executorMock, evidence };
+    return {
+      service,
+      checkpointer,
+      confirmation,
+      writeConfirmPipeline,
+      executorMock,
+      evidence,
+    };
   }
 
   async function collect(
@@ -662,13 +742,16 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
   }
 
   it('写工具返回 preview → 挂 WriteGuard 确认并暂停（节点不标成功、不记台账、不推到 end）', async () => {
-    const { service, checkpointer, confirmation, evidence } = makeWired({
-      preview: { operation: '创建销售单', summary: '预览', details: {} },
-    });
+    const { service, checkpointer, writeConfirmPipeline, evidence } = makeWired(
+      {
+        preview: { operation: '创建销售单', summary: '预览', details: {} },
+      },
+    );
 
     const events = await collect(service.execute(WRITE_GRAPH, 's1', makeCtx()));
 
-    expect(confirmation.create).toHaveBeenCalledWith(
+    // 收敛实施 S1：断言迁至 suspendFromToolCall（toolName/tenantId 口径不变）
+    expect(writeConfirmPipeline.suspendFromToolCall).toHaveBeenCalledWith(
       expect.objectContaining({
         toolName: 'createSalesOrder',
         tenantId: 't1',
@@ -733,6 +816,66 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
     expect(events.some((e) => e.type === 'graph_done')).toBe(false);
   });
 
+  // AI-P2-4 硬验收 5：graph expireAt 改用 WriteConfirmPipeline 统一 TTL 源——
+  // 修复 D1：此前硬编码 24h，与 WRITE_TOKEN_TTL_HOURS 配置脱钩
+  it('graph expireAt 可配置：TTL=2h 时挂起事件 expireAt 跟随（不再固定 24h）', async () => {
+    const ttl = 2 * 60 * 60 * 1000;
+    const start = Date.now();
+    const checkpointer = makeCheckpointer();
+    const executorMock = {
+      executeToolCall: jest.fn().mockResolvedValue({
+        success: true,
+        preview: { operation: '创建销售单', summary: '预览', details: {} },
+      }),
+    };
+    const service = new GraphExecutorService(
+      executorMock as never,
+      checkpointer as never,
+      {
+        toToolDefinitions: jest.fn(() => []),
+        has: jest.fn(() => true),
+        get: jest.fn(() => ({
+          name: 'createSalesOrder',
+          isWriteOperation: true,
+          risk: 'medium',
+          needsReview: false,
+        })),
+      } as never,
+      { create: jest.fn(), get: jest.fn().mockResolvedValue(null) } as never,
+      {
+        recordWrite: jest.fn(),
+        verify: jest.fn(() => ({ ok: true, issues: [] })),
+      } as never,
+      { getRulesContext: jest.fn(() => undefined) } as never,
+      { getByTenant: jest.fn().mockResolvedValue(null) } as never,
+      {
+        // 收敛实施 S1：生产代码经 suspendFromToolCall 挂起（TTL 口径不变）
+        suspendFromToolCall: jest.fn().mockResolvedValue({
+          token: 'wg_cfg',
+          expireAt: start + ttl,
+          confirmation: { confirmationId: 'wg_cfg' },
+        }),
+        getTokenTtlMs: jest.fn(() => ttl),
+      } as never,
+
+      makeTelemetryStub() as never,
+
+      makeCaptureStub() as never,
+    );
+
+    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    for await (const e of service.execute(WRITE_GRAPH, 's1', makeCtx())) {
+      events.push(e);
+    }
+
+    const pw = events.find((e) => e.type === 'pending_write');
+    expect(pw).toBeDefined();
+    // expireAt ≈ start + 2h（允许时钟毫秒误差），绝非 start + 24h
+    const drift = Math.abs((pw!.expireAt as number) - (start + ttl));
+    expect(drift).toBeLessThan(5000);
+    expect(pw!.expireAt as number).toBeLessThan(start + 23 * 60 * 60 * 1000);
+  });
+
   it('needsReview 审核通过续跑：不再重复建单且带 allowConfirm 真执行（死循环封堵）', async () => {
     const reviewMock = {
       create: jest.fn().mockResolvedValue({ id: 7, payload: null }),
@@ -768,6 +911,14 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
         getByTenant: jest.fn().mockResolvedValue(null),
         getExecutedByConfirmation: jest.fn().mockReturnValue(null),
       } as never,
+      {
+        suspend: jest.fn().mockResolvedValue({ token: 'wg_s', expireAt: 0 }),
+        getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
+      } as never,
+
+      makeTelemetryStub() as never,
+
+      makeCaptureStub() as never,
     );
 
     // 第一跑：建单暂停
@@ -797,57 +948,31 @@ describe('graph 写操作确认闭环（P1 修复回归）', () => {
     expect(executorMock.executeToolCall).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
-      { allowConfirm: true },
+      { allowConfirm: true, channel: 'graph' },
     );
   });
 });
 
-// P0 返工回归（验收意见）：TOOL_TIMEOUT_MS 配成非数字/空串时不得即时超时
-// （防护失效 = Number("60s")=NaN → setTimeout 1ms → 工具必然超时报错）
-describe('TOOL_TIMEOUT_MS env 防护', () => {
-  const SLOW_GRAPH: GraphDefinition = {
-    id: 'test_slow',
-    name: '慢工具图',
-    entry: 'step',
-    nodes: [
-      {
-        id: 'step',
-        label: '慢步骤',
-        type: 'tool',
-        tool: 'searchCustomer',
-        next: 'end',
-      },
-      { id: 'end', label: '完成', type: 'end' },
-    ],
-  };
-
-  afterEach(() => {
-    delete process.env.TOOL_TIMEOUT_MS;
-  });
-
-  async function runWithEnv(envVal: string): Promise<{
-    timedOut: boolean;
-    done: boolean;
-  }> {
-    process.env.TOOL_TIMEOUT_MS = envVal;
-    const checkpointer = makeCheckpointer();
-    // 工具 50ms 后才完成：若防护失效（1ms 超时），会得到超时错误
-    const executorMock = {
-      executeToolCall: jest.fn(
-        () =>
-          new Promise<{ success: boolean; data: unknown }>((resolve) =>
-            setTimeout(() => resolve({ success: true, data: {} }), 50),
-          ),
-      ),
+// ════ AI-P2-4-TELEMETRY-PIPELINE：graph 通道遥测哨兵（真实管线实例，非 mock 冒充）════
+describe('AI-P2-4-TELEMETRY-PIPELINE：graph 通道遥测哨兵', () => {
+  it('graph_done 回传真实 usage 载荷，且经真实管线收口（lane=graph 审计 + 计费单点）', async () => {
+    const auditLogger = { logAiCall: jest.fn() };
+    const billing = {
+      consume: jest.fn(() => Promise.resolve()),
     };
+    const pipeline = new TelemetryPipelineService(
+      auditLogger as never,
+      billing as never,
+      new MetricsService(),
+    );
+    const executorMock = {
+      executeToolCalls: jest.fn().mockResolvedValue([]),
+    };
+    const checkpointer = makeCheckpointer();
     const service = new GraphExecutorService(
       executorMock as never,
       checkpointer as never,
-      {
-        toToolDefinitions: jest.fn(() => []),
-        has: jest.fn(() => true),
-        get: jest.fn(() => ({ name: 'searchCustomer', risk: 'low' })),
-      } as never,
+      makeRegistryMock() as never,
       { create: jest.fn(), get: jest.fn().mockResolvedValue(null) } as never,
       {
         recordWrite: jest.fn(),
@@ -859,26 +984,405 @@ describe('TOOL_TIMEOUT_MS env 防护', () => {
         getByTenant: jest.fn().mockResolvedValue(null),
         getExecutedByConfirmation: jest.fn().mockReturnValue(null),
       } as never,
+      {
+        suspend: jest.fn().mockResolvedValue({ token: 'wg_s', expireAt: 0 }),
+        getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
+      } as never,
+      pipeline,
+
+      makeCaptureStub() as never,
     );
 
-    let timedOut = false;
-    let done = false;
-    for await (const e of service.execute(SLOW_GRAPH, 's1', makeCtx())) {
-      if (e.type === 'tool_result' && e.success === false) timedOut = true;
-      if (e.type === 'graph_done') done = true;
+    // agent 节点两轮 LLM：prompt 10 / completion 5（真实计量来源）
+    const makeChatResult = (value: unknown) => ({
+      next: () => Promise.resolve({ done: true as const, value }),
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+    });
+    const chatMock = jest.fn();
+    chatMock
+      .mockImplementationOnce(() =>
+        makeChatResult({
+          content: '',
+          tool_calls: [],
+          prompt_tokens: 10,
+          completion_tokens: 5,
+        }),
+      )
+      .mockImplementationOnce(() =>
+        makeChatResult({
+          content: '完成',
+          prompt_tokens: 10,
+          completion_tokens: 5,
+        }),
+      );
+    const provider = { name: 'deepseek', chat: chatMock } as never;
+
+    const events: GraphRunEvent[] = [];
+    for await (const e of service.execute(
+      AGENT_GRAPH,
+      's1',
+      makeCtx(),
+      provider,
+    )) {
+      events.push(e);
     }
-    return { timedOut, done };
+
+    // D12 正向哨兵：graph_done 带真实 usage 载荷（SSE 兼容：新增字段）。
+    // F1 收口：明确事件类型守卫替代 expect.any 的 any 赋值。
+    const doneEvent = events.find(
+      (e): e is Extract<GraphRunEvent, { type: 'graph_done' }> =>
+        e.type === 'graph_done',
+    );
+    expect(doneEvent).toBeDefined();
+    const usage: TelemetryUsage | undefined = doneEvent?.usage;
+    expect(usage).toBeDefined();
+    expect(usage?.promptTokens).toBe(10);
+    expect(usage?.completionTokens).toBe(5);
+    expect(usage?.totalTokens).toBe(15);
+    expect(usage?.usageSource).toBe('measured');
+    expect(usage?.latencyMs).toBeGreaterThanOrEqual(0);
+
+    // D5 正向哨兵：真实管线收口 → lane=graph 审计（sessionId 真实）
+    expect(auditLogger.logAiCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lane: 'graph',
+        sessionId: 's1',
+        tenantId: 't1',
+        promptTokens: 10,
+        completionTokens: 5,
+      }),
+    );
+    // 计费单点：graph 用量同样计费（D12 计费仅 chat 的修正）
+    expect(billing.consume).toHaveBeenCalledWith('t1', 15);
+  });
+});
+
+// ════ AI-P2-4-CAPTURE-INTENT-NORMALIZE：graph 完成态采集哨兵 ════
+describe('AI-P2-4-CAPTURE-INTENT-NORMALIZE：graph 完成态采集哨兵', () => {
+  function buildService(
+    capture: { captureTask: jest.Mock },
+    executorMock: Record<string, jest.Mock>,
+    registry?: Record<string, jest.Mock>,
+  ): GraphExecutorService {
+    return new GraphExecutorService(
+      executorMock as never,
+      makeCheckpointer() as never,
+      (registry ?? makeRegistryMock()) as never,
+      {
+        create: jest.fn(),
+        get: jest.fn().mockResolvedValue(null),
+      } as never,
+      {
+        recordWrite: jest.fn(),
+        verify: jest.fn(() => ({ ok: true, issues: [] })),
+      } as never,
+      { getRulesContext: jest.fn(() => undefined) } as never,
+      {
+        create: jest.fn(),
+        getByTenant: jest.fn().mockResolvedValue(null),
+        getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+      } as never,
+      {
+        suspend: jest.fn().mockResolvedValue({ token: 'wg_s', expireAt: 0 }),
+        getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
+      } as never,
+      makeTelemetryStub() as never,
+      capture as never,
+    );
   }
 
-  it('env="60s"（NaN）→ 不即时超时，工具正常完成', async () => {
-    const { timedOut, done } = await runWithEnv('60s');
-    expect(timedOut).toBe(false);
-    expect(done).toBe(true);
+  const CAPTURE_REGISTRY = {
+    toToolDefinitions: jest.fn(() => []),
+    has: jest.fn(() => true),
+    get: jest.fn(() => ({
+      name: 'createSalesOrder',
+      isWriteOperation: true,
+      risk: 'medium',
+      needsReview: false,
+    })),
+  };
+
+  const CAPTURE_GRAPH: GraphDefinition = {
+    id: 'cap_graph',
+    name: '采集哨兵图',
+    entry: 'a',
+    nodes: [
+      {
+        id: 'a',
+        label: '开单',
+        type: 'tool',
+        tool: 'createSalesOrder',
+        args: {},
+        next: 'end',
+      },
+      { id: 'end', label: '完成', type: 'end' },
+    ],
+  };
+
+  it('完成点仅采集一次：写工具按 docType 归一、轨迹含原始工具名与 graphId', async () => {
+    const capture = makeCaptureStub();
+    const executorMock = {
+      executeToolCall: jest
+        .fn()
+        .mockResolvedValue({ success: true, data: { orderNo: 'XS1' } }),
+    };
+    const service = buildService(capture, executorMock, CAPTURE_REGISTRY);
+    const events = await collectEvents(service, CAPTURE_GRAPH, makeCtx());
+    expect(events.some((e) => e.type === 'graph_done')).toBe(true);
+    expect(capture.captureTask).toHaveBeenCalledTimes(1);
+    const arg = capture.captureTask.mock.calls[0][0] as Record<string, unknown>;
+    expect(arg.tenantId).toBe('t1');
+    expect(arg.intent).toBe('sales_order');
+    expect(arg.outcome).toBe('success');
+    const traj = JSON.stringify(arg.toolCalls);
+    expect(traj).toContain('createSalesOrder');
+    expect(traj).toContain('cap_graph');
   });
 
-  it('env=""（空串，?? 不兜）→ 不即时超时，工具正常完成', async () => {
-    const { timedOut, done } = await runWithEnv('');
-    expect(timedOut).toBe(false);
-    expect(done).toBe(true);
+  it('无工具图：intent 回退 graph（不折叠成 chat）', async () => {
+    const capture = makeCaptureStub();
+    const service = buildService(capture, {
+      executeToolCall: jest.fn(),
+    } as never);
+    const emptyGraph: GraphDefinition = {
+      id: 'cap_empty',
+      name: '空图',
+      entry: 'end',
+      nodes: [{ id: 'end', label: '完成', type: 'end' }],
+    };
+    await collectEvents(service, emptyGraph, makeCtx());
+    expect(capture.captureTask).toHaveBeenCalledTimes(1);
+    const arg = capture.captureTask.mock.calls[0][0] as Record<string, unknown>;
+    expect(arg.intent).toBe('graph');
+    expect(arg.intent).not.toBe('chat');
+  });
+
+  it('失败路径：outcome=failed 不误记成功，且仅一次', async () => {
+    const capture = makeCaptureStub();
+    const executorMock = {
+      executeToolCall: jest
+        .fn()
+        .mockRejectedValue(new Error('后端 HTTP 500：boom')),
+    };
+    const service = buildService(capture, executorMock, CAPTURE_REGISTRY);
+    const failGraph: GraphDefinition = {
+      id: 'cap_fail',
+      name: '失败图',
+      entry: 'a',
+      nodes: [
+        {
+          id: 'a',
+          label: '开单',
+          type: 'tool',
+          tool: 'createSalesOrder',
+          args: {},
+          next: 'end',
+        },
+        { id: 'end', label: '完成', type: 'end' },
+      ],
+    };
+    await collectEvents(service, failGraph, makeCtx());
+    expect(capture.captureTask).toHaveBeenCalledTimes(1);
+    const arg = capture.captureTask.mock.calls[0][0] as Record<string, unknown>;
+    expect(arg.outcome).toBe('failed');
+    expect(arg.error).toContain('boom');
+    expect(arg.intent).toBe('sales_order');
+  });
+});
+
+// ════ Phase 0 哨兵（AI-P2-4-ORCHESTRATION-CONVERGENCE-IMPLEMENTATION-01）════
+describe('Phase 0 哨兵：graph 负路径（审核拒绝 / 写确认 pending/cancelled）', () => {
+  const RESUME_GRAPH: GraphDefinition = {
+    id: 'test_phase0_resume',
+    name: 'Phase0 续跑图',
+    entry: 'step1',
+    nodes: [
+      {
+        id: 'step1',
+        label: '开单',
+        type: 'tool',
+        tool: 'createSalesOrder',
+        next: 'end',
+      },
+      { id: 'end', label: '完成', type: 'end' },
+    ],
+  };
+
+  function savePaused(
+    cp: ReturnType<typeof makeCheckpointer>,
+    extra: Record<string, unknown>,
+  ) {
+    return cp.save({
+      graphId: 'test_phase0_resume',
+      tenantId: 't1',
+      sessionId: 's1',
+      currentNodeId: 'step1',
+      status: 'paused',
+      results: {},
+      nodeOrder: ['step1'],
+      history: [],
+      updatedAt: 0,
+      ...extra,
+    });
+  }
+
+  it('审核拒绝 → error 事件（含驳回原因）+ 状态 error + 节点不执行', async () => {
+    const rejectedReview = {
+      create: jest.fn(),
+      get: jest
+        .fn()
+        .mockResolvedValue({ status: 'rejected', rejectReason: '风险过高' }),
+    };
+    const cp = makeCheckpointer();
+    await savePaused(cp, { pendingReviewId: 8 });
+    const executorMock = { executeToolCall: jest.fn() };
+    const service = makeExecutor(executorMock, cp, rejectedReview);
+    const events = await collectEvents(service, RESUME_GRAPH, makeCtx());
+    const errorEvent = events.find((e) => e.type === 'error');
+    expect(errorEvent).toBeDefined();
+    expect(String(errorEvent?.message)).toContain('风险过高');
+    expect(executorMock.executeToolCall).not.toHaveBeenCalled();
+    expect(events.some((e) => e.type === 'graph_done')).toBe(false);
+    const state = await cp.load('t1', 's1');
+    expect(state?.status).toBe('error');
+  });
+
+  it('写确认 pending → 重新下发 await_confirm 且不执行节点', async () => {
+    const cp = makeCheckpointer();
+    await savePaused(cp, { pendingWriteToken: 'wg_pending' });
+    const confirmationOverride = {
+      create: jest.fn(),
+      getByTenant: jest
+        .fn()
+        .mockResolvedValue({ status: 'pending', expiresAt: 999999 }),
+      getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+    };
+    const executorMock = { executeToolCall: jest.fn() };
+    const service = makeExecutor(
+      executorMock,
+      cp,
+      undefined,
+      confirmationOverride as never,
+    );
+    const events = await collectEvents(service, RESUME_GRAPH, makeCtx());
+    expect(
+      events.some(
+        (e) => e.type === 'await_confirm' && e.token === 'wg_pending',
+      ),
+    ).toBe(true);
+    expect(events.some((e) => e.type === 'graph_done')).toBe(false);
+    expect(executorMock.executeToolCall).not.toHaveBeenCalled();
+  });
+
+  it('写确认 cancelled → error 终止（含取消语义）+ 状态 error', async () => {
+    const cp = makeCheckpointer();
+    await savePaused(cp, { pendingWriteToken: 'wg_cancelled' });
+    const confirmationOverride = {
+      create: jest.fn(),
+      getByTenant: jest.fn().mockResolvedValue({ status: 'cancelled' }),
+      getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+    };
+    const executorMock = { executeToolCall: jest.fn() };
+    const service = makeExecutor(
+      executorMock,
+      cp,
+      undefined,
+      confirmationOverride as never,
+    );
+    const events = await collectEvents(service, RESUME_GRAPH, makeCtx());
+    const cancelError = events.find((e) => e.type === 'error');
+    expect(cancelError).toBeDefined();
+    expect(String(cancelError?.message)).toContain('取消');
+    const state = await cp.load('t1', 's1');
+    expect(state?.status).toBe('error');
+  });
+
+  // ════ F1 哨兵（AI-P2-4-ORCHESTRATION-CONVERGENCE-IMPLEMENTATION-01-F1）════
+  it('F1 哨兵：失败采集入参由 buildCaptureTaskInput 产生且字段不丢（failed/轨迹/graphId/租户）', async () => {
+    const capture = makeCaptureStub();
+    const confirmationOverride = {
+      create: jest.fn(),
+      getByTenant: jest.fn().mockResolvedValue({ status: 'cancelled' }),
+      getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+    };
+    const cp = makeCheckpointer();
+    await savePaused(cp, { pendingWriteToken: 'wg_f1' });
+    const service = makeExecutor(
+      { executeToolCall: jest.fn() },
+      cp,
+      undefined,
+      confirmationOverride as never,
+      capture,
+    );
+    await collectEvents(service, RESUME_GRAPH, makeCtx());
+    expect(capture.captureTask).toHaveBeenCalledTimes(1);
+    const arg = capture.captureTask.mock.calls[0][0] as Record<string, unknown>;
+    // builder 产出口径（S2 单源）：failed / 归一后 intent / 租户 / 轨迹含 graphId
+    expect(arg.outcome).toBe('failed');
+    expect(arg.intent).toBe('graph');
+    expect(arg.tenantId).toBe('t1');
+    const traj = JSON.stringify(arg.toolCalls);
+    expect(traj).toContain('graph_error');
+    expect(traj).toContain('test_phase0_resume');
+    expect(arg.error).toContain('取消');
+  });
+
+  it('F1 哨兵：包装 catch 的 channelEnd 入参由 buildTelemetryEndInput 产生且字段不丢', async () => {
+    const telemetry = makeTelemetryStub();
+    const capture = makeCaptureStub();
+    // 构造包装层兜底唯一可达路径：executeCore 首步 checkpointer.load 抛错
+    const brokenCp = {
+      load: jest.fn().mockRejectedValue(new Error('cp exploded')),
+      save: jest.fn(),
+      clear: jest.fn(),
+    };
+    const service = new GraphExecutorService(
+      { executeToolCall: jest.fn() } as never,
+      brokenCp as never,
+      makeRegistryMock() as never,
+      { create: jest.fn(), get: jest.fn().mockResolvedValue(null) } as never,
+      {
+        recordWrite: jest.fn(),
+        verify: jest.fn(() => ({ ok: true, issues: [] })),
+      } as never,
+      { getRulesContext: jest.fn(() => undefined) } as never,
+      {
+        create: jest.fn(),
+        getByTenant: jest.fn().mockResolvedValue(null),
+        getExecutedByConfirmation: jest.fn().mockReturnValue(null),
+      } as never,
+      {
+        suspend: jest.fn(),
+        suspendFromToolCall: jest.fn(),
+        getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
+      } as never,
+      telemetry as never,
+      capture as never,
+    );
+    // 包装层兜底后重新抛出——调用方以 try/catch 承接
+    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    await expect(async () => {
+      for await (const e of service.execute(RESUME_GRAPH, 's1', makeCtx())) {
+        events.push(e);
+      }
+    }).rejects.toThrow('cp exploded');
+    // 遥测收口恰好一次（lane=graph / success=false / error 字段不丢）
+    expect(telemetry.channelEnd).toHaveBeenCalledTimes(1);
+    const arg = telemetry.channelEnd.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(arg.success).toBe(false);
+    expect(arg.error).toContain('cp exploded');
+    const session = arg.session as Record<string, unknown>;
+    expect(session.lane).toBe('graph');
+    expect(session.tenantId).toBe('t1');
+    expect(session.sessionId).toBe('s1');
+    const usage = arg.usage as Record<string, unknown>;
+    expect(usage.usageSource).toBe('unknown');
+    // 异常发生在首步 load，未到完成/失败出口 ⇒ 采集未发生
+    expect(capture.captureTask).not.toHaveBeenCalled();
   });
 });

@@ -29,7 +29,13 @@ import { CheckpointerService } from './checkpointer.service';
 import { ReviewTaskService } from '../review/review-task.service';
 import { EvidenceLedgerService } from '../evidence/evidence-ledger.service';
 import { ConfirmationService } from '../confirmation.service';
+import { WriteConfirmPipelineService } from '../write-confirm-pipeline.service';
 import { KnowledgeRulesService } from '../knowledge-rules.service';
+import { TelemetryPipelineService } from '../telemetry-pipeline.service';
+import { CaptureService } from '../../evolution/capture.service';
+import { buildCaptureTaskInput } from '../../evolution/capture-intent';
+import type { TelemetryUsage } from '../telemetry-pipeline.service';
+import { buildTelemetryEndInput } from '../telemetry-pipeline.service';
 import {
   BUILTIN_GRAPHS,
   GraphDefinition,
@@ -67,7 +73,12 @@ export type GraphRunEvent =
       expireAt: number;
     }
   | { type: 'await_confirm'; token: string; expireAt: number }
-  | { type: 'graph_done'; graphId: string }
+  | {
+      type: 'graph_done';
+      graphId: string;
+      /** AI-P2-4-TELEMETRY-PIPELINE：真实用量（D12 修正；unknown 显式标注非真实 0） */
+      usage?: TelemetryUsage;
+    }
   | { type: 'error'; message: string };
 
 @Injectable()
@@ -82,6 +93,11 @@ export class GraphExecutorService implements OnModuleInit {
     private readonly evidence: EvidenceLedgerService,
     private readonly knowledgeRules: KnowledgeRulesService,
     private readonly confirmationService: ConfirmationService,
+    private readonly writeConfirmPipeline: WriteConfirmPipelineService,
+    // AI-P2-4-TELEMETRY-PIPELINE：审计/会话/用量/计费统一遥测（graph 通道此前无审计 D5 / usage 恒 0 D12 / 无计费）
+    private readonly telemetry: TelemetryPipelineService,
+    // AI-P2-4-CAPTURE-INTENT-NORMALIZE：graph 完成态采集（此前 graph 不进进化飞轮）
+    private readonly capture: CaptureService,
   ) {}
 
   /**
@@ -118,6 +134,10 @@ export class GraphExecutorService implements OnModuleInit {
   /**
    * 执行有状态图（支持断点续跑）
    *
+   * AI-P2-4-TELEMETRY-PIPELINE：外层为统一遥测包装（begin/end 生命周期 +
+   * graph_done 真实 usage 载荷 + lane=graph 审计 + 计费单点）；核心执行体
+   * 见 executeCore（语义不变）。
+   *
    * @param graph 图定义
    * @param sessionId 会话 ID
    * @param toolContext 工具上下文（tenantId/userId/authToken）
@@ -128,6 +148,154 @@ export class GraphExecutorService implements OnModuleInit {
     sessionId: string,
     toolContext: ToolContext,
     provider?: IModelProvider,
+  ): AsyncGenerator<GraphRunEvent> {
+    const session = this.telemetry.channelBegin({
+      lane: 'graph',
+      tenantId: toolContext.tenantId,
+      sessionId,
+      userId: toolContext.userId,
+    });
+    // AI-P2-4-CAPTURE-INTENT-NORMALIZE：工具轨迹收集（graph 完成态采集用；
+    // 原始工具名保留在轨迹中，归一只作用于 intent/taskType 字段）
+    const captureToolCalls: Array<Record<string, unknown>> = [];
+    // 尝试过的工具名（tool_start；失败路径拿不到 tool_result 时的 intent 来源）
+    const attemptedToolNames: string[] = [];
+    const startTime = session.startTime;
+    const usageAcc = { prompt: 0, completion: 0, sawLlm: false };
+    let ended = false;
+    let lastError: string | undefined;
+    try {
+      for await (const event of this.executeCore(
+        graph,
+        sessionId,
+        toolContext,
+        provider,
+        usageAcc,
+      )) {
+        if (event.type === 'graph_done') {
+          ended = true;
+          // 收敛实施 S3：channelEnd 输入组装单源 buildTelemetryEndInput
+          // （只有跑过 LLM 节点才有真实计量；纯工具图按 unknown 显式标注）
+          const endInput = buildTelemetryEndInput(
+            {
+              session,
+              success: true,
+              promptTokens: usageAcc.prompt,
+              completionTokens: usageAcc.completion,
+              usageSource: usageAcc.sawLlm ? 'measured' : 'unknown',
+              latencyMs: Date.now() - startTime,
+            },
+            { provider: provider?.name },
+          );
+          const usage: TelemetryUsage = endInput.usage;
+          await this.telemetry.channelEnd(endInput);
+          // AI-P2-4-CAPTURE-INTENT-NORMALIZE + 收敛实施 S2：完成态采集输入
+          // 组装单源 buildCaptureTaskInput（intent 归一/轨迹/单点语义不变；
+          // 无工具时 buildCaptureTaskInput 归一回退 chat，此处保持 graph 语义
+          // 显式传 'graph' 作为 intent 候选——normalizeCaptureIntent 对非工具
+          // 意图原样保留）
+          const firstCaptureTool = captureToolCalls.find(
+            (t) => typeof t.tool_name === 'string' && t.tool_name !== '',
+          );
+          void this.capture.captureTask(
+            buildCaptureTaskInput({
+              tenantId: toolContext.tenantId,
+              intent:
+                typeof firstCaptureTool?.tool_name === 'string'
+                  ? firstCaptureTool.tool_name
+                  : 'graph',
+              userMessage: `graph:${graph.id} ${graph.name}`,
+              toolCalls: [
+                ...captureToolCalls,
+                { event: 'graph_done', graphId: graph.id },
+              ],
+              outcome: 'success',
+            }),
+          );
+          yield { ...event, usage };
+          continue;
+        }
+        if (event.type === 'tool_start') {
+          attemptedToolNames.push(event.tool);
+        }
+        if (event.type === 'tool_result') {
+          captureToolCalls.push({
+            tool_name: event.tool,
+            success: event.success,
+          });
+        }
+        if (event.type === 'error') {
+          lastError = event.message;
+        }
+        yield event;
+      }
+      if (!ended) {
+        // 非 done 退出（error / 早退分支）：按失败收口，遥测仍不丢。
+        // 采集同步落一条 failed（不误记成功；与完成点互斥，同样仅一次）。
+        // intent 来源优先尝试过的工具（tool_start）——失败路径无 tool_result
+        // 收敛实施 F1：采集输入经 buildCaptureTaskInput 单源（旁路收口）
+        const firstFailTool =
+          attemptedToolNames[0] ??
+          (captureToolCalls.find(
+            (t) => typeof t.tool_name === 'string' && t.tool_name !== '',
+          )?.tool_name as string | undefined);
+        void this.capture.captureTask(
+          buildCaptureTaskInput({
+            tenantId: toolContext.tenantId,
+            intent: firstFailTool ?? 'graph',
+            userMessage: `graph:${graph.id} ${graph.name}`,
+            toolCalls: [
+              ...captureToolCalls,
+              { event: 'graph_error', graphId: graph.id },
+            ],
+            outcome: 'failed',
+            error: lastError,
+          }),
+        );
+        await this.telemetry.channelEnd(
+          buildTelemetryEndInput(
+            {
+              session,
+              success: false,
+              promptTokens: usageAcc.prompt,
+              completionTokens: usageAcc.completion,
+              usageSource: usageAcc.sawLlm ? 'measured' : 'unknown',
+              latencyMs: Date.now() - startTime,
+              error: lastError,
+            },
+            { provider: provider?.name },
+          ),
+        );
+      }
+    } catch (err) {
+      // 包装层兜底（executeCore 设计上不抛；此处仅防实现缺陷外溢）
+      // 收敛实施 F1：遥测输入经 buildTelemetryEndInput 单源（旁路收口）
+      lastError = err instanceof Error ? err.message : String(err);
+      await this.telemetry.channelEnd(
+        buildTelemetryEndInput(
+          {
+            session,
+            success: false,
+            promptTokens: usageAcc.prompt,
+            completionTokens: usageAcc.completion,
+            usageSource: usageAcc.sawLlm ? 'measured' : 'unknown',
+            latencyMs: Date.now() - startTime,
+            error: lastError,
+          },
+          { provider: provider?.name },
+        ),
+      );
+      throw err;
+    }
+  }
+
+  /** 核心执行体（原 execute 主体，语义不变；usageAcc 供遥测累计真实用量） */
+  private async *executeCore(
+    graph: GraphDefinition,
+    sessionId: string,
+    toolContext: ToolContext,
+    provider?: IModelProvider,
+    usageAcc?: { prompt: number; completion: number; sawLlm: boolean },
   ): AsyncGenerator<GraphRunEvent> {
     // 1. 恢复或初始化图状态
     let state =
@@ -340,45 +508,51 @@ export class GraphExecutorService implements OnModuleInit {
               },
             };
             yield { type: 'tool_start', tool: node.tool };
-            // P2 修复（2026-10-04）：与 chat 通道同口径的超时闸门——
-            // 此前直接 await，卡死的工具会无限挂起图执行与 SSE 流，
-            // checkpointer 永远停在 running
+            // AI-P2-4 统一调用保护：graph 通道不再自带超时闸（原 executeToolWithTimeout
+            // 收敛进 executor 的 InvocationGuard——超时/分类/有界重试/退避/降级单源），
+            // 审核放行路径此前完全无超时，现同样被 guard 预算覆盖。
             // P1 修复（2026-10-04）：审核放行的节点带 allowConfirm 真执行
             // （审核=人工确认；否则 confirm 门强制降级 preview，写永不落地）
-            const result = approvedByReview
-              ? await this.executor.executeToolCall(toolCall, toolContext, {
-                  allowConfirm: true,
-                })
-              : await this.executeToolWithTimeout(toolCall, toolContext);
+            const result = await this.executor.executeToolCall(
+              toolCall,
+              toolContext,
+              {
+                channel: 'graph',
+                ...(approvedByReview ? { allowConfirm: true } : {}),
+              },
+            );
             // P1 修复（2026-10-04）：写工具返回 preview（confirm 门强制降级，
             // 未真执行）→ 挂 WriteGuard 确认并暂停图——此前 preview 被当作
             // "节点成功"继续跑到 graph_done，业务单据根本没创建且无确认入口
             if (tool?.isWriteOperation && result.success && result.preview) {
-              const write = await this.confirmationService.create({
-                tenantId: toolContext.tenantId,
-                conversationId: sessionId,
-                toolName: node.tool,
-                risk: toolRisk,
-                args: node.args ?? {},
-                preview: result.preview,
-                operationLabel: `图「${graph.name}」节点「${node.label}」`,
-              });
+              // AI-P2-4 切片 1 + 收敛实施 S1：挂起输入组装单源（缺省项由管线统一；
+              // graph 特有 operationLabel 仍显式传入，保持确认卡文案不变）
+              const suspended =
+                await this.writeConfirmPipeline.suspendFromToolCall({
+                  tenantId: toolContext.tenantId,
+                  conversationId: sessionId,
+                  toolName: node.tool,
+                  risk: toolRisk,
+                  args: node.args ?? {},
+                  preview: result.preview,
+                  operationLabel: `图「${graph.name}」节点「${node.label}」`,
+                });
               state.status = 'paused';
-              state.pendingWriteToken = write.confirmationId;
+              state.pendingWriteToken = suspended.token;
               // P2 顺手改（验收意见）：挂起不写 history——awaiting 状态既非
               // 成功也非失败，节点结果由确认续跑回填后再入史
               await this.checkpointer.save(state);
-              const expireAt = Date.now() + 24 * 60 * 60 * 1000;
+              const expireAt = suspended.expireAt;
               yield {
                 type: 'pending_write',
-                token: write.confirmationId,
+                token: suspended.token,
                 preview: result.preview,
                 writeType: node.tool,
                 expireAt,
               };
               yield {
                 type: 'await_confirm',
-                token: write.confirmationId,
+                token: suspended.token,
                 expireAt,
               };
               return;
@@ -518,13 +692,25 @@ export class GraphExecutorService implements OnModuleInit {
               });
               let roundText = '';
               let chatResult:
-                | { tool_calls?: ChatMessage['tool_calls']; content?: string }
+                | {
+                    tool_calls?: ChatMessage['tool_calls'];
+                    content?: string;
+                    prompt_tokens?: number;
+                    completion_tokens?: number;
+                  }
                 | undefined;
               // 手动迭代：done=true 时 value 为 ChatResult（含 tool_calls/usage）
               for (;;) {
                 const { value, done } = await generator.next();
                 if (done) {
                   chatResult = value;
+                  // AI-P2-4-TELEMETRY-PIPELINE：真实 LLM 用量累计（D12 修正——
+                  // graph done 此前恒 0；此处为唯一真实计量来源）
+                  if (usageAcc && chatResult) {
+                    usageAcc.prompt += chatResult.prompt_tokens ?? 0;
+                    usageAcc.completion += chatResult.completion_tokens ?? 0;
+                    usageAcc.sawLlm = true;
+                  }
                   break;
                 }
                 roundText += value;
@@ -619,43 +805,6 @@ export class GraphExecutorService implements OnModuleInit {
     } catch {
       return null;
     }
-  }
-
-  /**
-   * 工具执行超时闸门（P2 修复 2026-10-04，与 chat 通道同口径）：
-   * TOOL_TIMEOUT_MS（默认 60s）超时按失败落账，防卡死工具无限挂起图执行。
-   */
-  private async executeToolWithTimeout(
-    toolCall: ToolCall,
-    toolContext: ToolContext,
-  ): Promise<ToolResult> {
-    // P0 修复（2026-10-06 验收返工）：env 非数字/空串三重守卫——
-    // `Number("60s")=NaN` 时 setTimeout 按 1ms 触发（全站工具即时超时）；
-    // 空串更隐蔽（`?? 60000` 只兜 null/undefined，`Number("")=0` 同样归零）。
-    // 模式与 employee.service.ts 的 MAX_DISPATCH_DEPTH 守卫一致。
-    const parsedTimeout = Number.parseInt(
-      String(process.env.TOOL_TIMEOUT_MS ?? '60000').trim(),
-      10,
-    );
-    const timeoutMs =
-      Number.isFinite(parsedTimeout) && parsedTimeout > 0
-        ? parsedTimeout
-        : 60000;
-    return await Promise.race([
-      this.executor.executeToolCall(toolCall, toolContext),
-      new Promise<ToolResult>((resolve) => {
-        const timer = setTimeout(
-          () =>
-            resolve({
-              success: false,
-              error: `工具执行超时（${timeoutMs}ms），已中止图节点`,
-            }),
-          timeoutMs,
-        );
-        // 超时是兜底路径：正常完成时不让 timer 挂住进程/测试退出
-        timer.unref?.();
-      }),
-    ]);
   }
 
   /** 是否写操作工具（证据台账只记写操作，与 chat 通道口径对齐） */

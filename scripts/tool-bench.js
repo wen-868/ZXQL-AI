@@ -18,8 +18,8 @@
  */
 const { resolveAdminToken } = require('./lib/bench-auth');
 
-const AI_BASE = process.argv[2] || 'http://127.0.0.1:3016';
-const AUTH_BASE = process.argv[3] || 'http://127.0.0.1:8080';
+const AI_BASE = 'http://127.0.0.1:3016'; // 本地种子/基准工具：地址固定回环（SEC-003，argv 已移除）
+const AUTH_BASE = 'http://127.0.0.1:8080'; // 同上
 
 async function login() {
   const { token, via } = await resolveAdminToken({ authBase: AUTH_BASE });

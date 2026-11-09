@@ -282,11 +282,18 @@ async function classifyWithLlm(
   text: string,
   classifier: (msg: string) => Promise<string[] | null>,
 ): Promise<{ cats: ToolCategory[]; chat: boolean }> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    // 兜底 timer 归属当前调用生命周期：race 落定（完成/超时/异常均经 finally）即清除，
+    // 防悬空 handle 卡住 Jest worker 优雅退出（回归：force-exit 根因）
     const raw = await Promise.race([
       classifier(text),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500)),
-    ]);
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), 3500);
+      }),
+    ]).finally(() => {
+      if (timer !== undefined) clearTimeout(timer);
+    });
     if (!Array.isArray(raw)) return { cats: [], chat: false };
     // O6：分诊判定纯寒暄/与业务无关 → chat 车道（零工具直答）
     if (raw.includes('none')) return { cats: [], chat: true };

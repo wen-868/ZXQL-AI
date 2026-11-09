@@ -19,7 +19,7 @@ import { AiExperienceEntity } from '../database/entities/ai-experience.entity';
 import { AiCorrectionEntity } from '../database/entities/ai-correction.entity';
 import { AiSampleEntity } from '../database/entities/ai-sample.entity';
 import { AI_DB_CONNECTION } from '../database/ai-db.module';
-import { docTypeForTool } from '../brain/extraction/write-schema-registry';
+import { normalizeCaptureIntent } from './capture-intent';
 import { hashInput, sanitizeJson, toTrajectory } from './sanitize';
 import { MetricsService } from '../common/metrics.service';
 import { bestEffort } from '../common/error-semantics';
@@ -57,7 +57,7 @@ export interface CaptureCorrectionInput {
 }
 
 /**
- * 样本 taskType 口径归一（阶段 4-1 · P0 断链修复）
+ * 样本 taskType / 经验 intent 口径归一（阶段 4-1 P0 断链修复 + 归一纯函数收口）
  *
  * 背景：采集侧拿到的 intent 是**工具名**（orchestrator.service.ts 传
  * `intent: toolName`，如 `createSalesOrder`），而消费侧
@@ -65,16 +65,16 @@ export interface CaptureCorrectionInput {
  * （如 `sales_order`）。TypeORM 字符串精确相等 ⇒ 永不相等 ⇒
  * 自动捕获的样本 100% 进不了 few-shot 池。
  *
- * ⚠️ 只能「查表命中才替换」，**不得**用驼峰转下划线之类的规则推导：
- * `office_document`（办公任务类型）、`write` / `analysis`（兜底 domain）
- * 都不在写 Schema 注册表里，规则推导会凭空造出注册表中不存在的 docType。
+ * AI-P2-4-CAPTURE-INTENT-NORMALIZE-01：归一逻辑抽为纯函数
+ * `normalizeCaptureIntent`（capture-intent.ts，三通道调用方与落库层共用）。
+ * 本服务在写出前再执行一次归一，形成**调用方 + 落库层双层一致性**——
+ * 即使未来某通道调用方漏归一，落库值仍是同一可消费口径。
  *
- * @param candidate 候选值（`input.intent` 未命中时回退到 `input.domain`）
- * @returns 注册表命中的裸 docType；未命中则原样返回 candidate
+ * ⚠️ 归一只查表命中才替换，**不得**用驼峰转下划线之类的规则推导：
+ * `office_document`（办公任务类型）、`write` / `analysis`（兜底 domain）、
+ * `agent_plan` / `graph`（通道级稳定键）都不在写 Schema 注册表里，
+ * 规则推导会凭空造出注册表中不存在的 docType。
  */
-function normalizeSampleTaskType(candidate: string): string {
-  return docTypeForTool(candidate) ?? candidate;
-}
 
 @Injectable()
 export class CaptureService {
@@ -106,11 +106,18 @@ export class CaptureService {
           ? hashInput(input.userMessage)
           : null;
 
+        // AI-P2-4-CAPTURE-INTENT-NORMALIZE：落库层二次归一（双层一致性）——
+        // ai_sample.taskType 与 ai_experience.intent 对齐同一可消费口径；
+        // 原始工具名仍在 trajectory（toolCalls）中保留，审计不丢失。
+        const normalizedIntent = normalizeCaptureIntent(
+          input.intent ?? input.domain,
+        );
+
         await this.experienceRepo.save(
           this.experienceRepo.create({
             tenantId: input.tenantId,
             domain: input.domain,
-            intent: input.intent ?? null,
+            intent: normalizedIntent,
             inputHash,
             trajectory: toTrajectory(input.toolCalls),
             outcome: input.outcome,
@@ -121,12 +128,9 @@ export class CaptureService {
 
         // 样本：成功/纠正路径（失败路径不进样本池）
         if (input.outcome !== 'failed' && (input.userMessage || input.reply)) {
-          // 阶段 4-1：taskType 必须写裸 docType，否则 few-shot 回流查不中。
-          // 仅归一 taskType 这一个字段 —— 上面的 ai_experience.intent 存工具名
-          // 是正确口径（那是「调了哪个工具」的审计语义），不得一起改。
-          const taskType = normalizeSampleTaskType(
-            input.intent ?? input.domain,
-          );
+          // taskType 必须写裸 docType，否则 few-shot 回流查不中。
+          // 与 ai_experience.intent 同一归一值（消费者验收 2）。
+          const taskType = normalizedIntent;
           await this.sampleRepo.save(
             this.sampleRepo.create({
               tenantId: input.tenantId,

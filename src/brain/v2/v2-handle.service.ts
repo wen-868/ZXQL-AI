@@ -9,6 +9,7 @@
  *
  * 负责人: AI底座 | 创建日期: 2026-08-26
  */
+import { randomUUID } from 'crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { ToolExecutor } from '../../tools/tool-executor';
 import { AuditLogger } from '../../bridge/audit-logger';
@@ -182,7 +183,7 @@ export class V2HandleService {
       const toolContext = this.toToolContext(ctx);
       const result = await this.executor.executeToolCall(
         {
-          id: `v2_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          id: `v2_${randomUUID()}`,
           type: 'function',
           function: { name: toolName, arguments: JSON.stringify(args) },
         },

@@ -30,13 +30,15 @@ export class CancelOrderTool implements ITool {
 
   readonly name = 'cancelOrder';
   readonly description =
-    '取消订单（写操作）。' +
+    '取消订单（**高危写操作**，需确认）。' +
     '按订单号取消指定订单，需提供取消原因。' +
     '仅待处理(PENDING)或已确认(CONFIRMED)状态的订单可取消，已配送(DELIVERED)或已完成(COMPLETED)的订单不可取消。' +
-    '示例：用户说"取消ORD20260801001"→ 调用此工具 → 传入 orderNo 和 reason。';
+    '示例：用户说"取消ORD20260801001"→ 调用此工具 → 先返回预览与后果，用户确认后传入 confirm=true 执行。';
   readonly category = 'order' as const;
   readonly isWriteOperation = true;
   readonly risk = 'high' as const;
+  /** 幂等业务键（AI-P0-3-F1）：同一订单重复取消 ⇒ 同一键 ⇒ 回放首次结果 */
+  readonly idempotencyKeyFields = ['orderNo'] as const;
 
   readonly parameters = {
     type: 'object' as const,
@@ -48,6 +50,11 @@ export class CancelOrderTool implements ITool {
       reason: {
         type: 'string',
         description: '取消原因（可选，默认为空字符串）',
+      },
+      confirm: {
+        type: 'boolean',
+        description:
+          '是否确认执行（缺省 false ⇒ 仅返回预览与后果说明，不执行取消）',
       },
     },
     required: ['orderNo'],
@@ -69,11 +76,36 @@ export class CancelOrderTool implements ITool {
     }
 
     const reason = typeof args.reason === 'string' ? args.reason : '';
+    const confirm = args.confirm === true;
+
+    // ── 预览阶段（AI-P0-3-F1）：不调后端、不改任何状态，零写 ──
+    if (!confirm) {
+      return {
+        success: true,
+        preview: {
+          operation: '取消订单',
+          summary: `将取消订单 ${orderNo}${reason ? `（原因：${reason}）` : ''}`,
+          details: {
+            orderNo,
+            reason: reason || null,
+            // 来源标记：AI 发起的改动必须可追溯（MS 缺省记 admin）
+            source: 'ai',
+            consequence: '取消后订单状态将变为 CANCELLED',
+            cancellableHint: '仅 PENDING/CONFIRMED 状态可取消',
+          },
+          reviewRequired: true,
+        },
+      };
+    }
 
     try {
       const result = await this.serviceClient.post<CancelResult>(
         `${API_ENDPOINTS.ORDERS}/${encodeURIComponent(orderNo)}/cancel`,
-        { reason },
+        {
+          reason,
+          // 🔴 必传：不传则来源记 admin，"AI 改动可追溯"断链（P0-3-F1 审计要求）
+          source: 'ai',
+        },
         context,
       );
 

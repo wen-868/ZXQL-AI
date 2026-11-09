@@ -19,27 +19,26 @@ import {
   Logger,
   Optional,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AiExecutionPlanEntity } from '../../database/entities/ai-execution-plan.entity';
 import { ToolExecutor } from '../../tools/tool-executor';
 import { ToolRegistry } from '../../tools/tool-registry';
-import { ConfirmationService } from '../confirmation.service';
+import { WriteConfirmPipelineService } from '../write-confirm-pipeline.service';
 import { SelfHealLoopService } from './self-heal-loop.service';
 import { PlannerService } from './planner.service';
 import { CaptureService } from '../../evolution/capture.service';
+import { buildCaptureTaskInput } from '../../evolution/capture-intent';
 import { MetricsService } from '../../common/metrics.service';
 import { bestEffort } from '../../common/error-semantics';
-import { AuditLogger } from '../../bridge/audit-logger';
 import { detectIntentCategories } from '../intent-detector';
 import { KnowledgeRulesService } from '../knowledge-rules.service';
 import { AiConfigService } from '../../tenant/ai-config.service';
+import { TelemetryPipelineService } from '../telemetry-pipeline.service';
+import { buildTelemetryEndInput } from '../telemetry-pipeline.service';
 import { ProviderRouterService } from '../router/provider-router.service';
-import {
-  resolveWriteTokenTtlMs,
-  WRITE_TOKEN_TTL_HOURS_KEY,
-} from '../write-guard.service';
+import {} from '../write-guard.service';
 import type { ToolContext, ToolResult } from '../../tools/tool.interface';
 import type { ChatMessage, ToolCall } from '../../providers/provider.interface';
 import {
@@ -78,16 +77,17 @@ export class TaskRunnerService {
     private readonly planRepo: Repository<AiExecutionPlanEntity>,
     private readonly executor: ToolExecutor,
     private readonly registry: ToolRegistry,
-    private readonly confirmationService: ConfirmationService,
+    private readonly writeConfirmPipeline: WriteConfirmPipelineService,
     private readonly selfHeal: SelfHealLoopService,
     private readonly planner: PlannerService,
     private readonly capture: CaptureService,
     private readonly metrics: MetricsService,
-    private readonly auditLogger: AuditLogger,
     private readonly router: ProviderRouterService,
     private readonly aiConfigService: AiConfigService,
     private readonly knowledgeRules: KnowledgeRulesService,
-    @Optional() private readonly configService?: ConfigService,
+    // AI-P2-4-TELEMETRY-PIPELINE：统一遥测（BrainModule 注册单例；@Optional 仅为
+    // 兼容既有契约 spec 的旧构造——生产 DI 恒有实例，缺省时跳过遥测不影响业务）
+    @Optional() private readonly telemetry?: TelemetryPipelineService,
   ) {}
 
   /**
@@ -98,9 +98,8 @@ export class TaskRunnerService {
    * 前端显示"还有 23 小时"而令牌实际已过期，用户点了确认却被判失效。
    */
   private get writeTokenTtlMs(): number {
-    return resolveWriteTokenTtlMs(
-      this.configService?.get<string>(WRITE_TOKEN_TTL_HOURS_KEY),
-    );
+    // AI-P2-4 切片 1：TTL 经 WriteConfirmPipeline 单源（WriteGuard 同口径）
+    return this.writeConfirmPipeline.getTokenTtlMs();
   }
 
   // ──────────────────────────────────────────────────────────
@@ -371,7 +370,13 @@ export class TaskRunnerService {
     if (resumeFrom < 0) {
       plan.state = this.detectFinalState(plan);
       await this.savePlan(plan);
-      for (const event of this.buildDoneEvent(plan, startTime, 0, 0)) {
+      for (const event of this.buildDoneEvent(
+        plan,
+        startTime,
+        0,
+        0,
+        context.sessionId,
+      )) {
         yield event;
       }
       return;
@@ -447,6 +452,7 @@ export class TaskRunnerService {
               startTime,
               totalPromptTokens,
               totalCompletionTokens,
+              context.sessionId,
             )) {
               yield event;
             }
@@ -541,6 +547,7 @@ export class TaskRunnerService {
       startTime,
       totalPromptTokens,
       totalCompletionTokens,
+      context.sessionId,
     )) {
       yield event;
     }
@@ -599,6 +606,7 @@ export class TaskRunnerService {
     const first = await this.executor.executeToolCall(
       this.toToolCall(step.tool, args),
       toolContext,
+      { channel: 'agent' },
     );
 
     // 写步骤 → 挂起令牌（写全审核）
@@ -659,18 +667,24 @@ export class TaskRunnerService {
         this.executor.executeToolCall(
           this.toToolCall(step.tool!, healArgs),
           toolContext,
+          { channel: 'agent' },
         ),
       capture: (outcome, detail) =>
-        this.capture.captureTask({
-          tenantId: plan.tenantId,
-          domain: 'write',
-          intent: step.tool,
-          userMessage: plan.goal,
-          toolCalls: [{ tool_name: step.tool, success: outcome === 'success' }],
-          outcome,
-          reply: detail,
-          error: outcome === 'failed' ? detail : undefined,
-        }),
+        this.capture.captureTask(
+          buildCaptureTaskInput(
+            {
+              tenantId: plan.tenantId,
+              intent: step.tool,
+              userMessage: plan.goal,
+              toolCalls: [
+                { tool_name: step.tool, success: outcome === 'success' },
+              ],
+              outcome,
+              error: outcome === 'failed' ? detail : undefined,
+            },
+            { domain: 'write', reply: detail },
+          ),
+        ),
     });
     step.healLog = heal.healLog ?? [];
     step.retryCount += heal.healLog?.length ?? 0;
@@ -810,7 +824,9 @@ export class TaskRunnerService {
       for (const tc of chatResult.tool_calls) {
         const toolName = tc.function.name;
         yield { type: 'tool_start', tool: toolName };
-        const result = await this.executor.executeToolCall(tc, toolContext);
+        const result = await this.executor.executeToolCall(tc, toolContext, {
+          channel: 'agent',
+        });
         const suspend = await this.maybeSuspendWrite(
           plan,
           step,
@@ -876,32 +892,30 @@ export class TaskRunnerService {
     }
     const toolName = toolCall?.function.name ?? step.tool ?? '';
     const tool = this.registry.get(toolName);
-    const risk = tool?.risk ?? 'medium';
     try {
-      const confirmation = await this.confirmationService.create({
+      // AI-P2-4 切片 1 + 收敛实施 S1：挂起输入组装单源（缺省项由管线统一）
+      const suspended = await this.writeConfirmPipeline.suspendFromToolCall({
         tenantId: plan.tenantId,
         conversationId: context.sessionId,
         customerId: context.customerId,
         toolName,
-        docType: toolName,
-        risk,
-        needsReview: tool?.needsReview ?? risk === 'high',
+        risk: tool?.risk,
+        needsReview: tool?.needsReview,
         args: toolCall
           ? (JSON.parse(toolCall.function.arguments) as Record<string, unknown>)
           : (step.args ?? {}),
         preview: result.preview,
-        operationLabel: result.preview.operation ?? toolName,
         planId: plan.id,
         planStepId: step.id,
       });
-      step.pendingToken = confirmation.confirmationId;
+      step.pendingToken = suspended.token;
       step.preview = result.preview;
       step.status = 'suspended';
       step.updatedAt = Date.now();
       plan.state = 'suspended';
       await this.savePlan(plan);
 
-      const expireAt = Date.now() + this.writeTokenTtlMs;
+      const expireAt = suspended.expireAt;
       const events: AgentRunEvent[] = [
         {
           type: 'tool_result',
@@ -909,18 +923,18 @@ export class TaskRunnerService {
           success: result.success,
           data: result.data,
           preview: result.preview,
-          confirmationId: confirmation.confirmationId,
+          confirmationId: suspended.token,
         },
         {
           type: 'pending_write',
-          token: confirmation.confirmationId,
+          token: suspended.token,
           preview: result.preview,
           writeType: toolName,
           expireAt,
         },
         {
           type: 'await_confirm',
-          token: confirmation.confirmationId,
+          token: suspended.token,
           expireAt,
         },
         {
@@ -933,7 +947,7 @@ export class TaskRunnerService {
         },
       ];
       this.logger.log(
-        `计划写步骤挂起：plan=${plan.id} step=${step.id} tool=${toolName} token=${confirmation.confirmationId.slice(0, 12)}…`,
+        `计划写步骤挂起：plan=${plan.id} step=${step.id} tool=${toolName} token=${suspended.token.slice(0, 12)}…`,
       );
       return { suspended: true, events };
     } catch (err) {
@@ -994,6 +1008,8 @@ export class TaskRunnerService {
     startTime: number,
     promptTokens: number,
     completionTokens: number,
+    // AI-P2-4-TELEMETRY-PIPELINE：真实会话 ID（修正 D4：此前审计 sessionId 错填 tenantId）
+    sessionId?: string,
   ): AgentRunEvent[] {
     const latencyMs = Date.now() - startTime;
     const failed = plan.steps.filter((s) => s.status === 'failed');
@@ -1024,16 +1040,22 @@ export class TaskRunnerService {
     // （含死信sink 失败），永不reject，故void 丢弃其Promise 是安全的。
     void bestEffort(
       () =>
-        this.capture.captureTask({
-          tenantId: plan.tenantId,
-          domain: failed.length > 0 ? 'write' : 'analysis',
-          intent: `agent_plan_${plan.id}`,
-          userMessage: plan.goal,
-          toolCalls: [],
-          outcome: failed.length > 0 ? 'failed' : 'success',
-          reply: `计划 ${plan.id} 完成：${plan.steps.filter((s) => s.status === 'success').length} 步成功，${failed.length} 步失败`,
-          error: failed[0]?.error,
-        }),
+        this.capture.captureTask(
+          buildCaptureTaskInput(
+            {
+              tenantId: plan.tenantId,
+              intent: 'agent_plan',
+              userMessage: plan.goal,
+              toolCalls: [],
+              outcome: failed.length > 0 ? 'failed' : 'success',
+              error: failed[0]?.error,
+            },
+            {
+              domain: failed.length > 0 ? 'write' : 'analysis',
+              reply: `计划 ${plan.id} 完成：${plan.steps.filter((s) => s.status === 'success').length} 步成功，${failed.length} 步失败`,
+            },
+          ),
+        ),
       {
         op: 'agent.experience_capture',
         tenantId: plan.tenantId,
@@ -1041,21 +1063,33 @@ export class TaskRunnerService {
       },
     );
 
-    // 审计
-    this.auditLogger.logAiCall({
-      tenantId: plan.tenantId,
-      sessionId: plan.tenantId,
-      provider: 'agent',
-      model: 'planner+runner',
-      intent: 'agent_plan',
-      lane: 'agent',
-      userMessage: plan.goal,
-      toolCalls: [],
-      promptTokens,
-      completionTokens,
-      latencyMs,
-      success: failed.length === 0,
-    });
+    // 统一遥测收口（AI-P2-4-TELEMETRY-PIPELINE）：审计 + t_ai_usage_daily 单点
+    // UPSERT + 计费（agent 通道此前漏计费，D12 修正）。fire-and-forget：
+    // channelEnd 内部全隔离（审计/计费失败只落死信），永不影响 done 事件。
+    // sessionId 修正契约：plan 运行上下文的真实会话 ID ?? plan 兜底，绝不回退 tenantId。
+    if (this.telemetry && typeof this.telemetry.channelBegin === 'function') {
+      const telemetrySession = this.telemetry.channelBegin({
+        lane: 'agent',
+        tenantId: plan.tenantId,
+        sessionId,
+        fallbackSessionId: `plan-${plan.id}`,
+        userMessage: plan.goal,
+        intent: 'agent_plan',
+      });
+      void this.telemetry.channelEnd(
+        buildTelemetryEndInput(
+          {
+            session: telemetrySession,
+            success: failed.length === 0,
+            promptTokens,
+            completionTokens,
+            usageSource: 'measured',
+            latencyMs,
+          },
+          { provider: 'agent', model: 'planner+runner', intent: 'agent_plan' },
+        ),
+      );
+    }
 
     this.logger.log(
       `执行计划完成：id=${plan.id} state=${plan.state} steps=${plan.steps.length} latency=${latencyMs}ms`,
@@ -1128,7 +1162,7 @@ export class TaskRunnerService {
 
   private toToolCall(tool: string, args: Record<string, unknown>): ToolCall {
     return {
-      id: `plan_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      id: `plan_${randomUUID()}`,
       type: 'function',
       function: {
         name: tool,

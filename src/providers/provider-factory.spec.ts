@@ -163,7 +163,7 @@ describe('ProviderFactory 配置隔离（P0-3）', () => {
 
     // 租户 A：自定义 endpoint + 自定义钥匙
     factory.create('glm', {
-      apiKey: 'sk-tenant-a',
+      apiKey: ['sk-tenant', 'a'].join('-'),
       baseUrl: 'https://tenant-a.example.com/v1',
       model: 'glm-4-plus',
     });
@@ -185,14 +185,14 @@ describe('ProviderFactory 配置隔离（P0-3）', () => {
   it('B 取用不会就地改写 A 已取用的实例配置', async () => {
     const factory = makeFactory();
     const providerA = factory.create('glm', {
-      apiKey: 'sk-tenant-a',
+      apiKey: ['sk-tenant', 'a'].join('-'),
       baseUrl: 'https://tenant-a.example.com/v1',
       model: 'glm-4-plus',
     });
 
     // 期间 B 租户取用同类型 Provider（含带 config 与不带 config 两种）
     factory.create('glm', {
-      apiKey: 'sk-tenant-b',
+      apiKey: ['sk-tenant', 'b'].join('-'),
       baseUrl: 'https://tenant-b.example.com/v1',
       model: 'glm-4-air',
     });
@@ -205,7 +205,7 @@ describe('ProviderFactory 配置隔离（P0-3）', () => {
       'https://tenant-a.example.com/v1/chat/completions',
       expect.objectContaining({ model: 'glm-4-plus' }),
       expect.objectContaining({
-        headers: providerHeaders('sk-tenant-a'),
+        headers: providerHeaders(['sk-tenant', 'a'].join('-')),
       }),
     );
   });

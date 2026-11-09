@@ -63,6 +63,7 @@ describe('ToolExecutor', () => {
     const mockMetrics = {
       recordToolCall: jest.fn(),
       recordToolDuration: jest.fn(),
+      recordToolRetry: jest.fn(),
     };
     // R101-AI-21：幂等闸门桩（本文件只跑 echo 等非写工具，闸门不会被调用）
     const mockIdempotencyGate = {
@@ -173,13 +174,13 @@ describe('ToolExecutor', () => {
       };
       registry.register(throwingTool);
 
-      // 不应抛异常
+      // 不应抛异常；AI-P2-4 统一 guard：未知异常归 transient → 有界重试后降级
       const result = await executor.executeToolCall(
         makeToolCall('throwing', {}),
         baseContext,
       );
       expect(result.success).toBe(false);
-      expect(result.error).toContain('工具执行异常');
+      expect(result.error).toContain('出现临时故障');
       expect(result.error).toContain('模拟内部异常');
       expect(result.suggestion).toBeDefined();
     });

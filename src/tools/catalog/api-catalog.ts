@@ -11,6 +11,23 @@
  */
 import { ToolCategory, ToolRisk, ToolScope } from '../tool.interface';
 
+/**
+ * 动态写能力声明（AI-P0-3-F2-DYNAMIC-WRITE-CONFIRM-GUARD-01）
+ *
+ * 默认不存在 = 关闭。动态 API 写能力的**唯一**开放条件：条目显式声明本字段
+ * （三项全 true）**且** DynamicApiTool 已实现可证明的 preview/confirm 二段式与
+ * 幂等契约。在确认链落地前，任何写条目（无论是否声明本字段）一律 fail-closed 拒绝，
+ * 不得仅凭把条目加入目录而获得写能力。
+ */
+export interface DynamicWriteCapability {
+  /** 支持零写预览（confirm 缺省只返回 preview） */
+  preview: boolean;
+  /** 支持确认执行（confirm=true 经确认通道） */
+  confirm: boolean;
+  /** 支持幂等（idempotencyKeyFields 声明 + 幂等闸语义） */
+  idempotent: boolean;
+}
+
 /** API 路由定义（注册表条目） */
 export interface ApiRouteDef {
   /** 工具名（api_ 前缀，唯一） */
@@ -33,6 +50,8 @@ export interface ApiRouteDef {
   needsReview?: boolean;
   /** 工具作用域（可选，默认 mgmt；platform 仅总台对话暴露） */
   scope?: ToolScope;
+  /** 动态写能力声明（可选；默认关闭——见 DynamicWriteCapability 说明） */
+  dynamicWriteCapability?: DynamicWriteCapability;
 }
 
 /**

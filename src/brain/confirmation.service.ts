@@ -544,6 +544,14 @@ export class ConfirmationService {
   }
 
   /**
+   * 写确认令牌 TTL（毫秒）——统一过期口径的单源出口
+   * （AI-P2-4 切片 1：pipeline 经此对齐三通道 await_confirm 的 expireAt）
+   */
+  getTokenTtlMs(): number {
+    return this.writeGuardService.getTokenTtlMs();
+  }
+
+  /**
    * 令牌回滚到 pending（确认执行失败后的重试入口，P2 修复 2026-10-04）
    */
   async resetToPending(
