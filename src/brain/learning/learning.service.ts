@@ -16,6 +16,7 @@ import { Repository } from 'typeorm';
 import { AiLearningLogEntity } from '../../database/entities/ai-learning-log.entity';
 import { LongTermMemoryService } from '../memory/long-term-memory.service';
 import { CaptureService } from '../../evolution/capture.service';
+import { buildDomainCaptureTaskInput } from '../../evolution/capture-intent';
 
 /** 反馈信号（对话/图执行结束后由调用方提供） */
 export interface FeedbackSignal {
@@ -62,18 +63,31 @@ export class LearningService {
       : `任务「${signal.taskName}」执行失败${signal.error ? `：${signal.error}` : ''}`;
 
     // P1-1 ai_db 对齐：反馈信号同步落 ai_db 经验（脱敏，不阻塞）
-    await this.capture.captureTask({
-      tenantId,
-      domain: signal.tool ? 'write' : 'analysis',
-      intent: signal.taskName,
-      outcome: signal.success
-        ? 'success'
-        : signal.reviewStatus === 'rejected'
-          ? 'corrected'
-          : 'failed',
-      error: signal.error,
-      adopted: signal.success ? true : undefined,
-    });
+    // AI-P2-5 收敛：capture 输入组装经 capture-intent.ts 单源（域消费者铁律：
+    // tenantId 缺失 fail-closed；domain 判定 = 有工具轨迹 write / 其余 analysis，
+    // 与原手工组装逐字段等价；outcome 三态映射保持 success/corrected/failed）
+    await this.capture.captureTask(
+      buildDomainCaptureTaskInput(
+        {
+          tenantId,
+          intent: signal.taskName,
+          outcome: signal.success
+            ? 'success'
+            : signal.reviewStatus === 'rejected'
+              ? 'corrected'
+              : 'failed',
+          error: signal.error,
+          toolCalls: signal.tool
+            ? [{ tool_name: signal.tool, success: signal.success }]
+            : undefined,
+          adopted: signal.success ? true : undefined,
+        },
+        // domain 语义保持原手工判定：有工具轨迹 ⇒ write，其余 analysis
+        // （不经 buildCaptureTaskInput 的"失败轨迹才 write"推断——学习域
+        // 成功写任务原实现即 write，语义等价性以原行为为准）
+        signal.tool ? { domain: 'write' } : { domain: 'analysis' },
+      ),
+    );
 
     // 1. 情节经验落库
     await this.ltm.saveEpisodic(tenantId, {
