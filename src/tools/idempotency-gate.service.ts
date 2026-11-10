@@ -1,7 +1,7 @@
 /**
  * IdempotencyGateService — 写工具幂等闸门（阶段 3 幂等键，R101-AI-21）
  *
- * 方案：`docs/plans/阶段3-幂等键-方案.md`（R101-AI-20，业主批准 A/B 口径）
+ * 方案：`projects/ai/archive/repo-docs-20261107/docs/plans/阶段3-幂等键-方案.md`（R101-AI-20，业主批准 A/B 口径）
  * 插入点：`ToolExecutor.executeToolCall()` 熔断之后、`tool.execute()` 之前；
  *         条件 `tool.isWriteOperation === true && args.confirm === true`（**预览不消耗键**）。
  *
