@@ -1190,6 +1190,34 @@ describe('AI-P2-4-CAPTURE-INTENT-NORMALIZE：graph 完成态采集哨兵', () =>
     expect(arg.error).toContain('boom');
     expect(arg.intent).toBe('sales_order');
   });
+
+  // ════ S2M5 行为哨兵（AI-P2-5-S2M5-MUTATION-STRENGTHEN-01）════
+  // 失败采集必须经 buildCaptureTaskInput 归一：绕过 builder 的语法有效手写
+  // 组装会把原始工具名 createSalesOrder 原样传入 ⇒ 本组断言点名红（行为级，
+  // 非 SyntaxError/编译失败）。
+  it('S2M5 行为哨兵：failed 采集经 builder 归一——createSalesOrder ⇒ sales_order，字段不丢', async () => {
+    const capture = makeCaptureStub();
+    const executorMock = {
+      executeToolCall: jest
+        .fn()
+        .mockResolvedValue({ success: false, error: '后端 HTTP 500：boom' }),
+    };
+    const service = buildService(capture, executorMock, CAPTURE_REGISTRY);
+    await collectEvents(service, CAPTURE_GRAPH, makeCtx());
+    expect(capture.captureTask).toHaveBeenCalledTimes(1);
+    const arg = capture.captureTask.mock.calls[0][0] as Record<string, unknown>;
+    // 归一 intent（真源 write-schema-registry.ts：createSalesOrder ⇒ sales_order）
+    expect(arg.intent).toBe('sales_order');
+    // 漂移锚点：绕过 buildCaptureTaskInput 的手写组装会原样传工具名
+    expect(arg.intent).not.toBe('createSalesOrder');
+    expect(arg.outcome).toBe('failed');
+    expect(arg.tenantId).toBe('t1');
+    const traj = JSON.stringify(arg.toolCalls);
+    expect(traj).toContain('createSalesOrder'); // 原始工具名轨迹不丢
+    expect(traj).toContain('graph_error'); // 失败事件不丢
+    expect(traj).toContain('cap_graph'); // graphId 不丢
+    expect(String(arg.error)).toContain('boom');
+  });
 });
 
 // ════ Phase 0 哨兵（AI-P2-4-ORCHESTRATION-CONVERGENCE-IMPLEMENTATION-01）════
