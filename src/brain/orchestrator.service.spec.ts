@@ -147,7 +147,9 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
             },
           }),
         ),
-      suspend: jest.fn(),
+      // AI-P2-5-SUSPEND-MOCK-HYGIENE-01：旧 `suspend: jest.fn()` 桩已删除。
+      // 生产链只经 suspendFromToolCall 进入统一挂起，保留该桩会让测试在
+      // 「谁调用了挂起」上失去约束（形状漂移不可见）。
     },
     graphExecutor: { getGraph: jest.fn(), execute: jest.fn() },
     router: {
@@ -434,16 +436,19 @@ describe('Orchestrator（Agent Loop 核心）', () => {
 
     // 写工具预览 ⇒ 经写确认管线挂起并下发令牌（后续 confirm → 3 分钟撤销窗口的入口）
     // 收敛实施 S1：断言迁至 suspendFromToolCall（toolName 口径不变）
+    // AI-P2-5-SUSPEND-MOCK-HYGIENE-01：旧 suspend 桩已删，关键字段断言补全
     expect(
       h.deps.writeConfirmPipeline.suspendFromToolCall,
     ).toHaveBeenCalledTimes(1);
-    expect(
-      h.deps.writeConfirmPipeline.suspendFromToolCall,
-    ).toHaveBeenCalledWith(
-      expect.objectContaining({
-        toolName: 'createSalesOrder',
-      }),
-    );
+    const suspendCalls = h.deps.writeConfirmPipeline.suspendFromToolCall.mock
+      .calls as Array<[Record<string, unknown>]>;
+    const call = suspendCalls[0][0];
+    expect(call['tenantId']).toBe('t1');
+    expect(typeof call['conversationId']).toBe('string');
+    expect(call['toolName']).toBe('createSalesOrder');
+    expect(call['args']).toBeDefined();
+    const preview = call['preview'] as { operation?: string } | undefined;
+    expect(preview?.operation).toBe('创建销售单');
     const confirmEvent = events.find(
       (e) =>
         e.type === 'tool_result' &&
@@ -456,6 +461,38 @@ describe('Orchestrator（Agent Loop 核心）', () => {
       unknown,
     ];
     expect(firstCall[0].function.name).toBe('createSalesOrder');
+  });
+
+  // ════ AI-P2-5-SUSPEND-MOCK-HYGIENE-01：旧 suspend 桩清理后的形态哨兵 ════
+  it('挂起 mock 形状与生产委托链一致：不含旧 suspend 桩，唯一入口是 suspendFromToolCall', () => {
+    const h = makeOrchestrator();
+    const wp: Record<string, unknown> = h.deps.writeConfirmPipeline;
+    expect('suspend' in wp).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(wp, 'suspend')).toBe(false);
+    expect(typeof wp.suspendFromToolCall).toBe('function');
+  });
+
+  it('挂起输入按租户隔离：tenantId 取自本次请求，不串号也不缺省', async () => {
+    const h = makeOrchestrator();
+    h.deps.executor.executeToolCall.mockResolvedValue({
+      success: true,
+      preview: { operation: '创建销售单', summary: '红星商行 20 件五粮液' },
+    });
+    h.deps.router.chatWithFallback
+      .mockImplementationOnce(() =>
+        streamOf([], chatResult('', [makeToolCall('createSalesOrder')])),
+      )
+      .mockImplementationOnce(() => streamOf(['请确认'], chatResult('请确认')));
+
+    await collect(h.orchestrator, { ...BASE_PARAMS, tenantId: 't2' });
+
+    const suspendCalls = h.deps.writeConfirmPipeline.suspendFromToolCall.mock
+      .calls as Array<[Record<string, unknown>]>;
+    const call = suspendCalls[0][0];
+    expect(call['tenantId']).toBe('t2');
+    expect(call['tenantId']).not.toBe('t1');
+    expect(call['tenantId']).not.toBeUndefined();
+    expect(call['toolName']).toBe('createSalesOrder');
   });
 });
 

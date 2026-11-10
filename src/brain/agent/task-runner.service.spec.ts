@@ -78,7 +78,6 @@ function makeRunner(
     executor?: Partial<ExecutorMock>;
     selfHeal?: { heal: jest.Mock };
     writeConfirmPipeline?: {
-      suspend?: jest.Mock;
       suspendFromToolCall?: jest.Mock;
       getTokenTtlMs?: jest.Mock;
     };
@@ -111,7 +110,6 @@ function makeRunner(
         confirmation: { confirmationId: 'wg_test_token' },
       }),
     ),
-    suspend: jest.fn(),
     getTokenTtlMs: jest.fn(() => 24 * 60 * 60 * 1000),
     ...overrides.writeConfirmPipeline,
   };
@@ -489,24 +487,71 @@ describe('TaskRunnerService', () => {
 
     const events = await collect(runner.run(plan.id, 't1', { tenantId: 't1' }));
 
-    const tr = events.find((e) => e.type === 'tool_result');
-
-    console.log('[TEMP-S1-DIAG] tool_result =', JSON.stringify(tr));
     expect(events.some((e) => e.type === 'pending_write')).toBe(true);
     expect(events.some((e) => e.type === 'await_confirm')).toBe(true);
     expect(events.some((e) => e.type === 'done')).toBe(false);
     // 收敛实施 S1：断言迁至 suspendFromToolCall（planId/planStepId/toolName 口径不变）
-    expect(writeConfirmPipeline.suspendFromToolCall).toHaveBeenCalledWith(
-      expect.objectContaining({
-        planId: plan.id,
-        planStepId: 's1',
-        toolName: 'createSalesOrder',
-      }),
-    );
+    // AI-P2-5-SUSPEND-MOCK-HYGIENE-01：旧 suspend 桩已删，关键字段断言补全
+    expect(writeConfirmPipeline.suspendFromToolCall).toHaveBeenCalledTimes(1);
+    const suspendCalls = writeConfirmPipeline.suspendFromToolCall.mock
+      .calls as Array<[Record<string, unknown>]>;
+    const call = suspendCalls[0][0];
+    expect(call['tenantId']).toBe('t1');
+    expect(call['planId']).toBe(plan.id);
+    expect(call['planStepId']).toBe('s1');
+    expect(call['toolName']).toBe('createSalesOrder');
+    expect(call['args']).toBeDefined();
+    const preview = call['preview'] as { operation?: string } | undefined;
+    expect(preview?.operation).toBe('创建销售单');
     const persisted = await runner.getPlan(plan.id, 't1');
     expect(persisted?.state).toBe('suspended');
     expect(persisted?.steps[0].status).toBe('suspended');
     expect(persisted?.steps[0].pendingToken).toBe('wg_test_token');
+    // 挂起事件必须带令牌与过期时间（旧 suspend 桩删除后仍由同一结果对象供给）
+    const pending = events.find((e) => e.type === 'pending_write') as {
+      token?: string;
+      expireAt?: number;
+    };
+    expect(pending.token).toBe('wg_test_token');
+    expect(typeof pending.expireAt).toBe('number');
+  });
+
+  // ════ AI-P2-5-SUSPEND-MOCK-HYGIENE-01：旧 suspend 桩清理后的形态哨兵 ════
+  it('挂起 mock 形状与生产委托链一致：不含旧 suspend 桩，唯一入口是 suspendFromToolCall', () => {
+    const { writeConfirmPipeline } = makeRunner();
+    const wp: Record<string, unknown> = writeConfirmPipeline;
+    expect('suspend' in wp).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(wp, 'suspend')).toBe(false);
+    expect(typeof wp.suspendFromToolCall).toBe('function');
+  });
+
+  it('挂起输入按计划租户隔离：tenantId 取自 plan，不串号也不缺省', async () => {
+    const { runner, writeConfirmPipeline } = makeRunner({
+      executor: {
+        executeToolCall: jest.fn().mockResolvedValue({
+          success: true,
+          preview: { operation: '创建销售单', summary: 'x' },
+        }),
+      },
+    });
+    const plan = await runner.createPlan({
+      tenantId: 't2',
+      goal: '给红星商行开单',
+      steps: [
+        makeStep({ tool: 'createSalesOrder' }),
+        makeStep({ id: 'end', type: 'end', tool: undefined, label: '完成' }),
+      ],
+    });
+
+    await collect(runner.run(plan.id, 't2', { tenantId: 't2' }));
+
+    const suspendCalls = writeConfirmPipeline.suspendFromToolCall.mock
+      .calls as Array<[Record<string, unknown>]>;
+    const call = suspendCalls[0][0];
+    expect(call['tenantId']).toBe('t2');
+    expect(call['tenantId']).not.toBe('t1');
+    expect(call['tenantId']).not.toBeUndefined();
+    expect(call['planId']).toBe(plan.id);
   });
 
   // 阶段0 B-4 返工回归（2026-10-07）：挂起失败 → 显式 failed（不得虚假成功）
