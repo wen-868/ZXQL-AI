@@ -48,7 +48,7 @@
    - 为什么非当前库的对象禁止裸写：裸 `UPDATE ai_sample` 会打到会话当前库（业务库 `liquor_inventory`），
      而该表在 `ai_db` ⇒ ERROR 1146 ⇒ 部署脚本白名单（1060/1061/1050/1091）不含 1146 ⇒ **每次部署红**
      （run 37665016905 实证，见中央归档
-     `D:\Users\ZXQL\ZXQL-WORK\projects\ai\archive\repo-docs-20261107\docs\reports\` 下的 R101 卡）。
+     `projects/ai/archive/repo-docs-20261107/docs/reports/` 下的 R101 卡）。
    - 库名由 `003_ai_db_evolution.sql` 第 1 条 `CREATE DATABASE IF NOT EXISTS ai_db` 固定。
      私有库改名须改该行 + 全仓全部命中点，审计命令：`rg -n "ai_db\." migrations/`。
    - ⚠️ `@ai_db` 这个会话变量在本仓的语义是 **`DATABASE()`（= 业务库）**（见 004/005/008/009/010/011），
@@ -142,7 +142,7 @@
 | `POST /api/chat`（持有效 JWT） | ❌ 500 `Unknown column 'PlatformAiConfigEntity.evolution_auto_activate' in 'field list'` | **007 未执行**，走 AiConfigService 即崩，**所有对话全挂** |
 | `GET /api/ai/employees`（持有效 JWT） | ❌ 500 `Table 'liquor_inventory.t_ai_employee' doesn't exist` | **008 未执行**，数字员工功能生产完全不可用 |
 | `GET /api/chat/models`、`/api/chat/confirmations`、`/api/ai/agent/plans` | ✅ 200 | 依赖 001–006，已应用 |
-| `POST /api/admin/auth/demo-login` | ⚠️ 200（空 body 即返回 `SUPER_ADMIN` 令牌） | **P0 安全问题**，见 `docs/规范/生产安全核查.md` |
+| `POST /api/admin/auth/demo-login` | ⚠️ 200（空 body 即返回 `SUPER_ADMIN` 令牌） | **P0 安全问题**，见 `projects/ai/archive/repo-docs-20261107/docs/规范/生产安全核查.md` |
 
 > **2026-10-05 复测结论**：状态与 2026-09-27 首次、2026-10-03 第二次**完全一致**，期间无人执行补齐。
 > 根因是部署流水线（`deploy/ai-base-deploy.sh`）**只拉代码构建、不跑迁移**，属流程缺口而非遗漏。

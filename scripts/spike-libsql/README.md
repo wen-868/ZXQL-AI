@@ -3,7 +3,7 @@
 > 结论（一句话）：**LibSQL 直连不可行**（TypeORM 1.1.0 无 libsql driver；且本机 win32/arm64 无 libsql 原生绑定）
 > ⇒ 推荐 **better-sqlite3 + WAL**（TypeORM 官方支持，本机已实测建表/读写/唯一键/累加/毫秒全通）
 > 完整结论与改造量见
-> `D:\Users\ZXQL\ZXQL-WORK\projects\ai\archive\repo-docs-20261107\docs\reports\R101-AI-29-阿坚-回传.md`
+> `projects/ai/archive/repo-docs-20261107/docs/reports/R101-AI-29-阿坚-回传.md`
 
 ## 环境
 
