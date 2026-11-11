@@ -17,6 +17,7 @@
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { CaptureService } from '../../evolution/capture.service';
+import { buildDomainCaptureTaskInput } from '../../evolution/capture-intent';
 import { EmployeeService } from './employee.service';
 
 /** 办公场景任务类型（注册表：口径统一供样本/few-shot/E4 共用） */
@@ -74,15 +75,20 @@ export class OfficeEvolutionService {
 
     if (input.adopted && score >= 4) {
       // 采纳 → 高质量样本（E3 few-shot / E4 训练管线；quality 按评分入库）
-      await this.capture.captureTask({
-        tenantId: input.tenantId,
-        domain: 'analysis',
-        intent: taskType,
-        userMessage: task.task,
-        reply: task.resultSummary ?? '',
-        outcome: 'success',
-        sampleQuality: score,
-      });
+      // AI-P2-5 收敛：capture 输入组装经 capture-intent.ts 单源（域消费者铁律：
+      // tenantId 缺失 fail-closed；域任务类型不在注册表 ⇒ 归一保持原值，语义不变）
+      await this.capture.captureTask(
+        buildDomainCaptureTaskInput(
+          {
+            tenantId: input.tenantId,
+            intent: taskType,
+            userMessage: task.task,
+            reply: task.resultSummary ?? '',
+            outcome: 'success',
+          },
+          { domain: 'analysis', sampleQuality: score },
+        ),
+      );
       this.logger.log(
         `办公任务评分采纳：task=${input.taskId} type=${taskType} score=${score} → ai_sample`,
       );
@@ -117,14 +123,19 @@ export class OfficeEvolutionService {
     }
 
     // 中评（3）：仅记录经验，不进样本池也不进纠错
-    await this.capture.captureTask({
-      tenantId: input.tenantId,
-      domain: 'analysis',
-      intent: taskType,
-      userMessage: task.task,
-      reply: task.resultSummary ?? '',
-      outcome: 'success',
-    });
+    // AI-P2-5 收敛：同经 capture-intent.ts 单源组装（无 sampleQuality 覆盖，缺省 quality 走落库层）
+    await this.capture.captureTask(
+      buildDomainCaptureTaskInput(
+        {
+          tenantId: input.tenantId,
+          intent: taskType,
+          userMessage: task.task,
+          reply: task.resultSummary ?? '',
+          outcome: 'success',
+        },
+        { domain: 'analysis' },
+      ),
+    );
     this.logger.log(`办公任务中评记录：task=${input.taskId} score=${score}`);
     await this.employeeService.markTaskRated(
       input.taskId,

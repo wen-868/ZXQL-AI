@@ -9,6 +9,20 @@ import { AiLearningLogEntity } from '../../database/entities/ai-learning-log.ent
 import { LongTermMemoryService } from '../memory/long-term-memory.service';
 import { LearningService } from './learning.service';
 
+/** captureTask 入参形状（与 buildDomainCaptureTaskInput 返回结构对齐，供类型安全断言） */
+interface CaptureTaskArg {
+  tenantId: string;
+  domain: string;
+  intent: string;
+  userMessage?: string;
+  toolCalls?: Array<Record<string, unknown>>;
+  outcome: string;
+  reply?: string;
+  error?: string;
+  sampleQuality?: number;
+  adopted?: boolean;
+}
+
 function makeLtm() {
   return {
     saveEpisodic: jest.fn().mockResolvedValue(undefined),
@@ -28,13 +42,17 @@ function makeLogRepo() {
 describe('LearningService', () => {
   let ltm: ReturnType<typeof makeLtm>;
   let logRepo: ReturnType<typeof makeLogRepo>;
-  let capture: { captureTask: jest.Mock };
+  let capture: { captureTask: jest.Mock<Promise<void>, [CaptureTaskArg]> };
   let service: LearningService;
 
   beforeEach(() => {
     ltm = makeLtm();
     logRepo = makeLogRepo();
-    capture = { captureTask: jest.fn().mockResolvedValue(undefined) };
+    capture = {
+      captureTask: jest
+        .fn<Promise<void>, [CaptureTaskArg]>()
+        .mockResolvedValue(undefined),
+    };
     service = new LearningService(ltm, logRepo, capture as never);
   });
 
@@ -123,5 +141,62 @@ describe('LearningService', () => {
       expect.objectContaining({ where: { tenantId: 't1' } }),
     );
     expect(logs).toHaveLength(1);
+  });
+
+  // ════ AI-P2-5-CAPTURE-CONSUMER-CONVERGENCE-01：capture 输入经单源组装 ════
+  describe('absorb → captureTask 单源组装（AI-P2-5）', () => {
+    it('成功+工具信号：组装经 buildDomainCaptureTaskInput——domain=write、outcome=success、tenantId 透传、adopted=true', async () => {
+      await service.absorb('t1', {
+        taskName: '创建销售单',
+        success: true,
+        tool: 'createSalesOrder',
+      });
+      expect(capture.captureTask).toHaveBeenCalledTimes(1);
+      const arg = capture.captureTask.mock.calls[0][0];
+      expect(arg.tenantId).toBe('t1');
+      expect(arg.domain).toBe('write');
+      expect(arg.intent).toBe('创建销售单');
+      expect(arg.outcome).toBe('success');
+      expect(arg.adopted).toBe(true);
+      // 轨迹保留原始工具名
+      expect(JSON.stringify(arg.toolCalls)).toContain('createSalesOrder');
+    });
+
+    it('失败+驳回信号：outcome=corrected 不被翻转为 failed；error 透传', async () => {
+      await service.absorb('t1', {
+        taskName: '发布视频',
+        success: false,
+        reviewStatus: 'rejected',
+        error: '文案违规',
+      });
+      const arg = capture.captureTask.mock.calls[0][0];
+      expect(arg.outcome).toBe('corrected');
+      expect(arg.error).toBe('文案违规');
+      expect(arg.domain).toBe('analysis');
+    });
+
+    it('失败无驳回：outcome=failed；无工具 ⇒ domain=analysis；不写 adopted', async () => {
+      await service.absorb('t1', {
+        taskName: '创建销售单',
+        success: false,
+        error: '客户不存在',
+      });
+      const arg = capture.captureTask.mock.calls[0][0];
+      expect(arg.outcome).toBe('failed');
+      expect(arg.domain).toBe('analysis');
+      expect(arg.adopted).toBeUndefined();
+    });
+
+    it('空 tenantId fail-closed：抛 CaptureTenantMissingError 且不调 captureTask（不跨租户不补默认）', async () => {
+      await expect(
+        service.absorb('', {
+          taskName: '创建销售单',
+          success: true,
+        }),
+      ).rejects.toThrow('fail-closed');
+      expect(capture.captureTask).not.toHaveBeenCalled();
+      // 经验也不落（租户边界优先于经验沉淀）
+      expect(jest.mocked(ltm.saveEpisodic)).not.toHaveBeenCalled();
+    });
   });
 });

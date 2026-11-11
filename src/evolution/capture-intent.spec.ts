@@ -10,6 +10,8 @@
  */
 import {
   buildCaptureTaskInput,
+  buildDomainCaptureTaskInput,
+  CaptureTenantMissingError,
   normalizeCaptureIntent,
 } from './capture-intent';
 
@@ -172,6 +174,172 @@ describe('normalizeCaptureIntent（三通道 Capture intent 归一矩阵）', ()
         outcome: 'failed',
       });
       expect(input.domain).toBe('write');
+    });
+  });
+
+  // ════ AI-P2-5-CAPTURE-CONSUMER-CONVERGENCE-01：域消费者单源 ════
+  describe('buildDomainCaptureTaskInput（三通道外域消费者单源）', () => {
+    it('域任务类型保持原值：office_report 不被折叠也不被规则推导（域语义保留）', () => {
+      const input = buildDomainCaptureTaskInput({
+        tenantId: 't1',
+        intent: 'office_report',
+        outcome: 'success',
+      });
+      expect(input.intent).toBe('office_report');
+      expect(input.intent).not.toBe('chat');
+    });
+
+    it('域任务类型与落库层归一幂等：office_document 两层同值', () => {
+      const input = buildDomainCaptureTaskInput({
+        tenantId: 't1',
+        intent: 'office_document',
+        outcome: 'success',
+      });
+      // 落库层 normalizeCaptureIntent 二次归一应得同值（幂等，防双层口径漂移）
+      expect(input.intent).toBe('office_document');
+      expect(normalizeCaptureIntent(input.intent)).toBe('office_document');
+    });
+
+    it('学习域任务名（中文）保持原值', () => {
+      const input = buildDomainCaptureTaskInput({
+        tenantId: 't1',
+        intent: '创建销售单',
+        outcome: 'success',
+      });
+      expect(input.intent).toBe('创建销售单');
+    });
+
+    it('tenantId 缺失（undefined/null/空白）⇒ fail-closed 抛 CaptureTenantMissingError，不补默认租户', () => {
+      expect(() =>
+        buildDomainCaptureTaskInput({
+          intent: 'office_report',
+          outcome: 'success',
+        }),
+      ).toThrow(CaptureTenantMissingError);
+      expect(() =>
+        buildDomainCaptureTaskInput({
+          tenantId: null,
+          intent: 'office_report',
+          outcome: 'success',
+        }),
+      ).toThrow(CaptureTenantMissingError);
+      expect(() =>
+        buildDomainCaptureTaskInput({
+          tenantId: '   ',
+          intent: 'office_report',
+          outcome: 'success',
+        }),
+      ).toThrow(CaptureTenantMissingError);
+      // 反测：错误信息只声明拒绝，不给出任何回退/默认租户语义
+      try {
+        buildDomainCaptureTaskInput({
+          tenantId: '',
+          intent: 'office_report',
+          outcome: 'success',
+        });
+        fail('should throw');
+      } catch (e) {
+        expect((e as Error).message).toContain('fail-closed');
+        expect((e as Error).message).not.toMatch(
+          /fallback tenant|default tenant|tenant-\d/i,
+        );
+      }
+    });
+
+    it('tenantId 空白包裹值先 trim 再透传（合法租户不误杀）', () => {
+      const input = buildDomainCaptureTaskInput({
+        tenantId: '  tenant-x  ',
+        intent: 'office_report',
+        outcome: 'success',
+      });
+      expect(input.tenantId).toBe('tenant-x');
+    });
+
+    it('outcome 三态映射透传（学习域 corrected/failed 不被翻转）', () => {
+      for (const outcome of ['success', 'corrected', 'failed'] as const) {
+        const input = buildDomainCaptureTaskInput({
+          tenantId: 't1',
+          intent: '创建销售单',
+          outcome,
+        });
+        expect(input.outcome).toBe(outcome);
+      }
+    });
+
+    it('domain overrides 透传：学习域有工具轨迹 ⇒ write，无轨迹 ⇒ analysis', () => {
+      const withTool = buildDomainCaptureTaskInput(
+        { tenantId: 't1', intent: '创建销售单', outcome: 'success' },
+        { domain: 'write' },
+      );
+      expect(withTool.domain).toBe('write');
+      const noTool = buildDomainCaptureTaskInput({
+        tenantId: 't1',
+        intent: '发布视频',
+        outcome: 'corrected',
+      });
+      expect(noTool.domain).toBe('analysis');
+    });
+
+    it('sampleQuality 透传（办公评分 1-5 不参与归一推断、不被丢弃）', () => {
+      const viaOverride = buildDomainCaptureTaskInput(
+        { tenantId: 't1', intent: 'office_report', outcome: 'success' },
+        { sampleQuality: 5 },
+      );
+      expect(viaOverride.sampleQuality).toBe(5);
+      const viaCtx = buildDomainCaptureTaskInput({
+        tenantId: 't1',
+        intent: 'office_report',
+        outcome: 'success',
+        sampleQuality: 2,
+      });
+      expect(viaCtx.sampleQuality).toBe(2);
+      const none = buildDomainCaptureTaskInput({
+        tenantId: 't1',
+        intent: 'office_report',
+        outcome: 'success',
+      });
+      expect(none.sampleQuality).toBeUndefined();
+    });
+
+    it('trajectory 原始工具名保留（不被归一 docType 覆盖）', () => {
+      const input = buildDomainCaptureTaskInput({
+        tenantId: 't1',
+        intent: 'office_report',
+        outcome: 'success',
+        toolCalls: [{ tool_name: 'createSalesOrder', success: true }],
+      });
+      expect(JSON.stringify(input.toolCalls)).toContain('createSalesOrder');
+      // intent 保持域语义不变（不因轨迹里有工具而改写）
+      expect(input.intent).toBe('office_report');
+    });
+
+    it('userMessage/reply/error 逐字段透传（样本 prompt/completion 来源不丢）', () => {
+      const input = buildDomainCaptureTaskInput({
+        tenantId: 't1',
+        intent: 'office_analysis',
+        userMessage: '任务目标',
+        reply: '产出摘要',
+        error: '无',
+        outcome: 'failed',
+      });
+      expect(input.userMessage).toBe('任务目标');
+      expect(input.reply).toBe('产出摘要');
+      expect(input.error).toBe('无');
+    });
+
+    it('与三通道 buildCaptureTaskInput 同源：同输入下 intent/domain/outcome 一致', () => {
+      const ctx = {
+        tenantId: 't-shared',
+        intent: 'office_document',
+        userMessage: '同源对账',
+        outcome: 'success' as const,
+      };
+      const domain = buildDomainCaptureTaskInput(ctx);
+      const channel = buildCaptureTaskInput(ctx);
+      expect(domain.intent).toBe(channel.intent);
+      expect(domain.domain).toBe(channel.domain);
+      expect(domain.outcome).toBe(channel.outcome);
+      expect(domain.tenantId).toBe(channel.tenantId);
     });
   });
 });
