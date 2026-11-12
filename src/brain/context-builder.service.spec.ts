@@ -241,4 +241,48 @@ describe('R70-21 ContextBuilder', () => {
       expect(prompt).not.toContain('业务规则参考');
     });
   });
+
+  /**
+   * S5 缺陷④ / AI-PENDING-HONESTY-CLOSE-01：写意图挂起态叙述诚实性
+   *
+   * 复现口径（S5 raw/11）：用户「新增商品：名称验收测试商品X1，类别酒水饮料，单价99.9，初始库存10」
+   * 真实事件：tool_start → pending_write(preview: 分类=白酒、无库存字段) → await_confirm
+   * 缺陷叙述：AI text「已成功创建，酒水饮料，初始库存10」（三重不符：挂起谎称完成／分类≠preview／虚构库存字段）
+   *
+   * 机制修复点：system prompt 必须强制挂起态叙述纪律——
+   *   ① 工具返回 preview/等待确认时，只能说「已生成操作预览，等待确认」，禁止「已创建/已成功/已完成/已保存」；
+   *   ② 分类/价格/库存等细节只能取自 preview 真实字段，preview 无的字段禁止输出；
+   *   ③ 「已创建/已保存」等完成措辞只允许出现在真实执行（confirm 落库成功）之后。
+   * 本测试断言该纪律段存在且语义完整（防回退到缺陷前提示词）。
+   */
+  describe('AI-PENDING-HONESTY：写意图挂起态叙述纪律（S5 缺陷④）', () => {
+    it('system prompt 必含挂起态叙述纪律段，且明确禁止挂起态宣称完成', () => {
+      const prompt = builder.buildSystemPrompt(
+        { ...baseParams, userMessage: '请帮我新增一个商品：名称「验收测试商品X1」，类别为酒水饮料，单价 99.9 元，初始库存 10。' },
+        createRegistry(),
+      );
+      // 纪律段落存在
+      expect(prompt).toContain('写意图挂起态叙述纪律');
+      // ① 挂起态禁止完成措辞
+      expect(prompt).toMatch(/已创建|已成功|已完成|已保存/); // 用于禁令列举
+      expect(prompt).toContain('禁止');
+      // ② 挂起态只叙述预览待确认
+      expect(prompt).toContain('等待确认');
+      // ③ 细节只取 preview 真实字段
+      expect(prompt).toContain('preview');
+    });
+
+    it('挂起态纪律段对租户自定义提示词也强制追加（不随自定义丢失）', () => {
+      const prompt = builder.buildSystemPrompt(
+        { ...baseParams, systemPrompt: '你是红星酒行的专属助手。' },
+        createRegistry(),
+      );
+      expect(prompt).toContain('写意图挂起态叙述纪律');
+    });
+
+    it('纪律段明确：preview 无的字段禁止输出（防虚构库存等）', () => {
+      const prompt = builder.buildSystemPrompt({ ...baseParams }, createRegistry());
+      expect(prompt).toMatch(/preview[^\n]{0,40}没有[^\n]{0,20}字段|无[^\n]{0,10}字段[^\n]{0,20}禁止/);
+    });
+  });
 });
